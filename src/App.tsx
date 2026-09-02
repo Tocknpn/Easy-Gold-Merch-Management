@@ -1,20 +1,26 @@
 import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
-import { useEffect } from 'react';
+import { useEffect, lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { DataProvider } from '@/contexts/DataContext';
 import { AppShell } from '@/components/Layout';
 import { ToastViewport, Spinner } from '@/components/ui/primitives';
 import { LoginPage } from '@/pages/LoginPage';
-import { DashboardPage } from '@/pages/DashboardPage';
-import { RequestPage } from '@/pages/RequestPage';
-import { TicketTrackingPage } from '@/pages/TicketTrackingPage';
-import { ActionCenterPage } from '@/pages/ActionCenterPage';
-import { ReportingPage } from '@/pages/ReportingPage';
-import { ManageStockPage } from '@/pages/ManageStockPage';
-import { SystemSettingsPage } from '@/pages/SystemSettingsPage';
-import { DiagnosticsPage } from '@/pages/DiagnosticsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
+
+// Helper: convert named export → default export for React.lazy
+const lazyNamed = (factory: () => Promise<any>, name: string) =>
+  lazy(() => factory().then((m) => ({ default: m[name] })));
+
+// Lazy-loaded pages — only load when navigated to (huge initial-load win)
+const DashboardPage = lazyNamed(() => import('@/pages/DashboardPage'), 'DashboardPage');
+const RequestPage = lazyNamed(() => import('@/pages/RequestPage'), 'RequestPage');
+const TicketTrackingPage = lazyNamed(() => import('@/pages/TicketTrackingPage'), 'TicketTrackingPage');
+const ActionCenterPage = lazyNamed(() => import('@/pages/ActionCenterPage'), 'ActionCenterPage');
+const ReportingPage = lazyNamed(() => import('@/pages/ReportingPage'), 'ReportingPage');
+const ManageStockPage = lazyNamed(() => import('@/pages/ManageStockPage'), 'ManageStockPage');
+const SystemSettingsPage = lazyNamed(() => import('@/pages/SystemSettingsPage'), 'SystemSettingsPage');
+const DiagnosticsPage = lazyNamed(() => import('@/pages/DiagnosticsPage'), 'DiagnosticsPage');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -75,17 +81,23 @@ function Protected() {
 }
 
 function PageFor({ pageKey }: { pageKey: string }) {
+  let Page;
   switch (pageKey) {
-    case 'dashboard': return <DashboardPage />;
-    case 'request': return <RequestPage />;
-    case 'ticket-tracking': return <TicketTrackingPage />;
-    case 'action-center': return <ActionCenterPage />;
-    case 'reporting': return <ReportingPage />;
-    case 'manage-stock': return <ManageStockPage />;
-    case 'settings': return <SystemSettingsPage />;
-    case 'diagnostics': return <DiagnosticsPage />;
+    case 'dashboard': Page = DashboardPage; break;
+    case 'request': Page = RequestPage; break;
+    case 'ticket-tracking': Page = TicketTrackingPage; break;
+    case 'action-center': Page = ActionCenterPage; break;
+    case 'reporting': Page = ReportingPage; break;
+    case 'manage-stock': Page = ManageStockPage; break;
+    case 'settings': Page = SystemSettingsPage; break;
+    case 'diagnostics': Page = DiagnosticsPage; break;
     default: return <NotFoundPage />;
   }
+  return (
+    <Suspense fallback={<Spinner label="Loading page…" />}>
+      <Page />
+    </Suspense>
+  );
 }
 
 function NoAccess() {

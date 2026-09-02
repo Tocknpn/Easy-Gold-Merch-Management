@@ -6,11 +6,10 @@
 // Export Excel → 6 sheets in one .xlsx. Print PDF → only Month End tab (screen match).
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import * as XLSX from 'xlsx';
 import {
   CalendarRange, ChevronDown, ChevronUp, ChevronsUpDown,
   Download, FileText, FileBarChart, ArrowDownToLine, ArrowUpFromLine,
-  Boxes, Repeat, Scale,
+  Boxes, Repeat, Scale, Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -71,6 +70,7 @@ export function ReportingPage() {
   const [cat, setCat] = useState('All');
   const [vat, setVat] = useState(false);
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
+  const [exporting, setExporting] = useState(false);
 
 const merged = useMemo(() => {
     if (wh === 'mkt') return { list: skus as (SKU | CS_SKU)[], tx: transactions as StockTransaction[], label: 'MKT Warehouse' };
@@ -175,8 +175,12 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
   const tRemain = remainRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r.cpu }), { q: 0, v: 0 });
   const tBorrow = borrowRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.est }), { q: 0, v: 0 });
 
-  const exportExcel = () => {
-    const wb = XLSX.utils.book_new();
+  const exportExcel = async () => {
+    setExporting(true);
+    try {
+      // Dynamically import xlsx only when needed (saves 283 kB on initial load)
+      const XLSX = await import('xlsx');
+      const wb = XLSX.utils.book_new();
     // Sheet 1: Month End (Stock Movement)
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['STOCK MOVEMENT', `${from} TO ${to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
@@ -221,6 +225,9 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
     ]), 'Stock Balance');
     XLSX.writeFile(wb, `report-${wh}-${from}-to-${to}.xlsx`);
     toast('Report exported — 6 sheets (Excel)');
+    } finally {
+      setExporting(false);
+    }
   };
 
   const printPdf = () => window.print();
@@ -296,8 +303,9 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
           </label>
         )}
         <div className="ml-auto flex items-center gap-2">
-          <button className="btn btn-primary btn-sm" onClick={exportExcel}>
-            <Download className="h-3.5 w-3.5" /> Export Excel
+          <button className="btn btn-primary btn-sm" onClick={exportExcel} disabled={exporting}>
+            {exporting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
+            {exporting ? 'Exporting…' : 'Export Excel'}
           </button>
           {tab === 'month-end' && (
             <button className="btn btn-secondary btn-sm" onClick={printPdf}>
