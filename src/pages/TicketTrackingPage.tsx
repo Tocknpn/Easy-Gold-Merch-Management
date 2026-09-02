@@ -35,10 +35,14 @@ const CAT_STYLE: Record<CatKey, string> = {
 function catOf(tx: StockTransaction): CatKey {
   const ref = tx.ticketId || '';
   const st = (tx.status || '').toLowerCase();
+  const comment = (tx.comment || '').toLowerCase();
   if (st === 'opening') return 'opening';
   if (ref.startsWith('TKT-')) return tx.type === 'deduction' ? 'issue' : 'returned';
   if (st.includes('loss') || st.includes('broken')) return 'loss';
   if (ref.startsWith('CS_TRANSFER') || ref.startsWith('MKT_TRANSFER')) return 'transfer';
+  // Also check comment for transfer indicators (handles seed data where ticket_id is RESTOCK/DIRECT_DESTOCK
+  // but the comment clearly marks it as a warehouse transfer)
+  if (comment.includes('mkt_transfer') || comment.includes('cs_transfer') || comment.includes('[transfer]') || comment.includes('transferred')) return 'transfer';
   if (tx.type === 'addition') return 'in';
   return 'out';
 }
