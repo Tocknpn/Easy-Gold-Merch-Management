@@ -279,13 +279,29 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 | Problem | Fix |
 |---|---|
 | Site loads but "login" fails | Re-check `VITE_SUPABASE_ANON_KEY` (public) and that `npm run seed:auth` succeeded |
-| Site shows **demo data** instead of live | The build ran **without** `VITE_SUPABASE_URL` set → set vars in Cloudflare / GitHub Actions secrets and redeploy |
+| Site shows **demo data** instead of live | The build ran **without** `VITE_SUPABASE_URL` set → set vars in Cloudflare / GitHub Actions secrets and redeploy (see below) |
+| **Edits don't save / revert after refresh** | Same root cause: the deployed build is in **DEMO mode** (no keys baked in). Fix below. |
 | "relation does not exist" / "function does not exist" | A migration didn't run or ran out of order → re-run 0001→0005 in order |
 | Photos won't upload | Run `0005_sku_image_storage.sql` (creates the `sku-images` bucket) |
 | Lao shows as `???` in Excel | Re-export with `npm run csv:export` (files now carry a UTF-8 **BOM**) |
 | Deploy fails: "Authentication error" | Regenerate the Cloudflare API token + update the GitHub secret |
 | Import from CSV fails on dates | In Supabase Table Editor mapping, change those columns to `date`/`timestamptz` or format as `YYYY-MM-DD` |
 | Forgot DB password | Supabase Dashboard → Settings → Database → **Reset database password** |
+
+### 🔍 "Edits don't save" — quick self-diagnosis
+
+The app has a built-in **Diagnostics & Health** page (sidebar → **Diagnostics**, or `/diagnostics`).
+It shows:
+- **LIVE / DEMO mode** (also shown as a **LIVE/DEMO badge** in the top bar),
+- Supabase **API ping**, **database reads** (skus/tickets counts), **auth session**,
+  **storage bucket** status, and a safe **write test** (adds/removes a temp category).
+
+If it says **DEMO**, the deployed bundle is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`:
+
+1. Cloudflare Pages → your project → **Settings → Environment variables**.
+2. Add both (mark **Production**): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
+3. **Save** → **Deployments → Retry deployment**.
+4. Reload the site → badge turns **LIVE** → `/diagnostics` goes green → edits now persist.
 
 ---
 
