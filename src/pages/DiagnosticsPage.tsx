@@ -142,9 +142,12 @@ export function DiagnosticsPage() {
     await watch(
       'storage',
       async () => {
-        const { data, error } = await sb.storage.getBucket('sku-images');
+        // listBuckets works with anon key (getBucket sometimes needs storage admin)
+        const { data, error } = await sb.storage.listBuckets();
         if (error) throw error;
-        return data;
+        const found = data?.find((b) => b.name === 'sku-images');
+        if (!found) throw new Error('Bucket not found');
+        return found;
       },
       () => 'Bucket "sku-images" exists',
       (e) => `Storage error: ${e?.message || e}`,
