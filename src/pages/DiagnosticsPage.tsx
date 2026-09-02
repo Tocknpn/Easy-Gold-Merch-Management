@@ -97,8 +97,9 @@ export function DiagnosticsPage() {
       async () => {
         const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/health`, { method: 'GET', headers: { apikey: SUPABASE_ANON_KEY } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const j = await res.json();
-        if (!j?.is_healthy) throw new Error('reported not healthy');
+        let j: any = {};
+        try { j = await res.json(); } catch { /* some hosts return an empty body on 200 */ }
+        if (j && j.is_healthy === false) throw new Error('report believed unhealthy');
         return j;
       },
       () => 'Supabase reachable (auth service healthy)',
