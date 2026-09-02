@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, HeartPulse, Info, Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isSupabaseConfigured, supabase, SUPABASE_URL } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { useData } from '@/contexts/DataContext';
 import { demoDB } from '@/lib/demoStore';
 import { Spinner, ErrorBanner } from '@/components/ui/primitives';
@@ -95,7 +95,7 @@ export function DiagnosticsPage() {
     await watch(
       'ping',
       async () => {
-        const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/health`, { method: 'GET' });
+        const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/health`, { method: 'GET', headers: { apikey: SUPABASE_ANON_KEY } });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j = await res.json();
         if (!j?.is_healthy) throw new Error('reported not healthy');
@@ -105,13 +105,14 @@ export function DiagnosticsPage() {
       (e) => `Cannot reach Supabase API: ${e?.message || e}`,
     );
 
-    // 3) auth session
-    if (user) {
-      mark('auth', { status: 'ok', detail: `Signed in as ${user.email} (${user.role})` });
+    // 3) auth session — verify the REAL Supabase session, not just localStorage
+    const { data: sess } = await sb.auth.getSession();
+    if (sess?.session?.user?.email) {
+      mark('auth', { status: 'ok', detail: `Supabase session active as ${sess.session.user.email}` });
+    } else if (user) {
+      mark('auth', { status: 'warn', detail: `App shows ${user.email}, but there is no active Supabase session — data reads will be empty. Log in again.` });
     } else {
-      const { data } = await sb.auth.getUser();
-      if (data?.user?.email) mark('auth', { status: 'ok', detail: `Signed in as ${data.user.email}` });
-      else mark('auth', { status: 'warn', detail: 'Not signed in → RLS read policies (authenticated) will return EMPTY rows. Log in first.' });
+      mark('auth', { status: 'warn', detail: 'Not signed in — RLS read policies return empty rows because the user is not authenticated.' });
     }
 
     // 4) DB reads (head count)

@@ -28,7 +28,7 @@ if (isSupabaseConfigured()) {
 }
 
 export const SUPABASE_URL = url;
-export const SUPABASE_ANON_KEY_PRESENT = Boolean(anonKey);
+export const SUPABASE_ANON_KEY = anonKey;
 
 export const getSupabase = (): SupabaseClient => {
   if (!supabase) throw new Error('Supabase is not configured. See .env.example');
