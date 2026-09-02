@@ -150,12 +150,30 @@ begin
     end loop;
   end if;
 
-  -- 4) FINALIZED → RETURNED (borrow only) : return items recorded
+  -- 4) FINALIZED → RETURNED (borrow only): return items recorded
   if p_status = 'returned' then
     for v_item in
       select ti.sku_id, ti.sku_name, ti.qty_approved, ti.qty_requested
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
--- ── 5) Stamp the ticket row + audit trail ────────────────────────
+    loop
+      v_ret   := coalesce((select (e->>'qty_returned')::numeric
+                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                           where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested, 0);
+      v_broken := coalesce((select (e->>'qty_broken')::numeric
+                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                           where e->>'sku_id' = v_item.sku_id), 0);
+      if v_ret <= 0 then continue; end if;
+      update public.skus set current_stock = current_stock + v_ret
+       where id = v_item.sku_id;
+      insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, qty_broken, type,
+                                             date, action_by, status, comment)
+      values (p_ticket_id, v_item.sku_id, v_item.sku_name, v_ret, v_broken, 'addition',
+              current_date, v_actor, 'Returned',
+              coalesce(v_comment, '') || case when v_broken > 0 then ' (' || v_broken || ' broken/lost)' else '' end);
+    end loop;
+  end if;
+
+  -- ── 5) Stamp the ticket row + audit trail ────────────────────────
   v_status_label := case p_status
     when 'reviewed' then 'Reviewed'
     when 'lm_approved' then 'LM Approved'
@@ -186,25 +204,9 @@ begin
 
   return jsonb_build_object('success', true, 'id', p_ticket_id, 'status', p_status,
                             'message', 'Ticket ' || p_ticket_id || ' → ' || v_status_label);
+else
+    return jsonb_build_object('success', false,
+      'error', 'Illegal transition: ' || v_ticket.status || ' -> ' || p_status);
+  end if;
 end;
 $$;
-    loop
-      v_ret   := coalesce((select (e->>'qty_returned')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
-                           where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested, 0);
-      v_broken := coalesce((select (e->>'qty_broken')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
-                           where e->>'sku_id' = v_item.sku_id), 0);
-      if v_ret <= 0 then continue; end if;
-      update public.skus set current_stock = current_stock + v_ret
-       where id = v_item.sku_id;
-      insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, qty_broken, type,
-                                             date, action_by, status, comment)
-      values (p_ticket_id, v_item.sku_id, v_item.sku_name, v_ret, v_broken, 'addition',
-              current_date, v_actor, 'Returned',
-              coalesce(v_comment, '') || case when v_broken > 0 then ' (' || v_broken || ' broken/lost)' else '' end);
-    end loop;
-  end if;
-    return jsonb_build_object('success', false,
-      'error', 'Illegal transition: ' || v_ticket.status || ' → ' || p_status);
-  end if;

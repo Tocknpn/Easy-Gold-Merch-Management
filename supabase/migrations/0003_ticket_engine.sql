@@ -16,7 +16,7 @@ create or replace function public.create_ticket(
   p_remark text,
   p_type text default 'request',
   p_return_date date default null,
-  p_items jsonb
+  p_items jsonb default '[]'::jsonb
 )
 returns jsonb
 language plpgsql

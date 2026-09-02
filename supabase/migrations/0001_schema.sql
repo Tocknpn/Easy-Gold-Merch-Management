@@ -132,6 +132,21 @@ create table if not exists public.cs_skus (
   created_at         timestamptz default now()
 );
 
+-- CS warehouse transactions (mirrors stock_transactions; referenced by the
+-- engine functions and seed data, but was missing from 0001 — without it,
+-- 0001 used to abort with 42P01 on the index/policy lines below.)
+create table if not exists public.cs_transactions (
+  id          bigint generated always as identity primary key,
+  ticket_id   text,
+  sku_id      text,
+  sku_name    text,
+  qty         numeric default 0,
+  type        text check (type in ('addition','deduction')),
+  date        date,
+  action_at   timestamptz default now(),
+  action_by   text,
+  comment     text
+);
 -- ------------------------------------------------------------------
 -- 2. INDEXES (fast ticket queues + reports)
 -- ------------------------------------------------------------------
