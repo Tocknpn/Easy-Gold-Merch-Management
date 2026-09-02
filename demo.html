@@ -1,0 +1,1026 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>StockFlow Manager — Easy Gold MIMS 2026 (Demo)</title>
+<style>
+  :root {
+    --background: 0 0% 97%;
+    --foreground: 0 0% 13%;
+    --card: 0 0% 100%;
+    --primary: 40 90% 50%;
+    --muted: 220 14% 96%;
+    --muted-foreground: 0 0% 46%;
+    --accent: 40 90% 50%;
+    --destructive: 4 90% 58%;
+    --success: 142 71% 45%;
+    --warning: 36 100% 50%;
+    --info: 217 91% 60%;
+    --border: 220 13% 91%;
+    --sidebar-bg: 0 0% 100%;
+    --toolbar-bg: 220 15% 18%;
+    --gold: linear-gradient(135deg, hsl(40 90% 50%), hsl(35 85% 55%));
+    --radius: 0.5rem;
+    font-size: 14px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Segoe UI', Roboto, 'Google Sans', system-ui, sans-serif;
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    min-height: 100vh;
+    -webkit-font-smoothing: antialiased;
+  }
+  h1,h2,h3,h4 { font-family: 'Segoe UI Semibold', 'Google Sans', Roboto, sans-serif; }
+  /* ---------- Login ---------- */
+  .login-screen {
+    min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    background: hsl(var(--background)); padding: 16px; position: relative; overflow: hidden;
+  }
+  .login-screen::before, .login-screen::after {
+    content: ''; position: absolute; border-radius: 50%; filter: blur(100px); pointer-events: none;
+  }
+  .login-screen::before { width: 40%; height: 40%; background: hsl(var(--primary) / 20%); top: -10%; left: -10%; }
+  .login-screen::after  { width: 40%; height: 40%; background: hsl(var(--accent) / 20%); bottom: -10%; right: -10%; }
+  .login-card {
+    position: relative; z-index: 1; width: 100%; max-width: 380px;
+    background: hsla(0,0%,100%,.85); border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,.08); padding: 32px;
+  }
+  .login-logo {
+    width: 48px; height: 48px; margin: 0 auto 12px; border-radius: 50%;
+    background: var(--gold); display: flex; align-items: center; justify-content: center;
+    color: #fff; font-weight: 700; font-size: 22px; box-shadow: 0 6px 16px hsl(var(--primary) / 35%);
+  }
+  .login-card h1 { text-align: center; font-size: 20px; }
+  .login-card .sub { text-align: center; font-size: 13px; color: hsl(var(--muted-foreground)); margin: 4px 0 20px; }
+  .field { width: 100%; height: 44px; padding: 0 12px; margin-bottom: 12px; border: 1px solid hsl(var(--border));
+    border-radius: var(--radius); background: hsl(0 0% 98%); font-size: 14px; outline: none; }
+  .field:focus { border-color: hsl(var(--primary) / 60%); }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+    border: none; border-radius: var(--radius); cursor: pointer; font-size: 14px;
+    padding: 10px 14px; background: hsl(var(--muted)); color: hsl(var(--foreground));
+    transition: opacity .15s, transform .05s;
+  }
+  .btn:hover { opacity: .9; }
+  .btn:active { transform: translateY(1px); }
+  .btn-gold { background: var(--gold); color: #fff; font-weight: 500; box-shadow: 0 4px 12px hsl(var(--primary) / 35%); }
+  .btn-block { width: 100%; height: 44px; }
+  .btn-outline { background: transparent; border: 1px solid hsl(var(--border)); }
+  .btn-sm { padding: 5px 10px; font-size: 12px; }
+  .btn-success { background: hsl(var(--success)); color: #fff; }
+  .btn-danger { background: hsl(var(--destructive)); color: #fff; }
+  .btn-info { background: hsl(var(--info)); color: #fff; }
+  .error-text { color: hsl(var(--destructive)); font-size: 13px; font-weight: 500; margin: 0 2px 10px; }
+  .demo-users { display: flex; flex-wrap: wrap; gap: 6px; justify-content: center; margin-top: 18px; }
+  .demo-users .chip {
+    font-size: 11px; padding: 4px 10px; border-radius: 999px; cursor: pointer;
+    background: hsl(var(--muted)); border: 1px solid hsl(var(--border)); color: hsl(var(--muted-foreground));
+  }
+  .demo-users .chip:hover { background: hsl(var(--primary) / 15%); color: hsl(var(--foreground)); }
+  /* ---------- Components (cards, tables, forms) ---------- */
+  .card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); padding: 16px 20px; margin-bottom: 16px; }
+  .card-title { font-size: 14px; font-weight: 600; margin-bottom: 12px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 12px; margin-bottom: 16px; }
+  .stat-card { background: hsl(var(--card)); border: 1px solid hsl(var(--border)); border-radius: var(--radius);
+    padding: 16px 18px; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .stat-card .label { font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .stat-card .value { font-size: 24px; font-weight: 700; margin-top: 4px; }
+  .stat-card .sub { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 2px; }
+  .table-wrap { overflow-x: auto; border: 1px solid hsl(var(--border)); border-radius: var(--radius); background: hsl(var(--card)); }
+  table.grid { width: 100%; border-collapse: collapse; font-size: 13px; }
+  table.grid th { background: hsl(var(--muted)); text-align: left; padding: 10px 12px; font-weight: 600;
+    color: hsl(var(--foreground)); border-bottom: 1px solid hsl(var(--border)); white-space: nowrap; }
+  table.grid td { padding: 9px 12px; border-bottom: 1px solid hsl(var(--border)); }
+  table.grid tr:last-child td { border-bottom: none; }
+  table.grid tbody tr:hover { background: hsl(var(--muted) / 50%); }
+  .badge { display: inline-flex; align-items: center; padding: 2px 8px; border-radius: 999px; font-size: 11px; font-weight: 500; }
+  .badge-pending { background: hsl(var(--warning) / 15%); color: hsl(var(--warning)); }
+  .badge-reviewed { background: hsl(var(--info) / 15%); color: hsl(var(--info)); }
+  .badge-lm_approved { background: hsl(var(--primary) / 15%); color: #b8860b; }
+  .badge-finalized { background: hsl(var(--success) / 15%); color: hsl(var(--success)); }
+  .badge-rejected { background: hsl(var(--destructive) / 15%); color: hsl(var(--destructive)); }
+  .badge-returned { background: hsl(var(--primary) / 15%); color: hsl(var(--primary)); }
+  .badge-recalled { background: hsl(var(--muted)); color: hsl(var(--muted-foreground)); }
+  .toolbar-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 16px; flex-wrap: wrap; }
+  .segment { display: inline-flex; border: 1px solid hsl(var(--border)); border-radius: 999px; overflow: hidden; background: hsl(var(--card)); }
+  .segment button { border: none; background: transparent; padding: 6px 14px; cursor: pointer; font-size: 12px; color: hsl(var(--muted-foreground)); }
+  .segment button.active { background: var(--gold); color: #fff; font-weight: 500; }
+  .form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; }
+  .form-item-row { display: grid; grid-template-columns: 1fr 120px 100px 90px 40px; gap: 8px; align-items: center; margin-bottom: 8px; }
+  .banner { padding: 10px 14px; border-radius: var(--radius); font-size: 13px; margin-bottom: 12px;
+    background: hsl(var(--info) / 12%); border: 1px solid hsl(var(--info) / 30%); color: hsl(var(--foreground)); }
+  .empty { text-align: center; color: hsl(var(--muted-foreground)); padding: 40px 0; font-size: 13px; }
+  .modal-backdrop { display: none; position: fixed; inset: 0; background: rgba(0,0,0,.4); z-index: 50;
+    align-items: center; justify-content: center; padding: 16px; }
+  .modal-backdrop.show { display: flex; }
+  .modal { background: #fff; border-radius: var(--radius); padding: 24px; max-width: 520px; width: 100%;
+    max-height: 85vh; overflow: auto; box-shadow: 0 20px 50px rgba(0,0,0,.2); }
+  .modal h3 { margin-bottom: 12px; font-size: 16px; }
+  .modal .row { display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px dashed hsl(var(--border)); font-size: 13px; }
+  .modal .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+  .toast-stack { position: fixed; top: 16px; right: 16px; z-index: 100; display: flex; flex-direction: column; gap: 8px; }
+  .toast { background: #fff; border: 1px solid hsl(var(--border)); border-left: 4px solid hsl(var(--success));
+    border-radius: var(--radius); padding: 10px 14px; font-size: 13px; box-shadow: 0 6px 20px rgba(0,0,0,.12);
+    animation: slideIn .25s ease; }
+  .toast.error { border-left-color: hsl(var(--destructive)); }
+  .toast.info { border-left-color: hsl(var(--info)); }
+  @keyframes slideIn { from { transform: translateX(20px); opacity: 0; } to { transform: none; opacity: 1; } }
+  .tooltip-note { font-size: 11px; color: hsl(var(--muted-foreground)); margin-top: 8px; }
+  @media (max-width: 720px) { .sidebar { display: none; } .form-item-row { grid-template-columns: 1fr 1fr; } }
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN SCREEN ============ -->
+<div class="login-screen" id="loginScreen">
+  <div class="login-card">
+    <div class="login-logo">👑</div>
+    <h1>Sign in</h1>
+    <p class="sub">Easy Gold Merch Management</p>
+    <input class="field" id="loginEmail" type="email" placeholder="Email address" value="amina@easygold.com" />
+    <input class="field" id="loginPassword" type="password" placeholder="Password" value="demo123" />
+    <p class="error-text" id="loginError"></p>
+    <button class="btn btn-gold btn-block" id="loginBtn">Sign In</button>
+    <div class="demo-users" id="demoUsers"></div>
+  </div>
+</div>
+
+<!-- ============ APP SHELL ============ -->
+<div class="app" id="app">
+  <header class="toolbar">
+    <button class="menu-btn" id="menuToggle" title="Toggle sidebar">☰</button>
+    <div class="brand-logo">👑</div>
+    <span class="brand-name">Easy Gold Merge Management</span>
+    <div class="spacer"></div>
+    <button class="icon-btn" id="refreshBtn" title="Refresh data">⟳ <span style="font-size:12px">Refresh</span></button>
+    <div class="user-box">
+      <div class="avatar">👤</div>
+      <div class="user-meta">
+        <div id="userName"></div>
+        <div class="role" id="userRole"></div>
+      </div>
+      <button class="icon-btn" id="logoutBtn" title="Sign Out">⏻</button>
+    </div>
+  </header>
+
+  <div class="body-row" id="bodyRow">
+    <aside class="sidebar" id="sidebar">
+      <p class="section-title">Menu</p>
+      <div id="navItems"></div>
+    </aside>
+    <main>
+      <div class="container" id="view"></div>
+    </main>
+  </div>
+</div>
+
+<!-- ============ MODAL ============ -->
+<div class="modal-backdrop" id="modalBackdrop" onclick="if(event.target===this)closeModal()">
+  <div class="modal" id="modalBox"></div>
+</div>
+
+<!-- ============ TOASTS ============ -->
+<div class="toast-stack" id="toastStack"></div>
+
+<script>
+"use strict";
+/* ==========================================================
+   StockFlow Manager — DUMMY DEMO (single-file HTML mockup)
+   Mirrors the real React app: api/sheets-api naming, roles,
+   statuses, ticket flow, MKT + CS warehouses.
+   ========================================================== */
+/* ---------- Mock data (same as src/lib/mock-data.ts) ---------- */
+const ROLE_LABELS = {
+  staff: 'Staff', warehouse: 'Warehouse Manager', line_manager: 'Line Manager', director: 'Director',
+  admin: 'Admin', finance: 'Finance', customer_service: 'Customer Service'
+};
+const STATUS_LABELS = {
+  pending: 'Pending', reviewed: 'Reviewed', lm_approved: 'LM Approved', finalized: 'Finalized',
+  rejected: 'Rejected', returned: 'Returned', recalled: 'Recalled'
+};
+const CURRENCY = '₭';
+
+let USERS = [
+  { id: 'u1', name: 'Amina Staff', email: 'amina@easygold.com', password: 'demo123', role: 'staff', department: 'Production' },
+  { id: 'u2', name: 'Kwame WH', email: 'kwame@easygold.com', password: 'demo123', role: 'warehouse', department: 'Warehouse' },
+  { id: 'u3', name: 'Fatima LM', email: 'fatima@easygold.com', password: 'demo123', role: 'line_manager', department: 'Production' },
+  { id: 'u4', name: 'Dr. Mensah', email: 'mensah@easygold.com', password: 'demo123', role: 'director', department: 'Executive' },
+  { id: 'u5', name: 'Super Admin', email: 'admin@easygold.com', password: 'demo123', role: 'admin', department: 'IT' },
+  { id: 'u6', name: 'Nay Finance', email: 'nay@easygold.com', password: 'demo123', role: 'finance', department: 'Finance' },
+  { id: 'u7', name: 'Chan CS', email: 'chan@easygold.com', password: 'demo123', role: 'customer_service', department: 'Customer Service' }
+];
+
+let SKUS = [
+  { id: 'sku1', name: 'Gold Wire 0.5mm', category: 'Raw Material', unit: 'meters', openingBalance: 5000, currentStock: 4200, totalInflow: 5200, lowStockThreshold: 500, costPerUnit: 52000, image: '🔗' },
+  { id: 'sku2', name: 'Silver Sheet 1mm', category: 'Raw Material', unit: 'sheets', openingBalance: 300, currentStock: 245, totalInflow: 340, lowStockThreshold: 40, costPerUnit: 38000, image: '⬜' },
+  { id: 'sku3', name: 'Polishing Compound', category: 'Consumable', unit: 'kg', openingBalance: 50, currentStock: 38, totalInflow: 60, lowStockThreshold: 10, costPerUnit: 45000, image: '🧴' },
+  { id: 'sku4', name: 'Setting Claws (4-prong)', category: 'Component', unit: 'pcs', openingBalance: 2000, currentStock: 1650, totalInflow: 2100, lowStockThreshold: 300, costPerUnit: 1200, image: '🔩' },
+  { id: 'sku5', name: 'Solder Paste', category: 'Consumable', unit: 'tubes', openingBalance: 100, currentStock: 72, totalInflow: 110, lowStockThreshold: 20, costPerUnit: 28000, image: '🧪' },
+  { id: 'sku6', name: 'Diamond Dust', category: 'Raw Material', unit: 'grams', openingBalance: 500, currentStock: 410, totalInflow: 520, lowStockThreshold: 60, costPerUnit: 65000, image: '💎' },
+  { id: 'sku7', name: 'Casting Wax', category: 'Consumable', unit: 'kg', openingBalance: 80, currentStock: 55, totalInflow: 90, lowStockThreshold: 15, costPerUnit: 36000, image: '🕯️' },
+  { id: 'sku8', name: 'Jump Rings 3mm', category: 'Component', unit: 'pcs', openingBalance: 10000, currentStock: 8200, totalInflow: 10500, lowStockThreshold: 1000, costPerUnit: 350, image: '⭕' }
+];
+
+let TICKETS = [
+  { id: 'TKT-100001', createdBy: 'u1', createdByName: 'Amina Staff', department: 'Production', type: 'request',
+    items: [ { skuId: 'sku1', skuName: 'Gold Wire 0.5mm', qtyRequested: 200, unit: 'meters' },
+             { skuId: 'sku3', skuName: 'Polishing Compound', qtyRequested: 5, unit: 'kg' } ],
+    deliveryDate: '2026-02-12', remark: 'Urgent batch for Valentine collection', status: 'pending', createdAt: '2026-02-08' },
+  { id: 'TKT-100002', createdBy: 'u1', createdByName: 'Amina Staff', department: 'Production', type: 'request',
+    items: [ { skuId: 'sku4', skuName: 'Setting Claws (4-prong)', qtyRequested: 100, qtyApproved: 80, unit: 'pcs' } ],
+    deliveryDate: '2026-02-15', remark: 'Restock for assembly line', status: 'reviewed', whComment: 'Only 80 available in current lot', createdAt: '2026-02-07' },
+  { id: 'TKT-100003', createdBy: 'u1', createdByName: 'Amina Staff', department: 'Production', type: 'request',
+    items: [ { skuId: 'sku6', skuName: 'Diamond Dust', qtyRequested: 30, qtyApproved: 30, unit: 'grams' } ],
+    deliveryDate: '2026-02-10', remark: 'For premium finishing', status: 'lm_approved', whComment: 'Stock confirmed',
+    lmComment: 'Approved - high priority order', createdAt: '2026-02-06' },
+  { id: 'TKT-100004', createdBy: 'u1', createdByName: 'Amina Staff', department: 'Production', type: 'borrow',
+    items: [ { skuId: 'sku8', skuName: 'Jump Rings 3mm', qtyRequested: 500, qtyApproved: 500, unit: 'pcs' } ],
+    deliveryDate: '2026-02-09', returnDate: '2026-02-20', remark: 'Borrow for showroom display', status: 'finalized',
+    whComment: 'Released', lmComment: 'OK', createdAt: '2026-02-05', actualDeliveryDate: '2026-02-09' },
+  { id: 'TKT-100005', createdBy: 'u7', createdByName: 'Chan CS', department: 'Customer Service', type: 'cs_transfer',
+    items: [ { skuId: 'sku5', skuName: 'Solder Paste', qtyRequested: 12, qtyApproved: 12, unit: 'tubes' } ],
+    deliveryDate: '2026-02-11', remark: 'CS counter stock request', status: 'lm_approved', whComment: 'Available',
+    lmComment: 'Approved', createdAt: '2026-02-06' }
+];
+let TXS = [
+  { id: 'tx1', ticketId: 'TKT-099999', skuId: 'sku1', qty: 300, type: 'deduction', date: '2026-02-05', status: 'Booked' },
+  { id: 'tx2', ticketId: 'TKT-099998', skuId: 'sku4', qty: 150, type: 'deduction', date: '2026-02-04', status: 'Booked' },
+  { id: 'tx3', ticketId: 'TKT-100004', skuId: 'sku8', qty: 500, type: 'deduction', date: '2026-02-09', status: 'Booked' },
+  { id: 'tx4', ticketId: 'OPENING', skuId: 'sku1', qty: 5000, type: 'addition', date: '2026-01-01', status: 'Opening' },
+  { id: 'tx5', ticketId: 'RESTOCK', skuId: 'sku1', qty: 200, type: 'addition', date: '2026-01-20', status: 'Restock' }
+];
+
+let CS_SKUS = [
+  { id: 'sku5', name: 'Solder Paste', category: 'Consumable', unit: 'tubes', openingBalance: 12, currentStock: 12, totalInflow: 12, lowStockThreshold: 5, costPerUnit: 28000, image: '🧪' }
+];
+let CS_TX = [
+  { id: 'cs-tx1', ticketId: 'OPENING', skuId: 'sku5', qty: 12, type: 'addition', date: '2026-02-06', actionBy: 'MKT Warehouse', comment: 'Auto-transferred from MKT WH - Ticket: TKT-100005' }
+];
+
+/* ---------- helpers ---------- */
+const $ = sel => document.querySelector(sel);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt = n => Number(n || 0).toLocaleString();
+const money = n => CURRENCY + fmt(n);
+const skuById = id => SKUS.find(s => s.id === id);
+const csSkuById = id => CS_SKUS.find(s => s.id === id);
+const todayStr = () => new Date().toISOString().split('T')[0];
+
+function toast(msg, type = 'success') {
+  const el = document.createElement('div');
+  el.className = 'toast ' + (type === 'error' ? 'error' : type === 'info' ? 'info' : '');
+  el.textContent = msg;
+  $('#toastStack').appendChild(el);
+  setTimeout(() => el.remove(), 3200);
+}
+function openModal(html) { $('#modalBox').innerHTML = html; $('#modalBackdrop').classList.add('show'); }
+function closeModal() { $('#modalBackdrop').classList.remove('show'); }
+
+function badge(status) {
+  return '<span class="badge badge-' + esc(status) + '">' + STATUS_LABELS[status] + '</span>';
+}
+function typeLabel(t) {
+  return t.type === 'borrow' ? 'Borrow' : t.type === 'cs_transfer' ? 'CS Transfer' : 'Request';
+}
+/* stock movement summary (mirrors src/lib/stockMovement.ts) */
+function movementFor(skuId, from, to) {
+  let stockIn = 0, stockOut = 0;
+  TXS.forEach(tx => {
+    if (String(tx.skuId || '').trim() !== String(skuId || '').trim()) return;
+    if (from && tx.date < from) return;
+    if (to && tx.date > to) return;
+    if (tx.type === 'addition' && String(tx.ticketId || '') !== 'OPENING') stockIn += Number(tx.qty) || 0;
+    if (tx.type === 'deduction') stockOut += Number(tx.qty) || 0;
+  });
+  return { stockIn, stockOut };
+}
+/* ---------- state & navigation ---------- */
+let currentUser = null;
+let currentView = 'dashboard';
+let scope = 'all'; // 'all' | 'mkt' | 'cs'  (admin/director warehouse toggle)
+let formDraft = []; // for new request / borrow item rows
+
+const NAV_DEFS = [
+  { key: 'dashboard', label: 'Dashboard', ico: '📊', roles: ['staff','warehouse','line_manager','director','admin','finance','customer_service'] },
+  { key: 'new-request', label: 'New Request', ico: '➕', roles: ['staff','warehouse','line_manager','director','admin','customer_service'] },
+  { key: 'borrow', label: 'Item Borrow', ico: '🔁', roles: ['staff','warehouse','line_manager','director','admin','customer_service'] },
+  { key: 'cs-destock', label: 'Destock', ico: '📤', roles: ['customer_service'] },
+  { key: 'transfer', label: 'Return to MKT', ico: '↔️', roles: ['admin','warehouse'] },
+  { key: 'my-tickets', label: 'My Tickets', ico: '🎫', roles: ['staff','warehouse','line_manager','director','admin','finance','customer_service'] },
+  { key: 'action-center', label: 'Action Center', ico: '✅', roles: ['warehouse','line_manager','director','admin'] },
+  { key: 'history', label: 'History Ticket', ico: '🗂️', roles: ['warehouse','line_manager','director','admin','finance','customer_service'] },
+  { key: 'inventory', label: 'Inventory Report', ico: '📄', roles: ['warehouse','line_manager','director','admin','finance','customer_service'] },
+  { key: 'month-end', label: 'Month End Report', ico: '📅', roles: ['finance','admin','director','warehouse','customer_service'] },
+  { key: 'settings', label: 'System Settings', ico: '⚙️', roles: ['admin','warehouse','customer_service'] }
+];
+
+function actionableCount() {
+  if (!currentUser) return 0;
+  const role = currentUser.role;
+  return TICKETS.filter(t => {
+    if (role === 'warehouse') return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
+    if (role === 'line_manager') return t.status === 'reviewed';
+    if (role === 'director') return t.status === 'lm_approved';
+    if (role === 'admin') return !['finalized','rejected','returned','recalled'].includes(t.status);
+    return false;
+  }).length;
+}
+
+function renderNav() {
+  const visible = NAV_DEFS.filter(n => n.roles.includes(currentUser.role));
+  $('#navItems').innerHTML = visible.map(n => {
+    const count = n.key === 'action-center' ? actionableCount() : 0;
+    const active = n.key === currentView;
+    return '<div class="nav-item' + (active ? ' active' : '') + '" data-view="' + n.key + '">' +
+      '<span class="ico">' + n.ico + '</span>' + n.label +
+      (count > 0 ? '<span class="badge">' + count + '</span>' : '') + '</div>';
+  }).join('');
+  document.querySelectorAll('.nav-item').forEach(el => {
+    el.addEventListener('click', () => { currentView = el.dataset.view; render(); });
+  });
+}
+
+function renderToolbarUser() {
+  $('#userName').textContent = currentUser.name;
+  $('#userRole').textContent = ROLE_LABELS[currentUser.role];
+}
+/* ---------- page: Dashboard ---------- */
+function renderDashboard() {
+  // Stats (mirrors DashboardPage)
+  const totalSkus = SKUS.length;
+  const skuSource = scope === 'cs' ? CS_SKUS : (scope === 'all' ? SKUS.concat(CS_SKUS.map(s => ({ ...s, wh: 'cs' }))) : SKUS);
+  const lowSkus = skuSource.filter(s => (s.currentStock || 0) <= (s.lowStockThreshold || 0));
+  const totalOut = TXS.filter(t => t.type === 'deduction').reduce((a, t) => a + (Number(t.qty) || 0), 0);
+  const activeBorrows = TICKETS.filter(t => t.type === 'borrow' && t.status === 'finalized' && !t.returnedProcessed);
+  const overdue = activeBorrows.filter(t => t.returnDate && t.returnDate < todayStr());
+
+  const stat = (label, value, sub, cls) =>
+    '<div class="stat-card"><div class="label">' + label + '</div><div class="value ' + cls + '">' + value + '</div><div class="sub">' + sub + '</div></div>';
+
+  const rows = skuSource.map(s => {
+    const mv = movementFor(s.id, null, null);
+    const opening = Number(s.openingBalance) || 0;
+    const current = Number(s.currentStock) || 0;
+    const inflow = Number(s.totalInflow) || opening;
+    const usage = inflow > 0 ? Math.max(0, ((inflow - current) / inflow) * 100) : 0;
+    const lowFlag = current <= (s.lowStockThreshold || 0);
+    const badges = (s.status === 'out' ? '<span class="badge badge-rejected">Out of Stock</span> ' : '') +
+      (lowFlag ? '<span class="badge badge-pending">Low</span> ' : '') +
+      (scope === 'all' && s.wh === 'cs' ? '<span class="badge badge-recalled">CS only</span>' : '');
+    return '<tr>' +
+      '<td><span style="font-size:20px">' + s.image + '</span></td>' +
+      '<td><strong>' + esc(s.name) + '</strong> ' + badges + '</td>' +
+      '<td>' + esc(s.category) + '</td>' +
+      '<td style="text-align:right">' + fmt(opening) + ' ' + esc(s.unit) + '</td>' +
+      '<td style="text-align:right" class="text-success">' + (mv.stockIn > 0 ? '+' + fmt(mv.stockIn) : '—') + '</td>' +
+      '<td style="text-align:right" class="text-warning">' + (mv.stockOut > 0 ? '-' + fmt(mv.stockOut) : '—') + '</td>' +
+      '<td style="text-align:right">' + fmt(current) + ' ' + esc(s.unit) + '</td>' +
+      '<td style="text-align:right">' + money(s.costPerUnit) + '</td>' +
+      '<td style="text-align:right" class="text-gold">' + money(current * s.costPerUnit) + '</td>' +
+      '<td style="text-align:right">' + usage.toFixed(0) + '%</td></tr>';
+  }).join('');
+
+  const isAdminDirector = ['admin','director'].includes(currentUser.role);
+  const isCS = currentUser.role === 'customer_service';
+  const scopeToggle = (isAdminDirector || isCS) ?
+    '<div class="segment" id="scopeToggle">' +
+      (isAdminDirector ? '<button data-scope="all" class="' + (scope === 'all' ? 'active' : '') + '">All</button>' : '') +
+      '<button data-scope="mkt" class="' + (scope === 'mkt' ? 'active' : '') + '">MKT ' + (isCS ? 'Warehouse' : '') + '</button>' +
+      '<button data-scope="cs" class="' + (scope === 'cs' ? 'active' : '') + '">CS ' + (isCS ? 'Warehouse' : '') + '</button>' +
+    '</div>' : '';
+
+  const html =
+    '<h2 class="page-title">Dashboard</h2>' +
+    scopeToggle +
+    '<div class="stats-grid">' +
+      stat('Total Items', fmt(totalSkus), 'across both warehouses') +
+      stat('Low Stock', lowSkus.length, 'at or below threshold', 'text-warning') +
+      stat('Total Deductions', fmt(totalOut), 'all-time stock out') +
+      stat('Active Borrows', activeBorrows.length, 'awaiting return') +
+      stat('Overdue Returns', overdue.length, overdue.length ? 'PAST return date' : 'none', overdue.length ? 'text-danger' : '') +
+    '</div>' +
+    '<div class="card"><div class="card-title">Stock Movement &amp; Value — ' +
+      (scope === 'cs' ? 'CS Warehouse' : scope === 'mkt' ? 'MKT Warehouse' : 'All Warehouses (MKT + CS)') + '</div>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Image</th><th>Name</th><th>Category</th><th style="text-align:right">Opening</th>' +
+      '<th style="text-align:right">Stock In</th><th style="text-align:right">Stock Out</th>' +
+      '<th style="text-align:right">Current</th><th style="text-align:right">Cost/Unit</th>' +
+      '<th style="text-align:right">Total Value</th><th style="text-align:right">Usage %</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div></div>';
+
+  $('#view').innerHTML = html;
+  const seg = $('#scopeToggle');
+  if (seg) seg.querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+    scope = b.dataset.scope; render();
+  }));
+  return html;
+}
+/* ---------- page: New Request / Borrow (shared form) ---------- */
+function renderRequestForm(isBorrow) {
+  if (formDraft.length === 0) formDraft = [{ skuId: SKUS[0].id, qty: '', }];
+  const isCS = currentUser.role === 'customer_service';
+
+  const rowsHtml = formDraft.map((row, i) =>
+    '<div class="form-item-row">' +
+      '<select class="field" style="margin:0" data-idx="' + i + '" data-field="skuId">' +
+        SKUS.map(s => '<option value="' + s.id + '"' + (s.id === row.skuId ? ' selected' : '') + '>' + esc(s.name) + ' (' + fmt(s.currentStock) + ' ' + esc(s.unit) + ')</option>').join('') +
+      '</select>' +
+      '<input class="field" style="margin:0" type="number" min="1" placeholder="Qty" value="' + (row.qty || '') + '" data-idx="' + i + '" data-field="qty" />' +
+      '<input class="field" style="margin:0" type="text" value="' + esc(skuById(row.skuId)?.unit || 'pcs') + '" disabled />' +
+      '<button class="btn btn-danger btn-sm" data-idx="' + i + '" data-remove="1">✕</button>' +
+    '</div>'
+  ).join('');
+
+  const html =
+    '<h2 class="page-title">' + (isBorrow ? 'Item Borrow' : 'New Request') + '</h2>' +
+    (isCS && !isBorrow ? '<div class="banner">This request will be fulfilled from the MKT Warehouse. Once approved, items will be added to your <b>CS Warehouse</b>.</div>' : '') +
+    '<div class="card">' +
+      '<div class="card-title">Items</div>' + rowsHtml +
+      '<button class="btn btn-outline btn-sm" id="addRow">+ Add item</button>' +
+      '<div style="height:14px"></div>' +
+      '<div class="form-grid">' +
+        '<div><label class="muted" style="font-size:12px">Delivery date</label><input class="field" id="fDelivery" type="date" value="' + todayStr() + '" /></div>' +
+        (isBorrow ? '<div><label class="muted" style="font-size:12px">Return date</label><input class="field" id="fReturn" type="date" /></div>' : '') +
+        '<div style="grid-column:1/-1"><label class="muted" style="font-size:12px">Remark</label><input class="field" id="fRemark" type="text" placeholder="Optional remark" /></div>' +
+      '</div>' +
+      '<button class="btn btn-gold" id="saveTicket">Submit ' + (isBorrow ? 'Borrow Request' : 'Request') + '</button>' +
+    '</div>';
+
+  $('#view').innerHTML = html;
+
+  $('#view').querySelectorAll('[data-field]').forEach(el => {
+    el.addEventListener('change', () => {
+      const idx = Number(el.dataset.idx);
+      formDraft[idx][el.dataset.field] = el.value;
+      if (el.dataset.field === 'skuId') render();
+    });
+  });
+  $('#view').querySelectorAll('[data-remove]').forEach(el => {
+    el.addEventListener('click', () => {
+      formDraft.splice(Number(el.dataset.idx), 1);
+      if (formDraft.length === 0) formDraft = [{ skuId: SKUS[0].id, qty: '' }];
+      render();
+    });
+  });
+  $('#addRow').addEventListener('click', () => {
+    formDraft.push({ skuId: SKUS[0].id, qty: '' });
+    render();
+  });
+  $('#saveTicket').addEventListener('click', () => {
+    const items = formDraft.map(row => {
+      const sku = skuById(row.skuId);
+      return { skuId: sku.id, skuName: sku.name, qtyRequested: Number(row.qty) || 0, unit: sku.unit };
+    }).filter(i => i.qtyRequested > 0);
+    if (items.length === 0) { toast('Please add at least one item with a quantity', 'error'); return; }
+    const ticket = {
+      id: 'TKT-' + (100000 + Math.floor(Math.random() * 90000)),
+      createdBy: currentUser.id, createdByName: currentUser.name, department: currentUser.department,
+      type: isBorrow ? 'borrow' : isCS ? 'cs_transfer' : 'request',
+      items,
+      deliveryDate: $('#fDelivery').value, returnDate: isBorrow ? ($('#fReturn').value || undefined) : undefined,
+      remark: $('#fRemark').value || '', status: 'pending', createdAt: todayStr()
+    };
+    TICKETS.unshift(ticket);
+    formDraft = [];
+    toast('Ticket ' + ticket.id + ' submitted (status: Pending)');
+    currentView = 'my-tickets';
+    render();
+  });
+  return html;
+}
+/* ---------- page: My Tickets ---------- */
+function renderMyTickets() {
+  const mine = TICKETS.filter(t => t.createdBy === currentUser.id || t.createdByName === currentUser.name);
+  const rows = mine.map(t =>
+    '<tr>' +
+      '<td><button class="btn btn-sm btn-outline" data-ticket="' + esc(t.id) + '">' + esc(t.id) + '</button></td>' +
+      '<td>' + esc(t.department) + '</td>' +
+      '<td>' + typeLabel(t) + '</td>' +
+      '<td>' + t.items.map(i => esc(i.skuName) + ' × ' + (i.qtyApproved ?? i.qtyRequested)).join(', ') + '</td>' +
+      '<td>' + badge(t.status) + '</td>' +
+      '<td class="muted">' + esc(t.deliveryDate) + '</td>' +
+    '</tr>'
+  ).join('') || '<tr><td colspan="6" class="empty">No tickets yet — create one from New Request or Item Borrow.</td></tr>';
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">My Tickets</h2>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Ticket ID</th><th>Department</th><th>Type</th><th>Items</th><th>Status</th><th>Delivery</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  $('#view').querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => showTicketModal(el.dataset.ticket)));
+  return rows;
+}
+
+/* ---------- ticket detail modal ---------- */
+function showTicketModal(id) {
+  const t = TICKETS.find(x => x.id === id);
+  if (!t) return;
+  const itemsRows = t.items.map(i =>
+    '<div class="row"><span>' + esc(i.skuName) + '</span>' +
+    '<span>Req ' + fmt(i.qtyRequested) + ' · Appr ' + (i.qtyApproved ?? '—') + ' · ' + esc(i.unit) + '</span></div>').join('');
+  openModal(
+    '<h3>' + esc(t.id) + ' — ' + typeLabel(t) + '</h3>' +
+    badge(t.status) + ' <span class="muted">' + esc(t.createdByName) + ' · ' + esc(t.department) + '</span>' +
+    '<div style="height:12px"></div>' + itemsRows +
+    '<div class="row"><span>Remark</span><span>' + esc(t.remark || '—') + '</span></div>' +
+    (t.whComment ? '<div class="row"><span>WH comment</span><span>' + esc(t.whComment) + '</span></div>' : '') +
+    (t.lmComment ? '<div class="row"><span>LM comment</span><span>' + esc(t.lmComment) + '</span></div>' : '') +
+    (t.returnDate ? '<div class="row"><span>Return date</span><span>' + esc(t.returnDate) + '</span></div>' : '') +
+    '<div class="actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Close</button></div>'
+  );
+}
+
+/* ---------- page: Action Center ---------- */
+function renderActionCenter() {
+  const role = currentUser.role;
+  const list = TICKETS.filter(t => {
+    if (role === 'warehouse') return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
+    if (role === 'line_manager') return t.status === 'reviewed';
+    if (role === 'director') return t.status === 'lm_approved';
+    if (role === 'admin') return !['finalized','rejected','returned','recalled'].includes(t.status);
+    return false;
+  });
+
+  const rows = list.map(t => {
+    const isReturn = role === 'warehouse' && t.type === 'borrow' && t.status === 'finalized';
+    let actionBtn = '';
+    if (isReturn) actionBtn = '<button class="btn btn-success btn-sm" data-act="return" data-id="' + esc(t.id) + '">Process Return</button>';
+    else {
+      actionBtn = '<button class="btn btn-gold btn-sm" data-act="next" data-id="' + esc(t.id) + '">' +
+        (role === 'warehouse' ? 'Review &amp; Book' : role === 'line_manager' ? 'Approve' : 'Finalize') + '</button>' +
+        ' <button class="btn btn-danger btn-sm" data-act="reject" data-id="' + esc(t.id) + '">Reject</button>';
+      if ((role === 'admin' || role === 'warehouse') && ['reviewed','lm_approved'].includes(t.status))
+        actionBtn += ' <button class="btn btn-outline btn-sm" data-act="recall" data-id="' + esc(t.id) + '">Recall</button>';
+    }
+    return '<tr>' +
+      '<td><strong>' + esc(t.id) + '</strong></td>' +
+      '<td>' + esc(t.createdByName) + '<br><span class="muted">' + esc(t.department) + '</span></td>' +
+      '<td>' + typeLabel(t) + '</td>' +
+      '<td>' + t.items.map(i => esc(i.skuName) + ' × ' + (i.qtyApproved ?? i.qtyRequested)).join('<br>') + '</td>' +
+      '<td>' + badge(t.status) + '</td>' +
+      '<td>' + esc(t.deliveryDate) + '</td>' +
+      '<td>' + actionBtn + '</td>' +
+    '</tr>';
+  }).join('') || '<tr><td colspan="7" class="empty">Nothing needs your action right now 🎉</td></tr>';
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">Action Center</h2>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Ticket</th><th>Requester</th><th>Type</th><th>Items</th><th>Status</th><th>Delivery</th><th>Actions</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  $('#view').querySelectorAll('[data-act]').forEach(el => el.addEventListener('click', () => {
+    const act = el.dataset.act; const id = el.dataset.id;
+    if (act === 'return') openReturnModal(id);
+    else if (act === 'reject') updateTicketStatus(id, 'rejected');
+    else if (act === 'recall') updateTicketStatus(id, 'recalled');
+    else openApproveModal(id);
+  }));
+  return rows;
+}
+/* ---------- ticket actions (state machine) ---------- */
+function updateTicketStatus(id, status, opts = {}) {
+  const t = TICKETS.find(x => x.id === id);
+  if (!t) return;
+  const oldStatus = t.status;
+  t.status = status;
+  if (opts.whComment) t.whComment = opts.whComment;
+  if (opts.lmComment) t.lmComment = opts.lmComment;
+  if (opts.items) t.items = opts.items;
+
+  // Booked (deduct) — mirrors backend: when going to reviewed
+  if (oldStatus === 'pending' && status === 'reviewed') {
+    t.items.forEach(item => {
+      const sku = skuById(item.skuId);
+      if (!sku) return;
+      const qty = Number(item.qtyApproved ?? item.qtyRequested) || 0;
+      sku.currentStock = Math.max(0, sku.currentStock - qty);
+      TXS.unshift({ id: 'tx-' + Date.now() + '-' + item.skuId, ticketId: t.id, skuId: item.skuId, qty, type: 'deduction', date: todayStr(), status: 'Booked', actionBy: currentUser.name });
+    });
+  }
+  // CS auto-restock — mirrors backend: type=cs_transfer and status becomes finalized
+  if (t.type === 'cs_transfer' && status === 'finalized' && oldStatus !== 'finalized') {
+    t.items.forEach(item => {
+      const qty = Number(item.qtyApproved ?? item.qtyRequested) || 0;
+      if (qty <= 0) return;
+      const cs = csSkuById(item.skuId);
+      if (cs) { cs.currentStock += qty; cs.totalInflow += qty; }
+      else {
+        const mkt = skuById(item.skuId);
+        CS_SKUS.push({ id: item.skuId, name: item.skuName, category: mkt?.category || 'General', unit: mkt?.unit || 'pcs',
+          openingBalance: qty, currentStock: qty, totalInflow: qty, lowStockThreshold: mkt?.lowStockThreshold || 0,
+          costPerUnit: mkt?.costPerUnit || 0, image: mkt?.image || '📦' });
+      }
+      CS_TX.unshift({ id: 'cs-tx-' + Date.now() + '-' + item.skuId, ticketId: t.id, skuId: item.skuId, skuName: item.skuName,
+        qty, type: 'addition', date: todayStr(), actionBy: 'MKT Warehouse', comment: 'Auto-transferred from MKT WH - Ticket: ' + t.id });
+    });
+    toast('CS warehouse auto-restocked from ticket ' + t.id, 'info');
+  }
+  // Return / reject / recall restore stock (addition)
+  if (['rejected', 'recalled', 'returned'].includes(status) &&
+      ['reviewed', 'lm_approved', 'finalized'].includes(oldStatus)) {
+    (opts.returnedItems || t.items).forEach(item => {
+      const sku = skuById(item.skuId);
+      if (!sku) return;
+      const qty = Number(item.qtyReturned ?? item.qtyApproved ?? item.qtyRequested) || 0;
+      if (qty > 0) sku.currentStock += qty;
+      TXS.unshift({ id: 'tx-ret-' + Date.now() + '-' + item.skuId, ticketId: t.id, skuId: item.skuId, qty,
+        type: 'addition', date: todayStr(), status: status[0].toUpperCase() + status.slice(1), actionBy: currentUser.name,
+        comment: (Number(item.qtyBroken) > 0 ? 'Broken: ' + item.qtyBroken : '') });
+    });
+  }
+  if (status === 'returned') t.returnedProcessed = true;
+
+  toast(t.id + ' → ' + STATUS_LABELS[status] + (opts.comment ? ' ("' + opts.comment + '")' : ''),
+        status === 'rejected' ? 'error' : 'success');
+  closeModal();
+  render();
+}
+function openApproveModal(id) {
+  const t = TICKETS.find(x => x.id === id);
+  if (!t) return;
+  const nextStatus = { pending: 'reviewed', reviewed: 'lm_approved', lm_approved: 'finalized' }[t.status];
+  const okLabel = { pending: 'Review & Book Stock', reviewed: 'Approve', lm_approved: 'Finalize' }[t.status];
+  openModal(
+    '<h3>' + esc(t.id) + ' → ' + STATUS_LABELS[nextStatus] + '</h3>' +
+    '<p class="muted">Items will ' + (nextStatus === 'reviewed' ? 'have stock booked (deducted) immediately.' :
+      nextStatus === 'finalized' && t.type === 'cs_transfer' ? 'auto-restock the CS warehouse.' : 'continue the approval chain.') + '</p>' +
+    '<div style="height:10px"></div>' +
+    '<label class="muted" style="font-size:12px">Approve quantity per item (defaults to requested)</label>' +
+    t.items.map((i, idx) =>
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:6px">' +
+        '<span style="flex:1;font-size:13px">' + esc(i.skuName) + '</span>' +
+        '<input class="field" style="width:90px;margin:0" type="number" min="0" value="' + (i.qtyApproved ?? i.qtyRequested) + '" data-qa="' + idx + '" />' +
+      '</div>').join('') +
+    '<div style="height:10px"></div>' +
+    '<input class="field" id="approveComment" placeholder="Comment (optional)" />' +
+    '<div class="actions">' +
+      '<button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-gold btn-sm" id="confirmApprove">' + okLabel + '</button>' +
+    '</div>'
+  );
+  $('#confirmApprove').addEventListener('click', () => {
+    const items = t.items.map((i, idx) => {
+      const qa = Number($('#modalBox').querySelector('[data-qa="' + idx + '"]').value) || 0;
+      return { ...i, qtyApproved: qa };
+    });
+    const reply = {
+      items,
+      whComment: currentUser.role === 'warehouse' ? ($('#approveComment').value || 'Reviewed') : t.whComment,
+      lmComment: currentUser.role === 'line_manager' ? ($('#approveComment').value || 'Approved') : t.lmComment,
+      comment: $('#approveComment').value || ''
+    };
+    updateTicketStatus(t.id, nextStatus, reply);
+  });
+}
+
+function openReturnModal(id) {
+  const t = TICKETS.find(x => x.id === id);
+  openModal(
+    '<h3>Return Borrow — ' + esc(t.id) + '</h3>' +
+    t.items.map((i, idx) =>
+      '<div style="display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap">' +
+        '<span style="flex:1;font-size:13px;min-width:140px">' + esc(i.skuName) + '</span>' +
+        '<input class="field" style="width:88px;margin:0" type="number" value="' + (i.qtyApproved ?? i.qtyRequested) + '" data-ret="' + idx + '" title="Returned qty" />' +
+        '<input class="field" style="width:88px;margin:0" type="number" value="0" min="0" data-broken="' + idx + '" title="Broken/lost qty" />' +
+        '<span class="muted" style="font-size:11px">returned / broken</span>' +
+      '</div>').join('') +
+    '<div class="actions">' +
+      '<button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-success btn-sm" id="confirmReturn">Return Completed</button>' +
+    '</div>'
+  );
+  $('#confirmReturn').addEventListener('click', () => {
+    const returnedItems = t.items.map((i, idx) => ({
+      ...i,
+      qtyReturned: Number($('#modalBox').querySelector('[data-ret="' + idx + '"]').value) || 0,
+      qtyBroken: Number($('#modalBox').querySelector('[data-broken="' + idx + '"]').value) || 0
+    }));
+    updateTicketStatus(t.id, 'returned', { returnedItems, comment: 'Item returned' });
+  });
+}
+/* ---------- page: History Tickets ---------- */
+function renderHistory() {
+  const rows = TICKETS.map(t =>
+    '<tr>' +
+      '<td><button class="btn btn-sm btn-outline" data-ticket="' + esc(t.id) + '">' + esc(t.id) + '</button></td>' +
+      '<td>' + esc(t.createdByName) + '</td>' +
+      '<td>' + esc(t.department) + '</td>' +
+      '<td>' + typeLabel(t) + '</td>' +
+      '<td>' + t.items.map(i => esc(i.skuName) + ' × ' + (i.qtyApproved ?? i.qtyRequested)).join(', ') + '</td>' +
+      '<td>' + badge(t.status) + '</td>' +
+      '<td class="muted">' + esc(t.createdAt) + '</td>' +
+    '</tr>').join('') || '<tr><td colspan="7" class="empty">No tickets found.</td></tr>';
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">History Ticket</h2>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Ticket ID</th><th>Requester</th><th>Department</th><th>Type</th><th>Items</th><th>Status</th><th>Created</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  $('#view').querySelectorAll('[data-ticket]').forEach(el => el.addEventListener('click', () => showTicketModal(el.dataset.ticket)));
+  return rows;
+}
+
+/* ---------- page: Inventory Report ---------- */
+function renderInventory() {
+  const rows = SKUS.map(s => {
+    const mv = movementFor(s.id, null, null);
+    const opening = Number(s.openingBalance) || 0;
+    const current = Number(s.currentStock) || 0;
+    const inflow = Number(s.totalInflow) || opening;
+    const usage = inflow > 0 ? Math.max(0, ((inflow - current) / inflow) * 100) : 0;
+    const broken = TXS.filter(tx => tx.skuId === s.id).reduce((a, tx) => a + (Number(tx.qtyBroken) || 0), 0);
+    return '<tr>' +
+      '<td>' + esc(s.name) + '</td>' +
+      '<td>' + esc(s.category) + '</td>' +
+      '<td style="text-align:right">' + fmt(opening) + '</td>' +
+      '<td style="text-align:right" class="text-success">+' + fmt(mv.stockIn) + '</td>' +
+      '<td style="text-align:right" class="text-warning">-' + fmt(mv.stockOut) + '</td>' +
+      '<td style="text-align:right">' + fmt(current) + '</td>' +
+      '<td style="text-align:right" class="text-danger">' + fmt(broken) + '</td>' +
+      '<td style="text-align:right">' + money(s.costPerUnit) + '</td>' +
+      '<td style="text-align:right">' + money(broken * s.costPerUnit) + '</td>' +
+      '<td style="text-align:right">' + usage.toFixed(0) + '%</td>' +
+    '</tr>';
+  }).join('');
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">Inventory Report</h2>' +
+    '<div class="toolbar-bar"><span class="muted">Usage &amp; loss analysis (MKT warehouse). In real app this is filtered by the Actual Delivery Date range.</span></div>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Name</th><th>Category</th><th style="text-align:right">Opening</th><th style="text-align:right">Stock In</th>' +
+      '<th style="text-align:right">Stock Out</th><th style="text-align:right">Current</th><th style="text-align:right">Broken Qty</th>' +
+      '<th style="text-align:right">Cost/Unit</th><th style="text-align:right">Loss Value</th><th style="text-align:right">Usage %</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+  return rows;
+}
+/* ---------- page: Month End Report ---------- */
+function renderMonthEnd() {
+  const month = '2026-02';
+  const from = month + '-01';
+  const to = month + '-28';
+  const rows = SKUS.map(s => {
+    const mv = movementFor(s.id, from, to);
+    const current = Number(s.currentStock) || 0;
+    const opening = current + mv.stockOut - mv.stockIn;
+    const closing = opening + mv.stockIn - mv.stockOut;
+    const cost = Number(s.costPerUnit) || 0;
+    const cell = (q, v) => '<span class="muted" style="font-size:11px">' + fmt(q) + '</span> · <b>' + money(v) + '</b>';
+    return '<tr>' +
+      '<td>' + esc(s.name) + '</td>' +
+      '<td style="text-align:right">' + cell(opening, opening * cost) + '</td>' +
+      '<td style="text-align:right" class="text-success">+' + cell(mv.stockIn, mv.stockIn * cost) + '</td>' +
+      '<td style="text-align:right" class="text-warning">-' + cell(mv.stockOut, mv.stockOut * cost) + '</td>' +
+      '<td style="text-align:right">' + cell(closing, closing * cost) + '</td>' +
+    '</tr>';
+  }).join('');
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">Month End Report — February 2026</h2>' +
+    '<div class="toolbar-bar">' +
+      '<div class="segment"><button class="active">2026-02</button></div>' +
+      '<button class="btn btn-outline btn-sm" id="exportBtn">⬇ Export (.csv)</button>' +
+      '<button class="btn btn-outline btn-sm" id="printBtn">🖨 Print</button>' +
+    '</div>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Name</th><th style="text-align:right">Opening Qty/Value</th><th style="text-align:right">Stock In Qty/Value</th>' +
+      '<th style="text-align:right">Stock Out Qty/Value</th><th style="text-align:right">Closing Qty/Value</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<p class="tooltip-note">Opening/Closing are computed by rolling the current stock through transaction history (not stored). Print = landscape physical sign-off copy.</p>';
+
+  $('#printBtn').addEventListener('click', () => window.print());
+  $('#exportBtn').addEventListener('click', () => {
+    const csv = [['Name','Opening','OpeningValue','In','InValue','Out','OutValue','Closing','ClosingValue']]
+      .concat(SKUS.map(s => {
+        const mv = movementFor(s.id, from, to);
+        const current = Number(s.currentStock) || 0;
+        const opening = current + mv.stockOut - mv.stockIn;
+        const closing = opening + mv.stockIn - mv.stockOut;
+        const c = s.costPerUnit;
+        return [s.name, opening, opening * c, mv.stockIn, mv.stockIn * c, mv.stockOut, mv.stockOut * c, closing, closing * c];
+      })).map(r => r.join(',')).join('\n');
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    a.download = 'month-end-2026-02.csv';
+    a.click();
+    toast('Month-end report exported');
+  });
+  return rows;
+}
+
+/* ---------- page: System Settings ---------- */
+function renderSettings() {
+  const rows = USERS.map(u =>
+    '<tr>' +
+      '<td>' + esc(u.name) + '</td>' +
+      '<td>' + esc(u.email) + '</td>' +
+      '<td><span class="badge badge-reviewed">' + ROLE_LABELS[u.role] + '</span></td>' +
+      '<td>' + esc(u.department) + '</td>' +
+      '<td><span class="badge badge-finalized">Active</span></td>' +
+    '</tr>').join('');
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">System Settings</h2>' +
+    '<div class="card"><div class="card-title">Users</div>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Name</th><th>Email</th><th>Role</th><th>Department</th><th>Status</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>' +
+    '<div style="height:10px"></div>' +
+    '<button class="btn btn-gold btn-sm" id="addUserBtn">+ Add New User</button>' +
+    '<p class="tooltip-note">Real app: Roles dropdown includes Customer Service. Categories &amp; bypass threshold config live here too.</p></div>';
+
+  $('#addUserBtn').addEventListener('click', () => {
+    openModal(
+      '<h3>Add New User</h3>' +
+      '<input class="field" id="nuName" placeholder="Full name" /><input class="field" id="nuEmail" placeholder="Email" />' +
+      '<select class="field" id="nuRole">' + Object.entries(ROLE_LABELS).map(([k, v]) => '<option value="' + k + '">' + v + '</option>').join('') + '</select>' +
+      '<div class="actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-gold btn-sm" id="saveUser">Save</button></div>'
+    );
+    $('#saveUser').addEventListener('click', () => {
+      const name = $('#nuName').value.trim();
+      const email = $('#nuEmail').value.trim();
+      if (!name || !email) { toast('Name and email required', 'error'); return; }
+      USERS.push({ id: 'u' + (USERS.length + 1), name, email, password: 'demo123', role: $('#nuRole').value, department: 'General' });
+      toast('User added: ' + name);
+      closeModal();
+      render();
+    });
+  });
+  return rows;
+}
+/* ---------- page: CS Destock (Customer Service only) ---------- */
+function renderCsDestock() {
+  const rows = CS_SKUS.map(s =>
+    '<tr>' +
+      '<td>' + esc(s.name) + '</td>' +
+      '<td>' + esc(s.category) + '</td>' +
+      '<td style="text-align:right">' + fmt(s.currentStock) + ' ' + esc(s.unit) + '</td>' +
+      '<td style="text-align:right">' + (s.currentStock <= s.lowStockThreshold ? '<span class="text-warning">Low</span>' : '—') + '</td>' +
+      '<td><button class="btn btn-danger btn-sm" data-destock="' + esc(s.id) + '">Destock</button>' +
+      ' <button class="btn btn-outline btn-sm" data-restock="' + esc(s.id) + '">Restock</button></td>' +
+    '</tr>').join('') || '<tr><td colspan="5" class="empty">CS warehouse is empty. Finalize a CS Transfer ticket from the MKT warehouse to auto-populate it.</td></tr>';
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">Destock — CS Warehouse</h2>' +
+    '<div class="banner">CS warehouse direct destock — no ticket/approval needed. Stock is reduced immediately.</div>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Name</th><th>Category</th><th style="text-align:right">Current Stock</th><th style="text-align:right">Status</th><th>Actions</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  $('#view').querySelectorAll('[data-destock]').forEach(el => el.addEventListener('click', () => {
+    const s = csSkuById(el.dataset.destock);
+    openModal('<h3>Destock ' + esc(s.name) + '</h3>' +
+      '<input class="field" type="number" id="destockQty" min="1" max="' + s.currentStock + '" placeholder="Quantity" />' +
+      '<div class="actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-danger btn-sm" id="confirmDestock">Confirm Destock</button></div>');
+    $('#confirmDestock').addEventListener('click', () => {
+      const qty = Number($('#destockQty').value) || 0;
+      if (qty <= 0 || qty > s.currentStock) { toast('Invalid quantity', 'error'); return; }
+      s.currentStock -= qty;
+      CS_TX.unshift({ id: 'cs-tx-' + Date.now(), ticketId: 'DIRECT_DESTOCK', skuId: s.id, skuName: s.name, qty, type: 'deduction', date: todayStr(), actionBy: currentUser.name, comment: 'Direct destock' });
+      toast(s.name + ' destocked by ' + qty);
+      closeModal();
+      render();
+    });
+  }));
+  $('#view').querySelectorAll('[data-restock]').forEach(el => el.addEventListener('click', () => {
+    const s = csSkuById(el.dataset.restock);
+    openModal('<h3>Restock ' + esc(s.name) + '</h3>' +
+      '<input class="field" type="number" id="restockQty" min="1" placeholder="Quantity" />' +
+      '<div class="actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-success btn-sm" id="confirmRestock">Restock</button></div>');
+    $('#confirmRestock').addEventListener('click', () => {
+      const qty = Number($('#restockQty').value) || 0;
+      if (qty <= 0) { toast('Invalid quantity', 'error'); return; }
+      s.currentStock += qty;
+      s.totalInflow += qty;
+      CS_TX.unshift({ id: 'cs-tx-' + Date.now(), ticketId: 'RESTOCK', skuId: s.id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionBy: currentUser.name, comment: 'Manual restock' });
+      toast(s.name + ' restocked by ' + qty);
+      closeModal();
+      render();
+    });
+  }));
+  return rows;
+}
+
+/* ---------- page: Return to MKT (CS → MKT transfer) ---------- */
+function renderTransfer() {
+  const rows = CS_SKUS.map(s =>
+    '<tr>' +
+      '<td>' + esc(s.name) + '</td>' +
+      '<td style="text-align:right">' + fmt(s.currentStock) + ' ' + esc(s.unit) + '</td>' +
+      '<td style="text-align:right">' + money(s.costPerUnit) + '</td>' +
+      '<td><button class="btn btn-info btn-sm" data-transfer="' + esc(s.id) + '">Transfer to MKT</button></td>' +
+    '</tr>').join('') || '<tr><td colspan="4" class="empty">Nothing to transfer — CS warehouse is empty.</td></tr>';
+
+  $('#view').innerHTML =
+    '<h2 class="page-title">Return to MKT — CS → MKT Transfer</h2>' +
+    '<div class="table-wrap"><table class="grid"><thead><tr>' +
+      '<th>Name</th><th style="text-align:right">Current Stock</th><th style="text-align:right">Cost/Unit</th><th>Action</th>' +
+    '</tr></thead><tbody>' + rows + '</tbody></table></div>';
+
+  $('#view').querySelectorAll('[data-transfer]').forEach(el => el.addEventListener('click', () => {
+    const s = csSkuById(el.dataset.transfer);
+    openModal('<h3>Transfer ' + esc(s.name) + ' to MKT Warehouse</h3>' +
+      '<input class="field" type="number" id="trQty" min="1" max="' + s.currentStock + '" placeholder="Quantity" />' +
+      '<div class="actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>' +
+      '<button class="btn btn-info btn-sm" id="confirmTransfer">Transfer</button></div>');
+    $('#confirmTransfer').addEventListener('click', () => {
+      const qty = Number($('#trQty').value) || 0;
+      if (qty <= 0 || qty > s.currentStock) { toast('Invalid quantity', 'error'); return; }
+      s.currentStock -= qty;
+      const mkt = skuById(s.id);
+      if (mkt) mkt.currentStock += qty;
+      else SKUS.push({ ...s, currentStock: qty, totalInflow: qty });
+      TXS.unshift({ id: 'tx-tr-' + Date.now(), ticketId: 'CS_TRANSFER', skuId: s.id, skuName: s.name, qty, type: 'addition', date: todayStr(), status: 'Returned to MKT', actionBy: currentUser.name });
+      toast(s.name + ' transferred back to MKT (' + qty + ')');
+      closeModal();
+      render();
+    });
+  }));
+  return rows;
+}
+/* ---------- render dispatcher ---------- */
+function render() {
+  if (!currentUser) return;
+  renderNav();
+  renderToolbarUser();
+  switch (currentView) {
+    case 'dashboard': renderDashboard(); break;
+    case 'new-request': renderRequestForm(false); break;
+    case 'borrow': renderRequestForm(true); break;
+    case 'my-tickets': renderMyTickets(); break;
+    case 'action-center': renderActionCenter(); break;
+    case 'history': renderHistory(); break;
+    case 'inventory': renderInventory(); break;
+    case 'month-end': renderMonthEnd(); break;
+    case 'settings': renderSettings(); break;
+    case 'cs-destock': renderCsDestock(); break;
+    case 'transfer': renderTransfer(); break;
+    default: renderDashboard();
+  }
+}
+
+/* ---------- login / session ---------- */
+function doLogin(email, password) {
+  const u = USERS.find(x => x.email.toLowerCase() === String(email || '').trim().toLowerCase());
+  if (!u) { $('#loginError').textContent = 'User not found'; return; }
+  if (u.password !== password) { $('#loginError').textContent = 'Invalid password'; return; }
+  currentUser = { id: u.id, name: u.name, email: u.email, role: u.role, department: u.department };
+  localStorage.setItem('sf_user', JSON.stringify(currentUser));
+  $('#loginScreen').style.display = 'none';
+  $('#app').style.display = 'flex';
+  currentView = 'dashboard';
+  scope = currentUser.role === 'customer_service' ? 'cs' : 'all';
+  render();
+  toast('Signed in as ' + currentUser.name + ' (' + ROLE_LABELS[currentUser.role] + ')', 'info');
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('sf_user');
+  $('#app').style.display = 'none';
+  $('#loginScreen').style.display = 'flex';
+}
+
+function restoreSession() {
+  const saved = localStorage.getItem('sf_user');
+  if (saved) {
+    try {
+      currentUser = JSON.parse(saved);
+      $('#loginScreen').style.display = 'none';
+      $('#app').style.display = 'flex';
+      render();
+    } catch (e) { localStorage.removeItem('sf_user'); }
+  }
+}
+
+/* ---------- boot ---------- */
+document.addEventListener('DOMContentLoaded', () => {
+  // demo account chips
+  const chips = USERS.map(u => '<span class="chip" data-email="' + esc(u.email) + '" data-pwd="' + esc(u.password) + '">' +
+    esc(u.name) + ' · ' + ROLE_LABELS[u.role] + '</span>').join('');
+  $('#demoUsers').innerHTML = chips;
+  $('#demoUsers').querySelectorAll('.chip').forEach(c => c.addEventListener('click', () => {
+    $('#loginEmail').value = c.dataset.email;
+    $('#loginPassword').value = c.dataset.pwd;
+    doLogin(c.dataset.email, c.dataset.pwd);
+  }));
+
+  $('#loginBtn').addEventListener('click', () => doLogin($('#loginEmail').value, $('#loginPassword').value));
+  $('#loginPassword').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin($('#loginEmail').value, $('#loginPassword').value); });
+  $('#logoutBtn').addEventListener('click', doLogout);
+  $('#refreshBtn').addEventListener('click', () => { toast('Data refreshed (mock API re-fetch)', 'info'); render(); });
+  $('#menuToggle').addEventListener('click', () => $('#bodyRow').classList.toggle('hidden-sidebar'));
+
+  restoreSession();
+});
+</script>
+</body>
+</html>

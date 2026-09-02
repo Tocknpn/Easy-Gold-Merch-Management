@@ -1,0 +1,12 @@
+﻿SKU_ID,Name,Category,Unit,Opening_Balance,Current_Stock,Total_Inflow,Low_Stock_Threshold,Cost_Per_Unit,Image,CreatedAt
+sku-1771407897767,ກະເປົາເດີນທາງ,Merch,pcs,100,100,100,1,445000,https://drive.google.com/uc?id=1jqbe2VQorLQKzhEa70kLjQAK8IUk7SRM,2026-07-13
+sku-1771406960024,ບິກອີຊີໂກລ,Merch,pcs,1500,1097,1500,10,5000,https://drive.google.com/uc?id=1mGYB0oPqQFo3koTzQe1sBB2ytghlNPVQ,2026-07-13
+sku-1781681021177,ຫມວກ 2026,Merch,ນ່ວຍ,500,499,500,20,55000,https://drive.google.com/uc?id=164-A6eQqvFJ8STTJlC3td3iRSKbspTKA,2026-07-13
+sku-1771407316677,ຄັນຮົ່ມ 2026,Merch,pcs,200,199,200,10,84000,https://drive.google.com/uc?id=1ObA0rIgPSEiZtrqAul49v0r0EAaFv26e,2026-07-13
+sku-1780972510074,ຈອກເກັບອຸນຫະພູມ 2026,Merch,ຫນ່ວຍ,300,300,300,30,73000,https://drive.google.com/uc?id=13U9QXzaW56b7drekeOZN2RrOiarFaTft,2026-07-13
+CS-SKU-1784195433787,ກ່ອງຄໍາ 2ສະຫລຶງ ,Merch,ກ່ອງ,5,5,5,3,518000,,2026-07-16
+CS-SKU-1784195489874,ກ່ອງຄໍາ 2ບາດ ,Merch,ກ່ອງ,5,5,5,3,518000,,2026-07-16
+CS-SKU-1784195540861,ກ່ອງຄໍາ 10ບາດ ,Merch,ກ່ອງ,7,6,7,4,311000,,2026-07-16
+CS-SKU-1784195595962,ກ່ອງຄໍາ5ບາດ,Merch,ກ່ອງ,1,0,1,0,311000,,2026-07-16
+sku-1779434977945,Paper Bag,Booth,ອັນ,50,50,50,100,12000,https://drive.google.com/uc?id=1OKF2e1Rt7mP_J0eiuRSkTtDnZVTURAyO,2026-07-21
+sku-1785121215788,Paper Bag for GOLD,Merch,ອັນ,50,50,50,500,7000,https://drive.google.com/uc?id=1LB2DirspdcFj0fHC3XZOU64VHvO3gJ6M,2026-08-11

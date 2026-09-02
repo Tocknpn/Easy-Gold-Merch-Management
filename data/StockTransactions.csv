@@ -1,0 +1,206 @@
+﻿ID,Ticket_ID,SKU_ID,Qty,Type,Date,Action_At,Action_By,Status,Comment,Qty_Broken,SKU_Name
+,TKT-1771577788359,sku-1771407061986,80,deduction,2026-03-24,2026-03-24T08:05:19.378Z,Souliphonh Phengxay,Approved,,,
+,TKT-1771577788359,sku-1771407810939,41,deduction,2026-03-24,2026-03-24T08:05:19.378Z,Souliphonh Phengxay,Approved,,,
+,TKT-1772507237246,sku-1771406960024,1,deduction,2026-03-24,2026-03-24T08:05:34.964Z,Souliphonh Phengxay,Approved,,,
+,TKT-1772507237246,sku-1771407004896,2,deduction,2026-03-24,2026-03-24T08:05:34.964Z,Souliphonh Phengxay,Approved,,,
+,TKT-1772507237246,sku-1771407101349,1,deduction,2026-03-24,2026-03-24T08:05:34.964Z,Souliphonh Phengxay,Approved,,,
+,TKT-1772507237246,sku-1771407810939,2,deduction,2026-03-24,2026-03-24T08:05:34.964Z,Souliphonh Phengxay,Approved,,,
+,TKT-1772592110294,sku-1771407061986,20,deduction,2026-03-24,2026-03-24T08:05:52.128Z,Souliphonh Phengxay,Approved,,,
+,TKT-1773299387291,sku-1771407101349,10,deduction,2026-03-24,2026-03-24T08:06:06.664Z,Souliphonh Phengxay,Approved,,,
+,TKT-1773299387291,sku-1773299233699,1000,deduction,2026-03-24,2026-03-24T08:06:06.664Z,Souliphonh Phengxay,Approved,,,
+,TKT-1773652078809,sku-1771407061986,30,deduction,2026-03-24,2026-03-24T08:06:21.012Z,Souliphonh Phengxay,Approved,,,
+,TKT-1773722800507,sku-1771408020353,5,deduction,2026-03-24,2026-03-24T08:06:33.410Z,Souliphonh Phengxay,Approved,,,
+,TKT-1773723473614,sku-1771407101349,10,deduction,2026-03-24,2026-03-24T08:07:06.618Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774339252579,sku-1771407810939,40,deduction,2026-03-26,2026-03-26T01:35:17.102Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774431236031,sku-1771407101349,500,deduction,2026-03-27,2026-03-27T01:36:19.060Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774431236031,sku-1771406960024,200,deduction,2026-03-27,2026-03-27T01:36:19.060Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774431236031,sku-1771407316677,100,deduction,2026-03-27,2026-03-27T01:36:19.060Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774519787325,sku-1771408020353,10,deduction,2026-03-27,2026-03-27T01:36:35.542Z,Souliphonh Phengxay,Approved,,,
+,TKT-1774519858761,sku-1772007048630,1,deduction,2026-03-27,2026-03-27T07:00:08.601Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775030802941,sku-1771407061986,20,deduction,2026-04-01,2026-04-01T10:48:36.679Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775030802941,sku-1771407101349,5,deduction,2026-04-01,2026-04-01T10:48:36.679Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775030802941,sku-1771407810939,5,deduction,2026-04-01,2026-04-01T10:48:36.679Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775031095824,sku-1775030698487,20,deduction,2026-04-01,2026-04-01T10:48:57.282Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1771407061986,60,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1775030698487,300,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1775030479680,160,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1773299233699,1200,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1771407316677,30,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775100401216,sku-1771407101349,30,deduction,2026-04-07,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775528099100,sku-1775456004647,30,deduction,2026-04-20,2026-04-20T09:52:15.946Z,Souliphonh Phengxay,Approved,,,
+,TKT-1775633130238,sku-1771407316677,70,deduction,2026-04-20,2026-04-20T09:52:32.696Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776670121981,sku-1771407897767,50,deduction,2026-04-21,2026-04-21T08:22:30.059Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776671610636,sku-1775815774049,20,deduction,2026-04-21,2026-04-21T08:22:44.252Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776671610636,sku-1774606011601,5,deduction,2026-04-21,2026-04-21T08:22:44.252Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776671610636,sku-1775030479680,10,deduction,2026-04-21,2026-04-21T08:22:44.252Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776671656947,sku-1775815774049,100,deduction,2026-04-21,2026-04-21T08:23:00.975Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776756480752,sku-1776756364541,770,deduction,2026-04-21,2026-04-21T08:23:19.410Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776829073779,sku-1771407061986,20,deduction,2026-04-23,2026-04-23T08:51:44.120Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776829073779,sku-1771407101349,5,deduction,2026-04-23,2026-04-23T08:51:44.120Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776829073779,sku-1775030698487,10,deduction,2026-04-23,2026-04-23T08:51:44.120Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927415197,sku-1774606011601,10,deduction,2026-04-23,2026-04-23T08:52:05.096Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927415197,sku-1775815774049,10,deduction,2026-04-23,2026-04-23T08:52:05.096Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1771406960024,100,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1771407101349,50,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1771407936514,47,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1771408020353,4,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1774606011601,20,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1775030698487,50,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1775456004647,1,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776927769965,sku-1771407061986,80,deduction,2026-04-23,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,Approved,,,
+,TKT-1776999501965,sku-1776929481221,2,deduction,2026-04-28,2026-04-28T07:43:34.377Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777276449750,sku-1771407897767,50,deduction,2026-04-28,2026-04-28T07:45:30.211Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777348190787,sku-1771407061986,160,deduction,2026-04-28,2026-04-28T07:46:05.699Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777348190787,sku-1771406960024,200,deduction,2026-04-28,2026-04-28T07:46:05.699Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1771407101349,14,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1773299233699,400,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1775030479680,80,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1774606011601,75,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1775030698487,300,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1775456004647,40,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1777355053398,sku-1775815774049,30,deduction,2026-04-28,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,Approved,,,
+,TKT-1778230741215,sku-1771407061986,40,deduction,2026-05-12,2026-05-12T04:32:43.628Z,Alouny,Approved,,,
+,TKT-1778230741215,sku-1771407101349,65,deduction,2026-05-12,2026-05-12T04:32:43.628Z,Alouny,Approved,,,
+,TKT-1778230741215,sku-1771407936514,50,deduction,2026-05-12,2026-05-12T04:32:43.628Z,Alouny,Approved,,,
+,TKT-1778045180113,sku-1771406960024,349,deduction,2026-05-12,2026-05-12T04:33:22.044Z,Alouny,Approved,,,
+,TKT-1778045180113,sku-1771407101349,25,deduction,2026-05-12,2026-05-12T04:33:22.044Z,Alouny,Approved,,,
+,TKT-1778045180113,sku-1771407810939,21,deduction,2026-05-12,2026-05-12T04:33:22.044Z,Alouny,Approved,,,
+,TKT-1778045180113,sku-1771407061986,100,deduction,2026-05-12,2026-05-12T04:33:22.044Z,Alouny,Approved,,,
+,TKT-1778469681143,sku-1771407974256,20,deduction,2026-05-12,2026-05-12T04:34:31.614Z,Alouny,Approved,,,
+,TKT-1778467898610,sku-1771407974256,10,deduction,2026-05-12,2026-05-12T04:34:47.745Z,Alouny,Approved,,,
+,TKT-1778559259749,sku-1775456004647,100,deduction,2026-05-13,2026-05-13T03:55:04.392Z,Alouny,Approved,,,
+,TKT-1778559259749,sku-1775030698487,200,deduction,2026-05-13,2026-05-13T03:55:04.392Z,Alouny,Approved,,,
+,TKT-1778559259749,sku-1775815774049,100,deduction,2026-05-13,2026-05-13T03:55:04.392Z,Alouny,Approved,,,
+,TKT-1778727782508,sku-1771407061986,110,deduction,2026-05-15,2026-05-15T02:05:50.241Z,Alouny,Approved,,,ຈອກກາເເຟ
+,TKT-1778727782508,sku-1771407101349,10,deduction,2026-05-15,2026-05-15T02:05:50.241Z,Alouny,Approved,,,ຈອກເກັບຄວາມເຢັນ
+,TKT-1778727782508,sku-1771407974256,20,deduction,2026-05-15,2026-05-15T02:05:50.241Z,Alouny,Approved,,,ຊຸດຈອກກາເຟ
+,TKT-1778647133017,sku-1771407810939,50,deduction,2026-05-15,2026-05-15T02:06:32.185Z,Alouny,Approved,,,ກະປຸກອອມສິນ
+,TKT-1778827318176,sku-1771407810939,50,deduction,2026-05-15,2026-05-15T06:44:59.862Z,Sompartthana Bouphavong,Booked,Resubmitte ເພາະທຳອິດຫລົງຊັບມິດເປັນເບິກເຄື່ອງຢືມ,,ກະປຸກອອມສິນ
+,TKT-1778827318176,sku-1771407061986,50,deduction,2026-05-15,2026-05-15T06:44:59.862Z,Sompartthana Bouphavong,Booked,Resubmitte ເພາະທຳອິດຫລົງຊັບມິດເປັນເບິກເຄື່ອງຢືມ,,ຈອກກາເເຟ
+,TKT-1779178137478,sku-1771407810939,55,deduction,2026-05-19,2026-05-19T08:34:09.587Z,Sompartthana Bouphavong,Booked,,,ກະປຸກອອມສິນ
+,TKT-1779178137478,sku-1771407061986,400,deduction,2026-05-19,2026-05-19T08:34:09.587Z,Sompartthana Bouphavong,Booked,,,ຈອກກາເເຟ
+,TKT-1779178137478,sku-1771407101349,25,deduction,2026-05-19,2026-05-19T08:34:09.587Z,Sompartthana Bouphavong,Booked,,,ຈອກເກັບຄວາມເຢັນ
+,TKT-1779336387407,sku-1772179915959,1,deduction,2026-05-22,2026-05-22T08:27:53.340Z,Sompartthana Bouphavong,Booked,HR ເບິກໄປຊັບພອດງານ 108job,,ແບັກດອບແບບຜ້າ  230 WxH 200 cm
+,TKT-1779336387407,sku-1771407004896,50,deduction,2026-05-22,2026-05-22T08:27:53.340Z,Sompartthana Bouphavong,Booked,HR ເບິກໄປຊັບພອດງານ 108job,,ພວງກະເເຈ
+,TKT-1779336387407,sku-1775030698487,20,deduction,2026-05-22,2026-05-22T08:27:53.340Z,Sompartthana Bouphavong,Booked,HR ເບິກໄປຊັບພອດງານ 108job,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1779336387407,sku-1771407061986,3,deduction,2026-05-22,2026-05-22T08:27:53.340Z,Sompartthana Bouphavong,Booked,HR ເບິກໄປຊັບພອດງານ 108job,,ຈອກກາເເຟ
+,TKT-1779437242667,sku-1779434977945,70,deduction,2026-05-22,2026-05-22T08:28:49.497Z,Sompartthana Bouphavong,Booked,CX ເບິກໄວ້ໃສ່ເຄື່ອງໃຫ້ລູກຄ້າ ,,Paper Bag
+,TKT-1779776573671,sku-1771407101349,25,deduction,2026-05-28,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,Booked,,,ຈອກເກັບຄວາມເຢັນ
+,TKT-1779776573671,sku-1771407810939,50,deduction,2026-05-28,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,Booked,,,ກະປຸກອອມສິນ
+,TKT-1779776573671,sku-1775456004647,30,deduction,2026-05-28,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1779776573671,sku-1771407897767,1,deduction,2026-05-28,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,Booked,,,ກະເປົາເດີນທາງ
+,TKT-1779776573671,sku-1774606011601,7,deduction,2026-05-28,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1779876975030,sku-1771407004896,135,deduction,2026-05-28,2026-05-28T09:42:20.551Z,Sompartthana Bouphavong,Booked,ເອື້ອຍປູນາ ເອົາໃຫ້ 80ອັນ ຕໍ່ມາ ອ້າຍຕາດຳເອົາເພີ້ມໃຫ້ອີກ 50ອັນ,,ພວງກະເເຈ
+,TKT-1779880791871,sku-1775456004647,10,deduction,2026-06-01,2026-06-01T09:16:28.265Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1780305786573,sku-1771408020353,5,deduction,2026-06-01,2026-06-01T09:24:09.244Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1780308974303,sku-1771407810939,19,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ກະປຸກອອມສິນ
+,TKT-1780308974303,sku-1771407974256,40,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ຊຸດຈອກກາເຟ
+,TKT-1780308974303,sku-1775815774049,70,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1780308974303,sku-1775456004647,9,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ກະເປົາກິລາ
+,TKT-1780308974303,sku-1771407061986,104,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ຈອກກາເເຟ
+,TKT-1780308974303,sku-1771408020353,40,deduction,2026-06-01,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Booked,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1780539510415,sku-1771407004896,20,deduction,2026-06-04,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,Booked,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",,ພວງກະເເຈ
+,TKT-1780539510415,sku-1775030479680,15,deduction,2026-06-04,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,Booked,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",,ສາຍຮັດແຂນ (ກິລາ)
+,TKT-1780539510415,sku-1775030698487,50,deduction,2026-06-04,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,Booked,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1780539510415,sku-1774606011601,15,deduction,2026-06-04,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,Booked,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",,ຫົວສາກໂທລະສັບ
+,TKT-1780539510415,sku-1775815774049,25,deduction,2026-06-04,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,Booked,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",,ຂາຕັ້ງໂທລະສັບ
+,TKT-1779956511825,sku-1773828255894,1,deduction,2026-06-11,2026-06-11T06:23:22.799Z,Sompartthana Bouphavong,Booked,,,JBL Speaker
+,TKT-1781075113062,sku-1771407974256,20,deduction,2026-06-11,2026-06-11T06:24:06.838Z,Sompartthana Bouphavong,Booked,,,ຊຸດຈອກກາເຟ
+,TKT-1781075113062,sku-1779434977945,144,deduction,2026-06-11,2026-06-11T06:24:06.838Z,Sompartthana Bouphavong,Booked,,,ຊຸດຈອກກາເຟ
+,TKT-1781083706105,sku-1779434977945,11,deduction,2026-06-11,2026-06-11T06:24:23.768Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,TKT-1781083706105,sku-1771408020353,10,deduction,2026-06-11,2026-06-11T06:24:23.768Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+tx-hist-001,RESTOCK,sku-1771407316677,200,addition,2026-03-18,2026-03-18T06:24:23.768Z,Sompartthana Bouphavong,,Stock in,,
+tx-hist-002,RESTOCK,sku-1771407101349,600,addition,2026-03-24,2026-03-24T06:24:23.768Z,Sompartthana Bouphavong,,Stock in,,
+tx-hist-003,RESTOCK,sku-1771407897767,50,addition,2026-04-10,2026-04-10T06:24:23.768Z,Sompartthana Bouphavong,,Stock in,,
+tx-hist-004,RESTOCK,sku-1771407897767,50,addition,2026-04-27,2026-04-27T06:24:23.768Z,Sompartthana Bouphavong,,Stock in,,
+tx-hist-005,RESTOCK,sku-1771407316677,200,addition,2026-05-10,2026-05-10T06:24:23.768Z,Sompartthana Bouphavong,,Stock in,,
+,TKT-1781776422307,sku-1781666955837,70,deduction,2026-06-18,2026-06-18T09:58:41.650Z,Sompartthana Bouphavong,Booked,,,Pride Bag
+,RESTOCK,sku-1771406960024,1500,addition,2026-06-22,,,,WLH26006-017,,ບິກອີຊີໂກລ
+,TKT-1781773158812,sku-1781666955837,2,deduction,2026-06-22,2026-06-22T08:52:04.262Z,Sompartthana Bouphavong,Booked,,,Pride Bag
+,TKT-1781775750887,sku-1771408020353,5,deduction,2026-06-22,2026-06-22T08:52:46.051Z,Sompartthana Bouphavong,Booked,"ທີມອາເຈັນຊີ້ເບິກເພີ້ມ, ເນື່ອງຈາກໄດ້ຖານລູກຄ້າເພີ້ມຂຶ້ນ ",,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1781775750887,sku-1775030698487,100,deduction,2026-06-22,2026-06-22T08:52:46.051Z,Sompartthana Bouphavong,Booked,"ທີມອາເຈັນຊີ້ເບິກເພີ້ມ, ເນື່ອງຈາກໄດ້ຖານລູກຄ້າເພີ້ມຂຶ້ນ ",,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1781776426981,sku-1781666955837,28,deduction,2026-06-22,2026-06-22T08:54:05.170Z,Sompartthana Bouphavong,Booked,ບ໋ອດ ຊັບມິດເບິກແຍກຕ່າງຫາກແລ້ວ 2 ນ່ວຍ,,Pride Bag
+,TKT-1782183777297,sku-1771406960024,1500,deduction,2026-06-23,2026-06-23T03:05:55.846Z,Sompartthana Bouphavong,Booked,CX ເບິກມາໄວ້ເພື່ອແຈກໃຫ້ລູກຄ້າຊ່ວງທ້າຍປີ,,ບິກອີຊີໂກລ
+,TKT-1782183777297,sku-1771407316677,200,deduction,2026-06-23,2026-06-23T03:05:55.846Z,Sompartthana Bouphavong,Booked,CX ເບິກມາໄວ້ເພື່ອແຈກໃຫ້ລູກຄ້າຊ່ວງທ້າຍປີ,,ຄັນຮົ່ມ 2026
+,TKT-1782183777297,sku-1780972510074,300,deduction,2026-06-23,2026-06-23T03:05:55.846Z,Sompartthana Bouphavong,Booked,CX ເບິກມາໄວ້ເພື່ອແຈກໃຫ້ລູກຄ້າຊ່ວງທ້າຍປີ,,ຈອກເກັບອຸນຫະພູມ 2026
+,TKT-1782183777297,sku-1781681021177,500,deduction,2026-06-23,2026-06-23T03:05:55.846Z,Sompartthana Bouphavong,Booked,CX ເບິກມາໄວ້ເພື່ອແຈກໃຫ້ລູກຄ້າຊ່ວງທ້າຍປີ,,ຫມວກ 2026
+,TKT-1779956511825,sku-1773828255894,1,addition,2026-06-23,2026-06-23T03:06:17.064Z,Sompartthana Bouphavong,Returned,Partial return processed by warehouse,0,JBL Speaker
+,TKT-1779956511825,sku-1773828255894,1,addition,2026-06-23,2026-06-23T03:06:25.921Z,Sompartthana Bouphavong,Returned,Partial return processed by warehouse,0,JBL Speaker
+,RESTOCK,sku-1771407897767,100,addition,2026-06-25,,,,WLH26006-024_24Jun2026,,ກະເປົາເດີນທາງ
+,TKT-1782703189783,sku-1771408020353,3,deduction,2026-06-29,2026-06-29T06:02:05.343Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1782801962258,sku-1771407974256,50,deduction,2026-06-30,2026-06-30T06:48:26.611Z,Sompartthana Bouphavong,Booked,,,ຊຸດຈອກກາເຟ
+,TKT-1783305053069,sku-1775456004647,10,deduction,2026-07-06,2026-07-06T07:49:42.776Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1783305053069,sku-1775815774049,20,deduction,2026-07-06,2026-07-06T07:49:42.776Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1783305053069,sku-1771407974256,10,deduction,2026-07-06,2026-07-06T07:49:42.776Z,Sompartthana Bouphavong,Booked,,,ຊຸດຈອກກາເຟ
+,TKT-1783319725593,sku-1771407061986,15,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ຈອກກາເເຟ
+,TKT-1783319725593,sku-1775815774049,40,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1783319725593,sku-1775030698487,200,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1783319725593,sku-1774606011601,25,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1783319725593,sku-1775456004647,20,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1783319725593,sku-1775030479680,20,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,ສາຍຮັດແຂນ (ກິລາ)
+,TKT-1783319725593,sku-1779434977945,50,deduction,2026-07-07,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,TKT-1783482332278,sku-1771408020353,2,deduction,2026-08-07,2026-08-07T09:22:31.457Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1783665317672,sku-1771407061986,50,deduction,2026-07-10,2026-07-10T06:45:58.534Z,Sompartthana Bouphavong,Booked,,,ຈອກກາເເຟ
+,TKT-1784196482428,sku-1779434977945,50,deduction,2026-07-16,2026-07-16T10:08:52.105Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,TKT-1784194879118,sku-1779434977945,50,deduction,2026-07-16,2026-07-16T10:09:45.389Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,OPENING,sku-1785120875998,3000,addition,2026-07-24,2026-07-27T02:54:36.644Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,A4 Brochure Easy Hub
+,OPENING,sku-1785121215788,5000,addition,2026-07-22,2026-07-27T03:00:16.625Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Paper Bag for GOLD
+,TKT-1785124833384,sku-1775030479680,30,deduction,2026-07-28,2026-07-28T03:00:45.281Z,Sompartthana Bouphavong,Booked,"ຫົວສາກໂທລະສັບ ຕາດຳໄປເບິກມາກ່ອນ 15ອັນ,  ປູນາ ໄປເບິກເພີ້ມອີກ 35ອັນ ",,ສາຍຮັດແຂນ (ກິລາ)
+,TKT-1785124833384,sku-1774606011601,50,deduction,2026-07-28,2026-07-28T03:00:45.281Z,Sompartthana Bouphavong,Booked,"ຫົວສາກໂທລະສັບ ຕາດຳໄປເບິກມາກ່ອນ 15ອັນ,  ປູນາ ໄປເບິກເພີ້ມອີກ 35ອັນ ",,ຫົວສາກໂທລະສັບ
+,TKT-1785124833384,sku-1775815774049,50,deduction,2026-07-28,2026-07-28T03:00:45.281Z,Sompartthana Bouphavong,Booked,"ຫົວສາກໂທລະສັບ ຕາດຳໄປເບິກມາກ່ອນ 15ອັນ,  ປູນາ ໄປເບິກເພີ້ມອີກ 35ອັນ ",,ຂາຕັ້ງໂທລະສັບ
+,TKT-1785124833384,sku-1775456004647,40,deduction,2026-07-28,2026-07-28T03:00:45.281Z,Sompartthana Bouphavong,Booked,"ຫົວສາກໂທລະສັບ ຕາດຳໄປເບິກມາກ່ອນ 15ອັນ,  ປູນາ ໄປເບິກເພີ້ມອີກ 35ອັນ ",,ກະເປົາກິລາ
+,TKT-1785319376214,sku-1774606011601,10,deduction,2026-07-30,2026-07-30T06:01:26.030Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1785319376214,sku-1775456004647,3,deduction,2026-07-30,2026-07-30T06:01:26.030Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1785319376214,sku-1771407004896,50,deduction,2026-07-30,2026-07-30T06:01:26.030Z,Sompartthana Bouphavong,Booked,,,ພວງກະເເຈ
+,TKT-1785723806693,sku-1771407061986,40,deduction,2026-08-04,2026-08-04T02:37:33.372Z,Sompartthana Bouphavong,Booked,,,ຈອກກາເເຟ
+,TKT-1785906517147,sku-1773299233699,1000,deduction,2026-08-06,2026-08-06T10:05:44.261Z,Sompartthana Bouphavong,Booked,,,A4 Brochure
+,TKT-1785906517147,sku-1775030698487,200,deduction,2026-08-06,2026-08-06T10:05:44.261Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1786010348459,sku-1785121215788,1,deduction,2026-08-06,2026-08-06T10:07:13.202Z,Sompartthana Bouphavong,Booked,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,,Paper Bag for GOLD
+,TKT-1786010348459,sku-1779434977945,150,deduction,2026-08-06,2026-08-06T10:07:13.202Z,Sompartthana Bouphavong,Booked,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,,Paper Bag
+,TKT-1786010348459,sku-1785121215788,1,deduction,2026-08-06,2026-08-06T10:08:23.418Z,Sompartthana Bouphavong,Booked,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,,Paper Bag for GOLD
+,TKT-1786010348459,sku-1779434977945,150,deduction,2026-08-06,2026-08-06T10:08:23.418Z,Sompartthana Bouphavong,Booked,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,,Paper Bag
+,TKT-1785906687323,sku-1773299233699,1000,deduction,2026-08-06,2026-08-06T10:09:27.026Z,Sompartthana Bouphavong,Booked,,,A4 Brochure
+,TKT-1785906687323,sku-1775030698487,200,deduction,2026-08-06,2026-08-06T10:09:27.026Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1786012380968,sku-1785121215788,50,deduction,2026-08-07,2026-08-07T02:22:33.736Z,Sompartthana Bouphavong,Booked,,,Paper Bag for GOLD
+,TKT-1786081639947,sku-1775456004647,5,deduction,2026-08-11,2026-08-11T02:09:45.602Z,Sompartthana Bouphavong,Booked,ຊັບພອດງານ ເທດສະການແຕ່ງດອງ,,ກະເປົາກິລາ
+,TKT-1786081639947,sku-1775815774049,10,deduction,2026-08-11,2026-08-11T02:09:45.602Z,Sompartthana Bouphavong,Booked,ຊັບພອດງານ ເທດສະການແຕ່ງດອງ,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1786081639947,sku-1774606011601,5,deduction,2026-08-11,2026-08-11T02:09:45.602Z,Sompartthana Bouphavong,Booked,ຊັບພອດງານ ເທດສະການແຕ່ງດອງ,,ຫົວສາກໂທລະສັບ
+,TKT-1786081639947,sku-1771407810939,5,deduction,2026-08-11,2026-08-11T02:09:45.602Z,Sompartthana Bouphavong,Booked,ຊັບພອດງານ ເທດສະການແຕ່ງດອງ,,ກະປຸກອອມສິນ
+,OPENING,sku-1787027890986,300,addition,2026-08-18,2026-08-18T04:38:11.771Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງຂອງຂວັນ
+,TKT-1787027487933,sku-1771407004896,100,deduction,2026-08-18,2026-08-18T04:57:21.458Z,Sompartthana Bouphavong,Booked,ຈອກກາເຟ ໃຫ້ບໍ່ໄດ້ ,,ພວງກະເເຈ
+,TKT-1787027487933,sku-1781512257490,1,deduction,2026-08-18,2026-08-18T04:57:21.458Z,Sompartthana Bouphavong,Booked,ຈອກກາເຟ ໃຫ້ບໍ່ໄດ້ ,,KPV ໂຕະໄຮໂດຣລິກ
+,TKT-1787027487933,sku-1772179915959,1,deduction,2026-08-18,2026-08-18T04:57:21.458Z,Sompartthana Bouphavong,Booked,ຈອກກາເຟ ໃຫ້ບໍ່ໄດ້ ,,ແບັກດອບແບບຜ້າ  230 WxH 200 cm
+,TKT-1787027487933,sku-1775815774049,5,deduction,2026-08-18,2026-08-18T04:57:21.458Z,Sompartthana Bouphavong,Booked,ຈອກກາເຟ ໃຫ້ບໍ່ໄດ້ ,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1786439385448,sku-1774606011601,5,deduction,2026-08-18,2026-08-18T04:57:52.561Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1786439385448,sku-1775456004647,12,deduction,2026-08-18,2026-08-18T04:57:52.561Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1786439385448,sku-1771407004896,50,deduction,2026-08-18,2026-08-18T04:57:52.561Z,Sompartthana Bouphavong,Booked,,,ພວງກະເເຈ
+,TKT-1786414757351,sku-1775456004647,20,deduction,2026-08-18,2026-08-18T04:58:10.653Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1786414757351,sku-1774606011601,50,deduction,2026-08-18,2026-08-18T04:58:10.653Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1786414757351,sku-1771408020353,10,deduction,2026-08-18,2026-08-18T04:58:10.653Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1786414757351,sku-1775815774049,50,deduction,2026-08-18,2026-08-18T04:58:10.653Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1786438940716,sku-1779434977945,30,deduction,2026-08-18,2026-08-18T04:58:28.648Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,TKT-1786414419486,sku-1775456004647,20,deduction,2026-08-18,2026-08-18T04:59:24.753Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1786414419486,sku-1774606011601,20,deduction,2026-08-18,2026-08-18T04:59:24.753Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1786414419486,sku-1771407810939,20,deduction,2026-08-18,2026-08-18T04:59:24.753Z,Sompartthana Bouphavong,Booked,,,ກະປຸກອອມສິນ
+,TKT-1786414419486,sku-1775815774049,20,deduction,2026-08-18,2026-08-18T04:59:24.753Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1787028406085,sku-1787027890986,10,deduction,2026-08-19,2026-08-19T04:23:45.577Z,Sompartthana Bouphavong,Booked,,,ກ່ອງຂອງຂວັນ
+,OPENING,sku-1787714793029,110,addition,2026-08-03,2026-08-26T03:26:33.510Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Tote Bag If & Art
+,OPENING,sku-1787715043950,100,addition,2026-08-25,2026-08-26T03:30:45.081Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Gift set 2026
+,OPENING,sku-1787715049424,100,addition,2026-08-25,2026-08-26T03:30:50.752Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Gift set 2026
+,TKT-1787543425737,sku-1771408020353,10,deduction,2026-08-26,2026-08-26T09:41:06.927Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1787539473267,sku-1775815774049,70,deduction,2026-08-26,2026-08-26T09:41:39.544Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1787814988879,sku-1787714793029,110,deduction,2026-08-28,2026-08-28T04:16:02.622Z,Sompartthana Bouphavong,Booked,,,Tote Bag If & Art
+,OPENING,sku-1788146835376,100,addition,2026-08-28,2026-08-31T03:27:15.972Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Piggy Bank V2 
+,TKT-1787815027847,sku-1774606011601,20,deduction,2026-08-31,2026-08-31T07:08:49.701Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1787815027847,sku-1775456004647,20,deduction,2026-08-31,2026-08-31T07:08:49.701Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1787815069324,sku-1787714793029,110,deduction,2026-08-31,2026-08-31T07:09:06.879Z,Sompartthana Bouphavong,Booked,,,Tote Bag If & Art
+,RESTOCK,sku-1771406960024,400,addition,2026-08-31,,,,[MKT_TRANSFER] Return item today to MKT warehouse,,ບິກອີຊີໂກລ
+,TKT-1788160090372,sku-1771408020353,10,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
+,TKT-1788160090372,sku-1775456004647,20,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1788160090372,sku-1775815774049,50,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1788160090372,sku-1774606011601,50,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1788166528113,sku-1771406960024,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,ບິກອີຊີໂກລ
+,TKT-1788166528113,sku-1771407004896,67,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,ພວງກະເເຈ
+,TKT-1788166528113,sku-1773299233699,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,A4 Brochure
+,TKT-1788166528113,sku-1775030698487,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1788166528113,sku-1785121215788,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,Paper Bag for GOLD

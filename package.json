@@ -1,0 +1,46 @@
+{
+  "name": "easy-gold-merch",
+  "private": true,
+  "version": "2.0.0",
+  "type": "module",
+  "description": "Easy Gold Merch Management System — React + Vite + Supabase + Cloudflare Pages (blue edition)",
+  "scripts": {
+    "dev": "vite --host :: --port 8080",
+    "build": "vite build",
+    "build:dev": "vite build --mode development",
+    "preview": "vite preview --host :: --port 8080",
+    "typecheck": "tsc --noEmit",
+    "test:smoke": "tsx scripts/smoke-test.ts",
+    "csv:export": "node scripts/export-csv.mjs",
+    "seed:all": "npm run csv:export && npm run seed:generate && npm run seed:demo",
+    "seed:generate": "node scripts/generate-seed.mjs",
+    "seed:demo": "node scripts/generate-demo-data.mjs",
+    "seed:auth": "node scripts/seed-auth.mjs",
+    "pages:deploy": "npm run build && npx wrangler pages deploy dist --project-name easy-gold-merch"
+  },
+  "dependencies": {
+    "@supabase/supabase-js": "^2.45.4",
+    "@tanstack/react-query": "^5.59.16",
+    "clsx": "^2.1.1",
+    "date-fns": "^3.6.0",
+    "lucide-react": "^0.462.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.30.1",
+    "tailwind-merge": "^2.6.0",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "playwright-core": "^1.62.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.23.13",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "wrangler": "^3.99.0"
+  }
+}

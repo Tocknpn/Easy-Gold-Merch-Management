@@ -1,0 +1,333 @@
+﻿Action_ID,Ticket_ID,Action,Status,Action_At,Action_By,Comment,Role,
+act-1771577790156,TKT-1771577788359,Create,Pending,2026-02-20T08:56:27.312Z,Phonethida Mangala,For Lunar New Year Campaign (10-17 Feb 2026),,TKT-1771577788359
+act-1771577888542,TKT-1771577788359,Moved,Moved,2026-02-20T08:58:06.250Z,Sompartthana Bouphavong,"Bam & J, ໄປເອົາຢູ່ສາງເອງ ",warehouse,TKT-1771577788359
+act-1771578447494,TKT-1771577788359,Approved,Approved,2026-02-20T09:07:25.943Z,Jonathaan Meadley,,line_manager,TKT-1771577788359
+act-1771578449904,TKT-1771577788359,Approved,Approved,2026-02-20T09:07:28.144Z,Jonathaan Meadley,,line_manager,TKT-1771577788359
+act-1772507240513,TKT-1772507237246,Create,Pending,2026-03-03T03:07:14.742Z,Thavutxai Inthavongsa,for Kaopoon's shooting as a prop and easter eggs,,TKT-1772507237246
+act-1772592113645,TKT-1772592110294,Create,Pending,2026-03-04T02:41:49.328Z,Souk,ເບີກໄປໃຊ້ຊັ້ນ 1,,TKT-1772592110294
+act-1772597126104,TKT-1772592110294,Moved,Moved,2026-03-04T04:05:26.103Z,,ເບິກໂຕຈິ່ງແມ່ນ 20 ຊຸດ,,TKT-1772592110294
+act-1772597313959,TKT-1772507237246,Moved,Moved,2026-03-04T04:08:33.958Z,,,,TKT-1772507237246
+act-1773299389251,TKT-1773299387291,Create,Pending,2026-03-12T07:09:46.109Z,Sompartthana Bouphavong,ໃຫ້ທີມອາເຈັນຊີ້ ອອກບູສ ທີ່ງານ ຫນັງສື ຢູ່ ມ.ຊ,,TKT-1773299387291
+act-1773299423281,TKT-1773299387291,Moved,Moved,2026-03-12T07:10:23.280Z,,,,TKT-1773299387291
+act-1773652080538,TKT-1773652078809,Create,Pending,2026-03-16T09:07:56.326Z,Phonethida Mangala,For Bluebox campaign,,TKT-1773652078809
+act-1773722472511,TKT-1773652078809,Moved,Moved,2026-03-17T04:41:10.408Z,Sompartthana Bouphavong,,warehouse,TKT-1773652078809
+act-1773722802937,TKT-1773722800507,Create,Pending,2026-03-17T04:46:39.165Z,Sompartthana Bouphavong,ເບິກໄປຊັບພອດງານສະປອນເຊີ Pha-Jay,,TKT-1773722800507
+act-1773722814948,TKT-1773722800507,Moved,Moved,2026-03-17T04:46:52.162Z,Sompartthana Bouphavong,,warehouse,TKT-1773722800507
+act-1773723476271,TKT-1773723473614,Create,Pending,2026-03-17T04:57:52.031Z,Sompartthana Bouphavong,Support Corporate (partnership),,TKT-1773723473614
+act-1773728269600,TKT-1772507237246,Approved,Approved,2026-03-17T06:17:46.257Z,Jonathaan Meadley,,line_manager,TKT-1772507237246
+act-1773728284530,TKT-1772592110294,Approved,Approved,2026-03-17T06:18:00.410Z,Jonathaan Meadley,,line_manager,TKT-1772592110294
+act-1773728293440,TKT-1773299387291,Approved,Approved,2026-03-17T06:18:11.442Z,Jonathaan Meadley,,line_manager,TKT-1773299387291
+act-1773728300840,TKT-1773652078809,Approved,Approved,2026-03-17T06:18:18.868Z,Jonathaan Meadley,,line_manager,TKT-1773652078809
+act-1773728305746,TKT-1773722800507,Approved,Approved,2026-03-17T06:18:23.750Z,Jonathaan Meadley,,line_manager,TKT-1773722800507
+act-1773728691096,TKT-1773723473614,Moved,Moved,2026-03-17T06:24:47.469Z,Sompartthana Bouphavong,,warehouse,TKT-1773723473614
+act-1773735249639,TKT-1773723473614,Approved,Approved,2026-03-17T08:14:04.089Z,Jonathaan Meadley,,line_manager,TKT-1773723473614
+act-1774339255173,TKT-1774339252579,Create,Pending,2026-03-24T08:00:51.245Z,Sompartthana Bouphavong,Agency support Picky Bank 40,,TKT-1774339252579
+act-1774339270072,TKT-1774339252579,Moved,Moved,2026-03-24T08:01:06.719Z,Sompartthana Bouphavong,,warehouse,TKT-1774339252579
+act-1774339522860,TKT-1771577788359,Approved,Approved,2026-03-24T08:05:19.378Z,Souliphonh Phengxay,,director,TKT-1771577788359
+act-1774339537654,TKT-1772507237246,Approved,Approved,2026-03-24T08:05:34.964Z,Souliphonh Phengxay,,director,TKT-1772507237246
+act-1774339555053,TKT-1772592110294,Approved,Approved,2026-03-24T08:05:52.128Z,Souliphonh Phengxay,,director,TKT-1772592110294
+act-1774339570245,TKT-1773299387291,Approved,Approved,2026-03-24T08:06:06.664Z,Souliphonh Phengxay,,director,TKT-1773299387291
+act-1774339584028,TKT-1773652078809,Approved,Approved,2026-03-24T08:06:21.012Z,Souliphonh Phengxay,,director,TKT-1773652078809
+act-1774339596804,TKT-1773722800507,Approved,Approved,2026-03-24T08:06:33.410Z,Souliphonh Phengxay,,director,TKT-1773722800507
+act-1774339631577,TKT-1773723473614,Approved,Approved,2026-03-24T08:07:06.618Z,Souliphonh Phengxay,,director,TKT-1773723473614
+act-1774419742599,TKT-1774339252579,Approved,Approved,2026-03-25T06:22:21.582Z,Jonathaan Meadley,,line_manager,TKT-1774339252579
+act-1774431239689,TKT-1774431236031,Create,Pending,2026-03-25T09:33:54.102Z,Customer Service,ເບີກເຄື່ອງໄວ່້ສາງຊັ້ນ6,,TKT-1774431236031
+act-1774488920270,TKT-1774339252579,Approved,Approved,2026-03-26T01:35:17.102Z,Souliphonh Phengxay,,director,TKT-1774339252579
+act-1774513871513,TKT-1774431236031,Moved,Moved,2026-03-26T08:31:05.392Z,Sompartthana Bouphavong,ນ້ອງໆ CX ເບິກມາໄວ້ຊັ້ນ 6 ເພື່ອມອບໃຫ້ລູກຄ້າທີ່ເຂົ້າມາແລກຄະແນນ,warehouse,TKT-1774431236031
+act-1774519788051,TKT-1774431236031,Approved,Approved,2026-03-26T10:09:44.990Z,Jonathaan Meadley,,line_manager,TKT-1774431236031
+act-1774519788956,TKT-1774519787325,Create,Pending,2026-03-26T10:09:45.687Z,Souk,ເບີກໄວ້ມອບໃຫ້ຫົວໜ້າກົມເຕັກໂນໂລຊີ ແລະ ໄວໃຫ້ແຂກຫົວໜ້າ,,TKT-1774519787325
+act-1774519860981,TKT-1774519858761,Create,Pending,2026-03-26T10:10:55.935Z,Souk,ໃຊ້ເປັນໂຕະກາເຟຊັ້ນ 01 ເພື່ອຮັບຮອງລູກຄ້າ,,TKT-1774519858761
+act-1774520416960,TKT-1774519787325,Moved,Moved,2026-03-26T10:20:13.353Z,Sompartthana Bouphavong,"ເນື່ອງຈາກ ສຸກຕ້ອງການດ່ວນ (ມື້ຊັບມິດເລີຍ) ກໍ່ເລີຍໃຫ້ສຸກເບິກຢືມນຳທີມ ບໍລິການລູກຄ້າກ່ອນ, ແລ້ວປູນາຈະເບິກມາແທນຄືນໃຫ້ ",warehouse,TKT-1774519787325
+act-1774520456788,TKT-1774519787325,Approved,Approved,2026-03-26T10:20:54.305Z,Jonathaan Meadley,,line_manager,TKT-1774519787325
+act-1774575379844,TKT-1774431236031,Approved,Approved,2026-03-27T01:36:19.060Z,Souliphonh Phengxay,,director,TKT-1774431236031
+act-1774575396297,TKT-1774519787325,Approved,Approved,2026-03-27T01:36:35.542Z,Souliphonh Phengxay,,director,TKT-1774519787325
+act-1774576840531,TKT-1774519858761,Moved,Moved,2026-03-27T02:00:34.650Z,Sompartthana Bouphavong,,warehouse,TKT-1774519858761
+act-1774577349251,TKT-1774519858761,Approved,Approved,2026-03-27T02:09:07.609Z,Jonathaan Meadley,,line_manager,TKT-1774519858761
+act-1774594808764,TKT-1774519858761,Approved,Approved,2026-03-27T07:00:08.601Z,Souliphonh Phengxay,,director,TKT-1774519858761
+act-1775030806815,TKT-1775030802941,Create,Pending,2026-04-01T08:06:38.832Z,Soudsada Keovongphet,Free gifts and giveaways for customers at booth events. ເເຈກລູກຄ້າເປີດບັນຊີ ເເລະ ຊື້ຄຳຫນ້າບູດ,,TKT-1775030802941
+act-1775031097107,TKT-1775031095824,Create,Pending,2026-04-01T08:11:29.309Z,Soudsada Keovongphet,Free gifts and giveaways for customers at booth events. ເເຈກລູກຄ້າເປີດບັນຊີໃຫມ່ ເເລະ ຊື້ຄຳຫນ້າບູດ,,TKT-1775031095824
+act-1775035335255,TKT-1775030802941,Moved,Moved,2026-04-01T09:22:09.186Z,Sompartthana Bouphavong,,warehouse,TKT-1775030802941
+act-1775035445373,TKT-1775031095824,Moved,Moved,2026-04-01T09:23:59.705Z,Sompartthana Bouphavong,,warehouse,TKT-1775031095824
+act-1775035863840,TKT-1775030802941,Approved,Approved,2026-04-01T09:30:57.973Z,Jonathaan Meadley,KPV Activation - Q2,line_manager,TKT-1775030802941
+act-1775035888400,TKT-1775031095824,Approved,Approved,2026-04-01T09:31:23.630Z,Jonathaan Meadley,KPV Activation - Q2,line_manager,TKT-1775031095824
+act-1775040521485,TKT-1775030802941,Approved,Approved,2026-04-01T10:48:36.679Z,Souliphonh Phengxay,,director,TKT-1775030802941
+act-1775040540956,TKT-1775031095824,Approved,Approved,2026-04-01T10:48:57.282Z,Souliphonh Phengxay,,director,TKT-1775031095824
+act-1775100406022,TKT-1775100401216,Create,Pending,2026-04-02T03:26:37.832Z,Sompartthana Bouphavong,resubmit,,TKT-1775100401216
+act-1775100445553,TKT-1775100401216,Moved,Moved,2026-04-02T03:27:22.925Z,Sompartthana Bouphavong,ສຳລັບ ໄຕມາດ2,warehouse,TKT-1775100401216
+act-1775528100990,TKT-1775528099100,Create,Pending,2026-04-07T02:14:57.135Z,Sompartthana Bouphavong,For Q1 Booth activation by agency,,TKT-1775528099100
+act-1775530513782,TKT-1775100401216,Approved,Approved,2026-04-07T02:55:10.310Z,Jonathaan Meadley,,line_manager,TKT-1775100401216
+act-1775532529213,TKT-1775100401216,Approved,Approved,2026-04-07T03:28:48.803Z,Souliphonh Phengxay,,director,TKT-1775100401216
+act-1775621610661,TKT-1775528099100,Moved,Moved,2026-04-08T04:13:27.336Z,Sompartthana Bouphavong,,warehouse,TKT-1775528099100
+act-1775630783142,TKT-1775528099100,Approved,Approved,2026-04-08T06:46:17.485Z,Jonathaan Meadley,,line_manager,TKT-1775528099100
+act-1775633131825,TKT-1775633130238,Create,Pending,2026-04-08T07:25:25.225Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ 6,,TKT-1775633130238
+act-1775791128777,TKT-1775633130238,Moved,Moved,2026-04-10T03:18:44.986Z,Sompartthana Bouphavong,ໄດ້ເອົາເຄື່ອງຕົວຈິ່ງທີ່ມີທັງຫມົດ 70ກ້ານໃຫ້ເເລີຍ,warehouse,TKT-1775633130238
+act-1776670124031,TKT-1776670121981,Create,Pending,2026-04-20T07:28:41.712Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ 6,,TKT-1776670121981
+act-1776671613908,TKT-1776671610636,Create,Pending,2026-04-20T07:53:29.444Z,Sompartthana Bouphavong,"ເບິກໃຫ້ທີມງານການຕະຫລາດ, ພາດເນີຊີບ ແລະ ໂດ້ (ພະນັກງານເກົ່າ)",,TKT-1776671610636
+act-1776671658346,TKT-1776671656947,Create,Pending,2026-04-20T07:54:15.631Z,Sompartthana Bouphavong,ເບິກໃຫ້ທີມງານອາເຈັນຊີ້ ອອກບູສ,,TKT-1776671656947
+act-1776678459195,TKT-1775633130238,Approved,Approved,2026-04-20T09:47:45.629Z,Jonathaan Meadley,,line_manager,TKT-1775633130238
+act-1776678737506,TKT-1775528099100,Approved,Approved,2026-04-20T09:52:15.946Z,Souliphonh Phengxay,,director,TKT-1775528099100
+act-1776678755534,TKT-1775633130238,Approved,Approved,2026-04-20T09:52:32.696Z,Souliphonh Phengxay,,director,TKT-1775633130238
+act-1776736224992,TKT-1776670121981,Moved,Moved,2026-04-21T01:50:21.981Z,Sompartthana Bouphavong,,warehouse,TKT-1776670121981
+act-1776736245010,TKT-1776671610636,Moved,Moved,2026-04-21T01:50:42.037Z,Sompartthana Bouphavong,,warehouse,TKT-1776671610636
+act-1776736257840,TKT-1776671656947,Moved,Moved,2026-04-21T01:50:54.417Z,Sompartthana Bouphavong,,warehouse,TKT-1776671656947
+act-1776756482844,TKT-1776756480752,Create,Pending,2026-04-21T07:27:59.520Z,Sompartthana Bouphavong,ຊັບມິດຄືນ ເພຶ່ອຊັບພອດເຄມເປນ LNY,,TKT-1776756480752
+act-1776756588353,TKT-1776756480752,Moved,Moved,2026-04-21T07:29:44.452Z,Sompartthana Bouphavong,,warehouse,TKT-1776756480752
+act-1776759650373,TKT-1776670121981,Approved,Approved,2026-04-21T08:20:47.045Z,Jonathaan Meadley,,line_manager,TKT-1776670121981
+act-1776759662498,TKT-1776671610636,Approved,Approved,2026-04-21T08:21:00.239Z,Jonathaan Meadley,,line_manager,TKT-1776671610636
+act-1776759673102,TKT-1776671656947,Approved,Approved,2026-04-21T08:21:11.172Z,Jonathaan Meadley,,line_manager,TKT-1776671656947
+act-1776759686082,TKT-1776756480752,Approved,Approved,2026-04-21T08:21:24.016Z,Jonathaan Meadley,,line_manager,TKT-1776756480752
+act-1776759752173,TKT-1776670121981,Approved,Approved,2026-04-21T08:22:30.059Z,Souliphonh Phengxay,,director,TKT-1776670121981
+act-1776759767028,TKT-1776671610636,Approved,Approved,2026-04-21T08:22:44.252Z,Souliphonh Phengxay,,director,TKT-1776671610636
+act-1776759783864,TKT-1776671656947,Approved,Approved,2026-04-21T08:23:00.975Z,Souliphonh Phengxay,,director,TKT-1776671656947
+act-1776759803187,TKT-1776756480752,Approved,Approved,2026-04-21T08:23:19.410Z,Souliphonh Phengxay,,director,TKT-1776756480752
+act-1776829078264,TKT-1776829073779,Create,Pending,2026-04-22T03:37:52.310Z,Soudsada Keovongphet,Free gifts and giveaways for customers at booth events.ເຄື່ອງເເຈກໃຫ້ລູກຄ້າຫນ້າບູດສາຂາວັງທອງ,,TKT-1776829073779
+act-1776927134471,TKT-1776829073779,Moved,Moved,2026-04-23T06:52:10.834Z,Sompartthana Bouphavong,ເພີ້ມເຕີມມີ: ແນວຕັ້ງໂທລະສັບ 10ອັນ ຫົວສາກ 10 ອັນ ,warehouse,TKT-1776829073779
+act-1776927416462,TKT-1776927415197,Create,Pending,2026-04-23T06:56:53.725Z,Soudsada Keovongphet,Free gifts and giveaways for customers at booth events. ເເຈກໃຫ້ກັບລູກຄ້າຫນ້າບູດສາຂາວັງທອງ,,TKT-1776927415197
+act-1776927774372,TKT-1776927769965,Create,Pending,2026-04-23T07:02:48.592Z,Sompartthana Bouphavong,ເບິກເຄື່ອງໃຫ້ອາເຈັນຊີ້ປະຈຳເດືອນ 5 ແລະ ເບິກໃຊ້ຊັບພອດງານ ອີເວັ້ນ StartUp 2026,,TKT-1776927769965
+act-1776928125369,TKT-1776927769965,Moved,Moved,2026-04-23T07:08:42.525Z,Sompartthana Bouphavong,"ຫມາຍເຫດ: ຄັນຮົ່ມກອຟ ເບິກໄປງານແລ້ວ, ແຕ່ບໍ່ທັນໄດ້ແຈກ ລໍຖ້າຜອລູ່ໃຫ້ຄຳເຫັນ ",warehouse,TKT-1776927769965
+act-1776928200144,TKT-1776927415197,Moved,Moved,2026-04-23T07:09:57.926Z,Sompartthana Bouphavong,ເມເບິກໄປຊັບພອດບູສ ຫນ້າຮ້ານຄຳພູວົງ ,warehouse,TKT-1776927415197
+act-1776928531847,TKT-1776829073779,Approved,Approved,2026-04-23T07:15:29.878Z,Jonathaan Meadley,,line_manager,TKT-1776829073779
+act-1776928540261,TKT-1776927415197,Approved,Approved,2026-04-23T07:15:38.802Z,Jonathaan Meadley,,line_manager,TKT-1776927415197
+act-1776928547125,TKT-1776927769965,Approved,Approved,2026-04-23T07:15:46.114Z,Jonathaan Meadley,,line_manager,TKT-1776927769965
+act-1776934311152,TKT-1776829073779,Approved,Approved,2026-04-23T08:51:44.120Z,Souliphonh Phengxay,,director,TKT-1776829073779
+act-1776934328439,TKT-1776927415197,Approved,Approved,2026-04-23T08:52:05.096Z,Souliphonh Phengxay,,director,TKT-1776927415197
+act-1776934348888,TKT-1776927769965,Approved,Approved,2026-04-23T08:52:24.977Z,Souliphonh Phengxay,,director,TKT-1776927769965
+act-1776999504685,TKT-1776999501965,Create,Pending,2026-04-24T02:58:18.483Z,Souk,"ຍື່ມມາໃຫ້ລຸງຍາມ ,ອາ້ຍນ້ອງຕຳຫຼວດ",,TKT-1776999501965
+act-1776999791527,TKT-1776999501965,Moved,Moved,2026-04-24T03:03:08.975Z,Sompartthana Bouphavong,"  ສຸກ, ໄດ້ໄປເບິກເອົາຢູ່ສາງເອງ ວັນທີ່ 23.04.2026 ຕອນເລິກວຽກ",warehouse,TKT-1776999501965
+act-1777276452000,TKT-1777276449750,Create,Pending,2026-04-27T07:54:09.423Z,Customer Service,ເບີດເຄື່ອງໄວ້ສາງຊັ້ນ 6,,TKT-1777276449750
+act-1777348196698,TKT-1777348190787,Create,Pending,2026-04-28T03:49:49.600Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ 6,,TKT-1777348190787
+act-1777354949620,TKT-1777348190787,Moved,Moved,2026-04-28T05:42:27.321Z,Sompartthana Bouphavong,"ບິກແມ່ນມີ4ກັບ,  ກັບລະ 50ກ້ານ ",warehouse,TKT-1777348190787
+act-1777354963411,TKT-1777276449750,Moved,Moved,2026-04-28T05:42:40.685Z,Sompartthana Bouphavong,,warehouse,TKT-1777276449750
+act-1777355060527,TKT-1777355053398,Create,Pending,2026-04-28T05:44:11.757Z,Soudsada Keovongphet,BTL ເບີກເຄື່ອງອອກບູດປະຈຳຫນ້າຮ້ານ 3ສາຂາ ເເລະ ເຄື່ອງເເຈກໃຫ້ບູດກິດຈະກຳຂອງທາງD-Day Agency,,TKT-1777355053398
+act-1777355132097,TKT-1777355053398,Moved,Moved,2026-04-28T05:45:29.737Z,Sompartthana Bouphavong,,warehouse,TKT-1777355053398
+act-1777361241286,TKT-1777355053398,Approved,Approved,2026-04-28T07:27:14.025Z,Jonathaan Meadley,,line_manager,TKT-1777355053398
+act-1777361249596,TKT-1777348190787,Approved,Approved,2026-04-28T07:27:27.381Z,Jonathaan Meadley,,line_manager,TKT-1777348190787
+act-1777361258124,TKT-1777276449750,Approved,Approved,2026-04-28T07:27:36.010Z,Jonathaan Meadley,,line_manager,TKT-1777276449750
+act-1777361276929,TKT-1776999501965,Approved,Approved,2026-04-28T07:27:54.120Z,Jonathaan Meadley,,line_manager,TKT-1776999501965
+act-1777362217428,TKT-1776999501965,Approved,Approved,2026-04-28T07:43:34.377Z,Souliphonh Phengxay,,director,TKT-1776999501965
+act-1777362333740,TKT-1777276449750,Approved,Approved,2026-04-28T07:45:30.211Z,Souliphonh Phengxay,,director,TKT-1777276449750
+act-1777362368431,TKT-1777348190787,Approved,Approved,2026-04-28T07:46:05.699Z,Souliphonh Phengxay,,director,TKT-1777348190787
+act-1777362390316,TKT-1777355053398,Approved,Approved,2026-04-28T07:46:26.937Z,Souliphonh Phengxay,,director,TKT-1777355053398
+act-1778045183351,TKT-1778045180113,Create,Pending,2026-05-06T05:26:18.534Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ 6,,TKT-1778045180113
+act-1778060237919,TKT-1778045180113,Moved,Moved,2026-05-06T09:37:15.368Z,Sompartthana Bouphavong,,warehouse,TKT-1778045180113
+act-1778148660385,TKT-1776999501965,Update,finalized,2026-05-07T10:11:00.385Z,,,,TKT-1776999501965
+act-1778149843077,TKT-1776999501965,Update,finalized,2026-05-07T10:30:43.076Z,,,,TKT-1776999501965
+act-1778230743402,TKT-1778230741215,Create,Pending,2026-05-08T08:58:59.313Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ6,,TKT-1778230741215
+act-1778467900856,TKT-1778467898610,Create,Pending,2026-05-11T02:51:34.125Z,Souk,ເບີກໃຫ້ກອງເລຂາ ຕອ້ນຮັບແຂກທາງຫ້ອງການ KPV,,TKT-1778467898610
+act-1778469685329,TKT-1778469681143,Create,Pending,2026-05-11T03:21:13.404Z,Souk,ໄວຮັບແຂກ ຜູ້ອຳນວຍການ,,TKT-1778469681143
+act-1778485280414,TKT-1778467898610,Moved,Moved,2026-05-11T07:41:14.925Z,Sompartthana Bouphavong,ຕາດຳພາເລຂາຫົວຫນ້າໄປຂົນເອົາເຄື່ອງຢູ່ສາງ ,warehouse,TKT-1778467898610
+act-1778485354500,TKT-1778230741215,Moved,Moved,2026-05-11T07:42:30.040Z,Sompartthana Bouphavong,,warehouse,TKT-1778230741215
+act-1778485434012,TKT-1778469681143,Moved,Moved,2026-05-11T07:43:47.657Z,Sompartthana Bouphavong,"ສຸກ, ເບິກເອົາຊຸດຈອກກາເຟວ່າໄວ້ສາງຊັ້ນ 6 ເພື່ອໄວ້ຮັບແຂກ ແລະ ເພື່ອໄວ້ແຈກ  ເບິກງວດທີ່ສອງ",warehouse,TKT-1778469681143
+act-1778559262487,TKT-1778559259749,Create,Pending,2026-05-12T04:14:18.498Z,Customer Service,ເບີກເຄື່ອງໄວ້ໄຫ້ລູກຄ້າແລກ easy point,,TKT-1778559259749
+act-1778560369760,TKT-1778559259749,Moved,Moved,2026-05-12T04:32:26.520Z,Sompartthana Bouphavong,"ໂຕນີ້, ແມ່ນເບິກໃຫ້ ທີມ CX ພິເສດ",warehouse,TKT-1778559259749
+act-1778560370458,TKT-1778230741215,Approved,Approved,2026-05-12T04:32:43.628Z,Alouny,,admin,TKT-1778230741215
+act-1778560404700,TKT-1778045180113,Approved,Approved,2026-05-12T04:33:22.044Z,Alouny,,admin,TKT-1778045180113
+act-1778560475892,TKT-1778469681143,Approved,Approved,2026-05-12T04:34:31.614Z,Alouny,,admin,TKT-1778469681143
+act-1778560493499,TKT-1778467898610,Approved,Approved,2026-05-12T04:34:47.745Z,Alouny,,admin,TKT-1778467898610
+act-1778644508554,TKT-1778559259749,Approved,Approved,2026-05-13T03:55:04.392Z,Alouny,,admin,TKT-1778559259749
+act-1778647134544,TKT-1778647133017,Create,Pending,2026-05-13T04:38:51.479Z,Customer Service,ເບີກເຄື່ອງໄວ້ໄຫ້ລູກຄ້າແລກ easy point,,TKT-1778647133017
+act-1778727150818,TKT-1778647133017,Moved,Moved,2026-05-14T02:52:26.868Z,Sompartthana Bouphavong,,warehouse,TKT-1778647133017
+act-1778727787920,TKT-1778727782508,Create,Pending,2026-05-14T03:02:56.294Z,Thavutxai Inthavongsa,BTL,,TKT-1778727782508
+act-1778810755661,TKT-1778727782508,Approved,Approved,2026-05-15T02:05:50.241Z,Alouny,,admin,TKT-1778727782508
+act-1778810795158,TKT-1778647133017,Approved,Approved,2026-05-15T02:06:32.185Z,Alouny,,admin,TKT-1778647133017
+act-1778812103212,TKT-1778727782508,Moved,Moved,2026-05-15T02:28:17.938Z,Sompartthana Bouphavong,*ຊຸດພິນ້ຽມ ເບິກມາງານ MOU x10  ເຫລືອນັ້ນແມ່ນເບິກມາໄວ້ໃຫ້ອາເຈັນຊີ້ອອກງານຊ່ວງເດືອນ 6 ,warehouse,TKT-1778727782508
+act-1778827320019,TKT-1778827318176,Create,Pending,2026-05-15T06:41:57.350Z,Phonethida Mangala,ເບີກເຄຶ່ອງແຄມເປນ Cashback,,TKT-1778827318176
+act-1778827503677,TKT-1778827318176,Moved,Moved,2026-05-15T06:44:59.862Z,Sompartthana Bouphavong,Resubmitte ເພາະທຳອິດຫລົງຊັບມິດເປັນເບິກເຄື່ອງຢືມ,warehouse,TKT-1778827318176
+act-1779164016579,TKT-1778727782508,Approved,Approved,2026-05-19T04:13:32.849Z,Alouny,,admin,TKT-1778727782508
+act-1779164032385,TKT-1778827318176,Approved,Approved,2026-05-19T04:13:48.618Z,Alouny,,admin,TKT-1778827318176
+act-1779178140403,TKT-1779178137478,Create,Pending,2026-05-19T08:08:53.908Z,Customer Service,ເບີກເຄື່ອງໄວ້ສາງຊັ້ນ6 ໄວ້ໄຫ້ລູກຄ້າ easy point,,TKT-1779178137478
+act-1779179655055,TKT-1779178137478,Moved,Moved,2026-05-19T08:34:09.587Z,Sompartthana Bouphavong,,warehouse,TKT-1779178137478
+act-1779336393037,TKT-1779336387407,Create,Pending,2026-05-21T04:06:27.095Z,Anna,Join Wii fair - Walk in interview event,,TKT-1779336387407
+act-1779437244296,TKT-1779437242667,Create,Pending,2026-05-22T08:07:21.414Z,Customer Service,ເບີກໄວ້ໃສ່ເຄື່ອງໄຫ້ລູກຄ້າ,,TKT-1779437242667
+act-1779438476181,TKT-1779336387407,Moved,Moved,2026-05-22T08:27:53.340Z,Sompartthana Bouphavong,HR ເບິກໄປຊັບພອດງານ 108job,warehouse,TKT-1779336387407
+act-1779438522053,TKT-1779437242667,Moved,Moved,2026-05-22T08:28:38.182Z,Sompartthana Bouphavong,CX ເບິກໄວ້ໃສ່ເຄື່ອງໃຫ້ລູກຄ້າ ,warehouse,TKT-1779437242667
+act-1779438532502,TKT-1779437242667,Moved,Moved,2026-05-22T08:28:49.497Z,Sompartthana Bouphavong,CX ເບິກໄວ້ໃສ່ເຄື່ອງໃຫ້ລູກຄ້າ ,warehouse,TKT-1779437242667
+act-1779703963050,TKT-1779178137478,Approved,Approved,2026-05-25T10:12:40.068Z,Souphanit Vongsengthong,,admin,TKT-1779178137478
+act-1779703991586,TKT-1779336387407,Approved,Approved,2026-05-25T10:13:09.182Z,Souphanit Vongsengthong,,admin,TKT-1779336387407
+act-1779704009183,TKT-1779437242667,Approved,Approved,2026-05-25T10:13:24.702Z,Souphanit Vongsengthong,,admin,TKT-1779437242667
+act-1779765080365,TKT-1779437242667,Approved,Approved,2026-05-26T03:11:17.051Z,Alouny,,admin,TKT-1779437242667
+act-1779765108664,TKT-1779178137478,Approved,Approved,2026-05-26T03:11:45.043Z,Alouny,,admin,TKT-1779178137478
+act-1779765146880,TKT-1779336387407,Approved,Approved,2026-05-26T03:12:23.734Z,Alouny,,admin,TKT-1779336387407
+act-1779776576970,TKT-1779776573671,Create,Pending,2026-05-26T06:22:58.274Z,Customer Service,ເບີກເຄື່ອງໄຫ້ລູກຄ້າ ແລກ easy point,,TKT-1779776573671
+act-1779876978046,TKT-1779876975030,Create,Pending,2026-05-27T10:16:12.784Z,Customer Service,ເບີກເຄື່ອງໄຫ້ລູກຄ້າ ແລກ ອີຊີພ້ອຍ,,TKT-1779876975030
+act-1779880793410,TKT-1779880791871,Create,Pending,2026-05-27T11:19:49.594Z,Phonethida Mangala,Campaign Lao Viet Bank ແຈກກະເປົ໋າ 10 ຫນ່ວຍ,,TKT-1779880791871
+act-1779956514608,TKT-1779956511825,Create,Pending,2026-05-28T08:21:50.509Z,Thavutxai Inthavongsa,CDD at Suan Pruek Sa for CSR,,TKT-1779956511825
+act-1779961280172,TKT-1779776573671,Moved,Moved,2026-05-28T09:41:15.944Z,Sompartthana Bouphavong,,warehouse,TKT-1779776573671
+act-1779961343929,TKT-1779876975030,Moved,Moved,2026-05-28T09:42:20.551Z,Sompartthana Bouphavong,ເອື້ອຍປູນາ ເອົາໃຫ້ 80ອັນ ຕໍ່ມາ ອ້າຍຕາດຳເອົາເພີ້ມໃຫ້ອີກ 50ອັນ,warehouse,TKT-1779876975030
+act-1780305392280,TKT-1779880791871,Moved,Moved,2026-06-01T09:16:28.265Z,Sompartthana Bouphavong,,warehouse,TKT-1779880791871
+act-1780305790463,TKT-1780305786573,Create,Pending,2026-06-01T09:23:05.490Z,Phonethida Mangala,Support Children's day campaign,,TKT-1780305786573
+act-1780305852197,TKT-1780305786573,Moved,Moved,2026-06-01T09:24:09.244Z,Sompartthana Bouphavong,,warehouse,TKT-1780305786573
+act-1780308979785,TKT-1780308974303,Create,Pending,2026-06-01T10:16:11.982Z,Sompartthana Bouphavong,ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ,,TKT-1780308974303
+act-1780309600503,TKT-1780308974303,Moved,Moved,2026-06-01T10:26:37.118Z,Sompartthana Bouphavong,Remark: ລາຍການຊັບມິດອອກໃຫ້ອາເຈັນຊີ້ ແລະ ມອບໃຫ້ລູູກຄ້າຄະແນນລ້ານປ້າຍບາງສ່ວນ  ,warehouse,TKT-1780308974303
+act-1780539513928,TKT-1780539510415,Create,Pending,2026-06-04T02:18:27.932Z,Soudsada Keovongphet,"ເບີກອອກງານສຳມະນາ, ເອຊີລີດາ 5/6/2026",,TKT-1780539510415
+act-1780561496748,TKT-1780539510415,Moved,Moved,2026-06-04T08:24:53.870Z,Sompartthana Bouphavong,"ແລະ ກະເປົາກີລາ 5 ນ່ວຍ, ເຊິ່ງໂຕນີ້ຈະຊັບມິດອອກຕາມຫລັງ ",warehouse,TKT-1780539510415
+act-1781075115297,TKT-1781075113062,Create,Pending,2026-06-10T07:05:10.372Z,Soudsada Keovongphet,ເບີກໃຫ້ອາເຈນຊີ່,,TKT-1781075113062
+act-1781083708599,TKT-1781083706105,Create,Pending,2026-06-10T09:28:24.496Z,Thavutxai Inthavongsa,Giveaway for testimonial video shooting,,TKT-1781083706105
+act-1781159006078,TKT-1779956511825,Moved,Moved,2026-06-11T06:23:22.799Z,Sompartthana Bouphavong,,warehouse,TKT-1779956511825
+act-1781159049473,TKT-1781075113062,Moved,Moved,2026-06-11T06:24:06.838Z,Sompartthana Bouphavong,,warehouse,TKT-1781075113062
+act-1781159066065,TKT-1781083706105,Moved,Moved,2026-06-11T06:24:23.768Z,Sompartthana Bouphavong,,warehouse,TKT-1781083706105
+act-1781163264037,TKT-1779776573671,Approved,Approved,2026-06-11T07:34:21.124Z,Alouny,,line_manager,TKT-1779776573671
+act-1781163279599,TKT-1779876975030,Approved,Approved,2026-06-11T07:34:35.873Z,Alouny,,line_manager,TKT-1779876975030
+act-1781163296815,TKT-1779880791871,Approved,Approved,2026-06-11T07:34:50.223Z,Alouny,,line_manager,TKT-1779880791871
+act-1781163344695,TKT-1779956511825,Approved,Approved,2026-06-11T07:35:37.080Z,Alouny,,line_manager,TKT-1779956511825
+act-1781163368350,TKT-1780305786573,Approved,Approved,2026-06-11T07:36:05.270Z,Alouny,,line_manager,TKT-1780305786573
+act-1781163409503,TKT-1781083706105,Approved,Approved,2026-06-11T07:36:46.650Z,Alouny,,line_manager,TKT-1781083706105
+act-1781163419288,TKT-1780308974303,Approved,Approved,2026-06-11T07:36:57.390Z,Alouny,,line_manager,TKT-1780308974303
+act-1781163430552,TKT-1780539510415,Approved,Approved,2026-06-11T07:37:08.032Z,Alouny,,line_manager,TKT-1780539510415
+act-1781163441332,TKT-1781075113062,Approved,Approved,2026-06-11T07:37:19.308Z,Alouny,,line_manager,TKT-1781075113062
+act-1781773161412,TKT-1781773158812,Create,Pending,2026-06-18T08:59:15.446Z,Thavutxai Inthavongsa,giveaway to mae loma for testimonial and olay for pride month campaign review,,
+act-1781775754896,TKT-1781775750887,Create,Pending,2026-06-18T09:42:30.994Z,Soudsada Keovongphet,ເບີກໃຫ້ກັບທາງ ທີມງານເອເຈນຊີ ໃນການເຮັດກິດຈະກຳການຕະຫລາດຫນ້າບູດ,,
+act-1781776424202,TKT-1781776422307,Create,Pending,2026-06-18T09:53:43.481Z,Phonethida Mangala,ກະເປົ໋າສຳລັບແຄມເປນ Pride Month,,
+act-1781776430998,TKT-1781776426981,Create,Pending,2026-06-18T09:53:47.422Z,Soudsada Keovongphet,"ເບີກໃຫ້ກັບທາງ ທີມເອເຈນຊີ 20, ATL 5 ເເລະ ອອກບູດຫນ້າຮ້ານ5",,
+act-1781776724520,TKT-1781776422307,Moved,Moved,2026-06-18T09:58:41.650Z,Sompartthana Bouphavong,,warehouse,
+act-1781837449983,TKT-1781776422307,Approved,Approved,2026-06-19T02:50:48.294Z,Alouny,,line_manager,
+act-1781842917818,TKT-1779776573671,Approved,Approved,2026-06-19T04:21:55.114Z,Souliphonh Phengxay,,director,
+act-1781842934373,TKT-1779876975030,Approved,Approved,2026-06-19T04:22:11.430Z,Souliphonh Phengxay,,director,
+act-1781842952572,TKT-1779880791871,Approved,Approved,2026-06-19T04:22:28.876Z,Souliphonh Phengxay,,director,
+act-1781842978321,TKT-1779956511825,Approved,Approved,2026-06-19T04:22:54.988Z,Souliphonh Phengxay,,director,
+act-1781842991577,TKT-1780305786573,Approved,Approved,2026-06-19T04:23:08.414Z,Souliphonh Phengxay,,director,
+act-1781843001647,TKT-1780308974303,Approved,Approved,2026-06-19T04:23:19.610Z,Souliphonh Phengxay,,director,
+act-1781843010865,TKT-1780539510415,Approved,Approved,2026-06-19T04:23:27.984Z,Souliphonh Phengxay,,director,
+act-1781843019912,TKT-1781075113062,Approved,Approved,2026-06-19T04:23:37.735Z,Souliphonh Phengxay,,director,
+act-1781843031469,TKT-1781083706105,Approved,Approved,2026-06-19T04:23:46.764Z,Souliphonh Phengxay,,director,
+act-1781843042671,TKT-1781776422307,Approved,Approved,2026-06-19T04:24:00.506Z,Souliphonh Phengxay,,director,
+act-1782118327216,TKT-1781773158812,Moved,Moved,2026-06-22T08:52:04.262Z,Sompartthana Bouphavong,,warehouse,
+act-1782118368694,TKT-1781775750887,Moved,Moved,2026-06-22T08:52:46.051Z,Sompartthana Bouphavong,"ທີມອາເຈັນຊີ້ເບິກເພີ້ມ, ເນື່ອງຈາກໄດ້ຖານລູກຄ້າເພີ້ມຂຶ້ນ ",warehouse,
+act-1782118447895,TKT-1781776426981,Moved,Moved,2026-06-22T08:54:05.170Z,Sompartthana Bouphavong,ບ໋ອດ ຊັບມິດເບິກແຍກຕ່າງຫາກແລ້ວ 2 ນ່ວຍ,warehouse,
+act-1782183781267,TKT-1782183777297,Create,Pending,2026-06-23T03:02:56.033Z,Customer Service,ເບິກເຄື່ອງໄວ້ສາງຊັ້ນ 6,,
+act-1782183959166,TKT-1782183777297,Moved,Moved,2026-06-23T03:05:55.846Z,Sompartthana Bouphavong,CX ເບິກມາໄວ້ເພື່ອແຈກໃຫ້ລູກຄ້າຊ່ວງທ້າຍປີ,warehouse,
+act-1782183982866,TKT-1779956511825,Returned,Returned,2026-06-23T03:06:17.064Z,Sompartthana Bouphavong,Partial return processed by warehouse,warehouse,
+act-1782183987684,TKT-1779956511825,Returned,Returned,2026-06-23T03:06:25.921Z,Sompartthana Bouphavong,Partial return processed by warehouse,warehouse,
+act-1782272720833,TKT-1781773158812,Approved,Approved,2026-06-24T03:45:17.788Z,Alouny,,line_manager,
+act-1782272740944,TKT-1781775750887,Approved,Approved,2026-06-24T03:45:38.289Z,Alouny,,line_manager,
+act-1782272751112,TKT-1781776426981,Approved,Approved,2026-06-24T03:45:48.303Z,Alouny,,line_manager,
+act-1782703191477,TKT-1782703189783,Create,Pending,2026-06-29T03:19:48.444Z,Anna,ແພມ ມາລິສາ ຂໍເບີກຂອງຝາກໃຫ້ທາງກະຊວງ,,
+act-1782712928573,TKT-1782703189783,Moved,Moved,2026-06-29T06:02:05.343Z,Sompartthana Bouphavong,,warehouse,
+act-1782801964443,TKT-1782801962258,Create,Pending,2026-06-30T06:45:59.677Z,Nuni,ເບີກໃຫ້ຫົວໜ້າ,,
+act-1782802109826,TKT-1782801962258,Moved,Moved,2026-06-30T06:48:26.611Z,Sompartthana Bouphavong,,warehouse,
+act-1782802501146,TKT-1782801962258,Approved,Approved,2026-06-30T06:54:58.479Z,Alouny,,line_manager,
+act-1782802517480,TKT-1782703189783,Approved,Approved,2026-06-30T06:55:13.718Z,Alouny,,line_manager,
+act-1782802553792,TKT-1782183777297,Approved,Approved,2026-06-30T06:55:51.053Z,Alouny,,line_manager,
+act-1782959599461,TKT-1781773158812,Approved,Approved,2026-07-02T02:33:16.375Z,Souliphonh Phengxay,,director,
+act-1782959614947,TKT-1781775750887,Approved,Approved,2026-07-02T02:33:31.723Z,Souliphonh Phengxay,,director,
+act-1782959629441,TKT-1781776426981,Approved,Approved,2026-07-02T02:33:45.768Z,Souliphonh Phengxay,,director,
+act-1782959644028,TKT-1782183777297,Approved,Approved,2026-07-02T02:34:02.088Z,Souliphonh Phengxay,,director,
+act-1782959654957,TKT-1782703189783,Approved,Approved,2026-07-02T02:34:11.828Z,Souliphonh Phengxay,,director,
+act-1782959668150,TKT-1782801962258,Approved,Approved,2026-07-02T02:34:25.060Z,Souliphonh Phengxay,,director,
+act-1783305055852,TKT-1783305053069,Create,Pending,2026-07-06T02:30:49.820Z,Soudsada Keovongphet,ເບີກເຄຶ່ອງອອກບູ໊ດໜ້າຮ້ານຄຳ,,
+act-1783319731763,TKT-1783319725593,Create,Pending,2026-07-06T06:35:21.498Z,Soudsada Keovongphet,ເບີກເຄື່ອງໃຫ້ ອາເຈນຊີ່ ປະຈຳເດືອນ7,,
+act-1783324185464,TKT-1783305053069,Moved,Moved,2026-07-06T07:49:42.776Z,Sompartthana Bouphavong,,warehouse,
+act-1783396521919,TKT-1783319725593,Moved,Moved,2026-07-07T03:55:17.223Z,Sompartthana Bouphavong,,warehouse,
+act-1783482334473,TKT-1783482332278,Create,Pending,2026-08-07T03:45:30.733Z,Nuni,ເອົາໄປໃຫ້ຜູ້ວ່າ ທະນາຄານກາງ,,
+act-1783502554098,TKT-1783482332278,Moved,Moved,2026-08-07T09:22:31.457Z,Sompartthana Bouphavong,,warehouse,
+act-1783665319368,TKT-1783665317672,Create,Pending,2026-07-10T06:35:16.537Z,Nuni,ເບີກໃຫ້ຫົວໜ້າ ເອົາໄປວັດໄຕ,,
+act-1783665961541,TKT-1783665317672,Moved,Moved,2026-07-10T06:45:58.534Z,Sompartthana Bouphavong,,warehouse,
+act-1783997272299,TKT-1783305053069,Approved,Approved,2026-07-14T02:47:49.066Z,Alouny,,line_manager,
+act-1783997370170,TKT-1783319725593,Approved,Approved,2026-07-14T02:49:26.244Z,Alouny,,line_manager,
+act-1783997383308,TKT-1783482332278,Approved,Approved,2026-08-14T02:49:40.597Z,Alouny,,line_manager,
+act-1783997397003,TKT-1783665317672,Approved,Approved,2026-07-14T02:49:52.875Z,Alouny,,line_manager,
+act-1783997840213,TKT-1783665317672,Approved,Approved,2026-07-14T02:57:17.140Z,Souliphonh Phengxay,Approved ,director,
+act-1783997859903,TKT-1783482332278,Approved,Approved,2026-08-14T02:57:37.530Z,Souliphonh Phengxay,Approved ,director,
+act-1783997885492,TKT-1783319725593,Approved,Approved,2026-07-14T02:58:02.309Z,Souliphonh Phengxay,Approved ,director,
+act-1783997907315,TKT-1783305053069,Approved,Approved,2026-07-14T02:58:23.294Z,Souliphonh Phengxay,Approved ,director,
+act-1784194881109,TKT-1784194879118,Create,Pending,2026-07-16T09:41:17.912Z,Babie,ເບີກໄວ້ໃສ່ເຄື່ອງໄຫ້ລູກຄ້າ,,
+act-1784196484326,TKT-1784196482428,Create,Pending,2026-07-16T10:08:01.205Z,Soudsada Keovongphet,ເບີກໄວ້ໃສ່ເຄື່ອງຕ່າງໆໃຫ້ກັບລູກຄ້າຫນ້າບູດເເລະງານນອກອື່ນໆ,,
+act-1784196535352,TKT-1784196482428,Moved,Moved,2026-07-16T10:08:52.105Z,Sompartthana Bouphavong,,warehouse,
+act-1784196588394,TKT-1784194879118,Moved,Moved,2026-07-16T10:09:45.389Z,Sompartthana Bouphavong,,warehouse,
+act-1784620684709,TKT-1784194879118,Approved,Approved,2026-07-21T07:58:01.664Z,Alouny,,line_manager,
+act-1784620698017,TKT-1784196482428,Approved,Approved,2026-07-21T07:58:14.755Z,Alouny,,line_manager,
+act-1784626208450,TKT-1784194879118,Approved,Approved,2026-07-21T09:30:05.556Z,Souliphonh Phengxay,,director,
+act-1784626225995,TKT-1784196482428,Approved,Approved,2026-07-21T09:30:24.560Z,Souliphonh Phengxay,,director,
+act-1785124836413,TKT-1785124833384,Create,Pending,2026-07-27T04:00:29.053Z,Soudsada Keovongphet,ເບີກເຄື່ອງໃຫ້ ອາເຈນຊີ່,,
+act-1785207647897,TKT-1785124833384,Moved,Moved,2026-07-28T03:00:45.281Z,Sompartthana Bouphavong,"ຫົວສາກໂທລະສັບ ຕາດຳໄປເບິກມາກ່ອນ 15ອັນ,  ປູນາ ໄປເບິກເພີ້ມອີກ 35ອັນ ",warehouse,
+act-1785298616471,TKT-1785124833384,Approved,Approved,2026-07-29T04:16:53.807Z,Jonathaan Meadley,,line_manager,
+act-1785319379858,TKT-1785319376214,Create,Pending,2026-07-29T10:02:54.450Z,Anna,ເພື່ອໃຫ້ກັບພະນັກງານເຂົ້າໃຫມ່ ແລະ ລາງວັນພະນັກງານດີເດັ່ນ ຂອງຝ່າຍບຸກຄະລາກອນ,,
+act-1785380478532,TKT-1785380476796,Create,Pending,2026-07-30T03:01:14.603Z,Nuni,ຂໍເບີກໄວ້ໃຫ້ແຂກ,,
+act-1785391291086,TKT-1785319376214,Moved,Moved,2026-07-30T06:01:26.030Z,Sompartthana Bouphavong,,warehouse,
+act-1785391681848,TKT-1785380476796,Recalled,Recalled,2026-07-30T06:07:58.065Z,Nuni,Ticket recalled by creator,,
+act-1785723809262,TKT-1785723806693,Create,Pending,2026-08-03T02:23:24.942Z,Phonethida Mangala,Campaign ລົງທະບຽນຟຣີ ລຸ້ນຮັບຈອກກາເຟ 50 ລາງວັນ (ອີກ 10  ຫນ່ວຍ ແມ່ນຈາກເບື້ອງແຄມເປນ),,
+act-1785811055108,TKT-1785723806693,Moved,Moved,2026-08-04T02:37:33.372Z,Sompartthana Bouphavong,,warehouse,
+act-1785812133365,TKT-1785319376214,Approved,Approved,2026-08-04T02:55:30.577Z,Alouny,,line_manager,
+act-1785812146861,TKT-1785723806693,Approved,Approved,2026-08-04T02:55:42.965Z,Alouny,,line_manager,
+act-1785906525058,TKT-1785906517147,Create,Pending,2026-08-05T05:08:30.351Z,Soudsada Keovongphet,ເບີກເຄຶ່ອງເເຈກໃຫ້ກັບທີມງານເອເຈນຊີໃນການອອກບູດກິດຈະກຳທາງການຕະຫລາດ,,
+act-1785906690792,TKT-1785906687323,Create,Pending,2026-08-05T05:11:24.147Z,Soudsada Keovongphet,ເບີກເຄຶ່ອງເເຈກໃຫ້ກັບທີມງານເອເຈນຊີໃນການອອກບູດກິດຈະກຳທາງການຕະຫລາດ,,
+act-1785987026352,TKT-1783665317672,Update,finalized,2026-08-06T03:30:26.351Z,,,,
+act-1786010351756,TKT-1786010348459,Create,Pending,2026-08-06T09:59:07.531Z,Phonethida Mangala,ໃສ່ກະເປົ໋າແຄມເປນ Artist (If and ART),,
+act-1786010749223,TKT-1785906517147,Moved,Moved,2026-08-06T10:05:44.261Z,Sompartthana Bouphavong,,warehouse,
+act-1786010838169,TKT-1786010348459,Moved,Moved,2026-08-06T10:07:13.202Z,Sompartthana Bouphavong,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,warehouse,
+act-1786010906482,TKT-1786010348459,Moved,Moved,2026-08-06T10:08:23.418Z,Sompartthana Bouphavong,ເອົາມາໄວ້ໃຊ້ ຮ່ວມກັນ ທີມ IMC & GC,warehouse,
+act-1786010971568,TKT-1785906687323,Moved,Moved,2026-08-06T10:09:27.026Z,Sompartthana Bouphavong,,warehouse,
+act-1786011068209,TKT-1785906517147,Approved,Approved,2026-08-06T10:11:05.131Z,Alouny,,line_manager,
+act-1786011759622,TKT-1785906687323,Approved,Approved,2026-08-06T10:22:34.899Z,Alouny,,line_manager,
+act-1786012383102,TKT-1786012380968,Create,Pending,2026-08-06T10:32:59.353Z,Babie,ເບີກໄວ້ໃສ່ຄໍາໄຫ້ລູກຄ້າ,,
+act-1786069356672,TKT-1786012380968,Moved,Moved,2026-08-07T02:22:33.736Z,Sompartthana Bouphavong,,warehouse,
+act-1786076865522,TKT-1783482332278,Update,finalized,2026-08-15T04:27:45.521Z,,,,
+act-1786081645065,TKT-1786081639947,Create,Pending,2026-08-07T05:47:15.722Z,Soudsada Keovongphet,ເບີກເຄື່ອງໃຫ້ທີມງານ ຄຳພູວົງ,,
+act-1786414189457,TKT-1786081639947,Moved,Moved,2026-08-11T02:09:45.602Z,Sompartthana Bouphavong,ຊັບພອດງານ ເທດສະການແຕ່ງດອງ,warehouse,
+act-1786414422627,TKT-1786414419486,Create,Pending,2026-08-11T02:13:40.010Z,Phonethida Mangala,For Hero campaign,,
+act-1786414762188,TKT-1786414757351,Create,Pending,2026-08-11T02:19:17.508Z,Phonethida Mangala,Support campaign ງານເທດສະການຄຳ,,
+act-1786434630187,TKT-1786010348459,Approved,Approved,2026-08-11T07:50:25.739Z,Alouny,,line_manager,
+act-1786434644920,TKT-1786012380968,Approved,Approved,2026-08-11T07:50:41.603Z,Alouny,,line_manager,
+act-1786434660452,TKT-1786081639947,Approved,Approved,2026-08-11T07:50:58.123Z,Alouny,,line_manager,
+act-1786436518600,TKT-1785124833384,Approved,Approved,2026-08-11T08:21:57.113Z,Souliphonh Phengxay,Approved ,director,
+act-1786436579468,TKT-1785319376214,Approved,Approved,2026-08-11T08:22:58.363Z,Souliphonh Phengxay,,director,
+act-1786436594842,TKT-1785723806693,Approved,Approved,2026-08-11T08:23:12.833Z,Souliphonh Phengxay,,director,
+act-1786436615839,TKT-1785906517147,Approved,Approved,2026-08-11T08:23:35.437Z,Souliphonh Phengxay,,director,
+act-1786436629084,TKT-1785906687323,Approved,Approved,2026-08-11T08:23:46.858Z,Souliphonh Phengxay,,director,
+act-1786436641531,TKT-1786010348459,Approved,Approved,2026-08-11T08:24:00.039Z,Souliphonh Phengxay,,director,
+act-1786436657073,TKT-1786012380968,Approved,Approved,2026-08-11T08:24:13.515Z,Souliphonh Phengxay,,director,
+act-1786436671724,TKT-1786081639947,Approved,Approved,2026-08-11T08:24:30.967Z,Souliphonh Phengxay,,director,
+act-1786438943121,TKT-1786438940716,Create,Pending,2026-08-11T09:02:19.503Z,Soudsada Keovongphet,ເບີກໃຫ້ທີມ ຄຳພູວົງ,,
+act-1786439390882,TKT-1786439385448,Create,Pending,2026-08-11T09:09:44.100Z,Soudsada Keovongphet,ເບີກເຄື່ອງມາໄວ້ຊັ້ນ4 ໄວ້ອອກບູ໊ດ,,
+act-1787027493403,TKT-1787027487933,Create,Pending,2026-08-18T04:31:27.051Z,Anna,ໃສ່ເຂົ້າຮ່ວມງານບູດເປີດບູດຮັບໃບປະກາດທີ່ວິທະຍາໄລເຕັກນິກລາວເຢຍລະມັນ,,
+act-1787028407790,TKT-1787028406085,Create,Pending,2026-08-18T04:46:49.512Z,Soudsada Keovongphet,ເບີກໃຫ້ກັບທີມໄວ້ໃສ່ເຄື່ອງໃຫ້ກັບລູກຄ້າ,,
+act-1787029044985,TKT-1787027487933,Moved,Moved,2026-08-18T04:57:21.458Z,Sompartthana Bouphavong,ຈອກກາເຟ ໃຫ້ບໍ່ໄດ້ ,warehouse,
+act-1787029074861,TKT-1786439385448,Moved,Moved,2026-08-18T04:57:52.561Z,Sompartthana Bouphavong,,warehouse,
+act-1787029093893,TKT-1786414757351,Moved,Moved,2026-08-18T04:58:10.653Z,Sompartthana Bouphavong,,warehouse,
+act-1787029111565,TKT-1786438940716,Moved,Moved,2026-08-18T04:58:28.648Z,Sompartthana Bouphavong,,warehouse,
+act-1787029167579,TKT-1786414419486,Moved,Moved,2026-08-18T04:59:24.753Z,Sompartthana Bouphavong,,warehouse,
+act-1787113429687,TKT-1787028406085,Moved,Moved,2026-08-19T04:23:45.577Z,Sompartthana Bouphavong,,warehouse,
+act-1787210880967,TKT-1787028406085,Approved,Approved,2026-08-20T07:27:59.217Z,Jonathaan Meadley,,line_manager,
+act-1787210900766,TKT-1787027487933,Approved,Approved,2026-08-20T07:28:19.216Z,Jonathaan Meadley,,line_manager,
+act-1787210914368,TKT-1786439385448,Approved,Approved,2026-08-20T07:28:32.634Z,Jonathaan Meadley,,line_manager,
+act-1787210923647,TKT-1786438940716,Approved,Approved,2026-08-20T07:28:41.048Z,Jonathaan Meadley,,line_manager,
+act-1787210938306,TKT-1786414757351,Approved,Approved,2026-08-20T07:28:55.793Z,Jonathaan Meadley,,line_manager,
+act-1787210950540,TKT-1786414419486,Approved,Approved,2026-08-20T07:29:08.933Z,Jonathaan Meadley,,line_manager,
+act-1787211490368,TKT-1787028406085,Approved,Approved,2026-08-20T07:38:06.472Z,Souliphonh Phengxay,,director,
+act-1787211567427,TKT-1787027487933,Approved,Approved,2026-08-20T07:39:23.786Z,Souliphonh Phengxay,,director,
+act-1787211580977,TKT-1786439385448,Approved,Approved,2026-08-20T07:39:38.122Z,Souliphonh Phengxay,,director,
+act-1787211590722,TKT-1786438940716,Approved,Approved,2026-08-20T07:39:48.254Z,Souliphonh Phengxay,,director,
+act-1787211600964,TKT-1786414757351,Approved,Approved,2026-08-20T07:39:57.626Z,Souliphonh Phengxay,,director,
+act-1787211612090,TKT-1786414419486,Approved,Approved,2026-08-20T07:40:08.819Z,Souliphonh Phengxay,,director,
+act-1787539475732,TKT-1787539473267,Create,Pending,2026-08-24T02:44:31.868Z,Thavutxai Inthavongsa,"requesting as a special merch giveaway for the Media Lobby ""EASY BUDDY ສະຫາຍຮ່ວມອອມ"" throughout the project",,
+act-1787543427928,TKT-1787543425737,Create,Pending,2026-08-24T03:50:23.099Z,Thavutxai Inthavongsa,for the EASY BUDDY project,,
+act-1787737271891,TKT-1787543425737,Moved,Moved,2026-08-26T09:41:06.927Z,Sompartthana Bouphavong,,warehouse,
+act-1787737302737,TKT-1787539473267,Moved,Moved,2026-08-26T09:41:39.544Z,Sompartthana Bouphavong,,warehouse,
+act-1787814991534,TKT-1787814988879,Create,Pending,2026-08-27T07:16:27.300Z,Thavutxai Inthavongsa,campaign support,,
+act-1787815032868,TKT-1787815027847,Create,Pending,2026-08-27T07:17:07.325Z,Phonethida Mangala,EASY GOLD DCA Challenge Campaign,,
+act-1787815071042,TKT-1787815069324,Create,Pending,2026-08-27T07:17:48.217Z,Thavutxai Inthavongsa,campaign support,,
+act-1787890566433,TKT-1787814988879,Moved,Moved,2026-08-28T04:16:02.622Z,Sompartthana Bouphavong,,warehouse,
+act-1788144519276,TKT-1787539473267,Approved,Approved,2026-08-31T02:48:36.695Z,Alouny,,line_manager,
+act-1788144532216,TKT-1787543425737,Approved,Approved,2026-08-31T02:48:48.461Z,Alouny,,line_manager,
+act-1788144542063,TKT-1787814988879,Approved,Approved,2026-08-31T02:48:59.044Z,Alouny,,line_manager,
+act-1788145823532,TKT-1787814988879,Approved,Approved,2026-08-31T03:10:22.309Z,Souliphonh Phengxay,,director,
+act-1788145839995,TKT-1787543425737,Approved,Approved,2026-08-31T03:10:38.694Z,Souliphonh Phengxay,,director,
+act-1788145855739,TKT-1787539473267,Approved,Approved,2026-08-31T03:10:53.651Z,Souliphonh Phengxay,,director,
+act-1788159870076,TKT-1788159864557,Create,Pending,2026-08-31T07:04:18.711Z,Phonethida Mangala,ເຄຶ່ອງໄວ້ຊັບພອດແຄມເປນຕູ້ຄີບຄຳ ໃນງານເທດສະການຄຳ,,
+act-1788159918636,TKT-1788159864557,Recalled,Recalled,2026-08-31T07:05:16.592Z,Phonethida Mangala,Ticket recalled by creator,,
+act-1788160093367,TKT-1788160090372,Create,Pending,2026-08-31T07:08:09.795Z,Phonethida Mangala,ຊັບພອດແຄມເປນນ ຕູ້ຄີບຄຳໃນງານເທດສະການຄຳ,,
+act-1788160133161,TKT-1787815027847,Moved,Moved,2026-08-31T07:08:49.701Z,Sompartthana Bouphavong,,warehouse,
+act-1788160150512,TKT-1787815069324,Moved,Moved,2026-08-31T07:09:06.879Z,Sompartthana Bouphavong,,warehouse,
+act-1788160552332,TKT-1788160549227,Create,Pending,2026-08-31T07:15:47.380Z,Thavutxai Inthavongsa,ຂໍເບີກໄປງານສະມາຄົມຄຳທີ່ສຸພັດຕຣາ,,
+act-1788160643194,TKT-1788160640377,Create,Pending,2026-08-31T07:17:18.586Z,Thavutxai Inthavongsa,ຂໍເບີກໄປງານສະມາຄົມຄຳທີ່ສຸພັດຕຣາ,,
+act-1788160734458,TKT-1788160731560,Create,Pending,2026-08-31T07:18:49.660Z,Thavutxai Inthavongsa,ຂໍເບີກໄປງານສະມາຄົມຄຳທີ່ສຸພັດຕຣາ,,
+act-1788160826604,TKT-1788160825032,Create,Pending,2026-08-31T07:20:23.189Z,Thavutxai Inthavongsa,ຂໍເບີກໄປງານສະມາຄົມຄຳທີ່ສຸພັດຕຣາ,,
+act-1788166388907,TKT-1788160825032,Rejected,Rejected,2026-08-31T08:53:04.634Z,Sompartthana Bouphavong,Rejected,warehouse,
+act-1788166404489,TKT-1788160640377,Rejected,Rejected,2026-08-31T08:53:20.352Z,Sompartthana Bouphavong,Rejected,warehouse,
+act-1788166452797,TKT-1788160549227,Rejected,Rejected,2026-08-31T08:54:10.052Z,Sompartthana Bouphavong,Rejected,warehouse,
+act-1788166466497,TKT-1788160731560,Rejected,Rejected,2026-08-31T08:54:23.112Z,Sompartthana Bouphavong,Rejected,warehouse,
+act-1788166488519,TKT-1788160090372,Moved,Moved,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,,warehouse,
+act-1788166536091,TKT-1788166528113,Create,Pending,2026-08-31T08:55:26.669Z,Thavutxai Inthavongsa,door gift ຂໍເບີກສິນໄປງານສະມາຄົມຄຳ ສຸພັດຕາ 31/08,,
+act-1788166707535,TKT-1788166528113,Moved,Moved,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,,warehouse,
+act-1788166707309,TKT-1788166702442,Create,Pending,2026-08-31T08:58:20.807Z,Thavutxai Inthavongsa,ເບີກໄປໄວ້ຊັບພອດຫົວໜ້າໃນງານເທດສະການຄຳ 2026,,
+act-1788230382450,TKT-1788230377490,Create,Pending,2026-09-01T02:39:36.853Z,Soudsada Keovongphet,ເບີກໄວ້ເພື່ອກິດຈະກຳເດືອນ9ຂອງທາງອາເຈນຊີ,,

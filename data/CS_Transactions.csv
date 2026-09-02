@@ -1,0 +1,21 @@
+﻿ID,Ticket_ID,SKU_ID,SKU_Name,Qty,Type,Date,Action_At,Action_By,Comment
+,OPENING,sku-1771407897767,ກະເປົາເດີນທາງ,100,addition,2026-07-13,2026-07-13T03:46:26.360Z,Customer Service,Opening balance on SKU creation
+,OPENING,sku-1771406960024,ບິກອີຊີໂກລ,1500,addition,2026-07-13,2026-07-13T03:46:30.776Z,Customer Service,Opening balance on SKU creation
+,OPENING,sku-1781681021177,ຫມວກ 2026,500,addition,2026-07-13,2026-07-13T03:46:33.457Z,Customer Service,Opening balance on SKU creation
+,OPENING,sku-1771407316677,ຄັນຮົ່ມ 2026,200,addition,2026-07-13,2026-07-13T03:46:35.934Z,Customer Service,Opening balance on SKU creation
+,OPENING,sku-1780972510074,ຈອກເກັບອຸນຫະພູມ 2026,300,addition,2026-07-13,2026-07-13T03:46:40.339Z,Customer Service,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195239942,ກ່ອງຄໍາ 2ບາດ ,5,addition,2026-07-16,2026-07-16T09:47:20.522Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195433787,ກ່ອງຄໍາ 2ສະຫລຶງ ,5,addition,2026-07-16,2026-07-16T09:50:34.239Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195489874,ກ່ອງຄໍາ 2ບາດ ,5,addition,2026-07-16,2026-07-16T09:51:30.765Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195540861,ກ່ອງຄໍາ 10ບາດ ,7,addition,2026-07-16,2026-07-16T09:52:21.691Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195543750,ກ່ອງຄໍາ 10ບາດ ,7,addition,2026-07-16,2026-07-16T09:52:24.456Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1784195595962,ກ່ອງຄໍາ5ບາດ,1,addition,2026-07-16,2026-07-16T09:53:16.939Z,Babie,Opening balance on SKU creation
+,OPENING,sku-1779434977945,Paper Bag,50,addition,2026-07-21,2026-07-21T09:30:12.439Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1784194879118
+,DIRECT_DESTOCK,CS-SKU-1784195595962,ກ່ອງຄໍາ5ບາດ,1,deduction,2026-07-27,2026-07-27T06:28:00.558Z,Babie,ຂາຍໄຫ້ລູກຄ້າ
+,DIRECT_DESTOCK,CS-SKU-1784195540861,ກ່ອງຄໍາ 10ບາດ,1,deduction,2026-07-27,2026-07-27T06:28:04.921Z,Babie,ຂາຍໄຫ້ລູກຄ້າ
+,DIRECT_DESTOCK,sku-1771407316677,ຄັນຮົ່ມ 2026,1,deduction,2026-08-08,2026-08-10T08:18:37.910Z,Babie,ລຸກຄ້າແລກອີຊີພ້ອຍ
+,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,2,deduction,2026-08-08,2026-08-10T08:18:43.351Z,Babie,ລຸກຄ້າແລກອີຊີພ້ອຍ
+,DIRECT_DESTOCK,sku-1781681021177,ຫມວກ 2026,1,deduction,2026-08-08,2026-08-10T08:18:47.886Z,Babie,ລຸກຄ້າແລກອີຊີພ້ອຍ
+,OPENING,sku-1785121215788,Paper Bag for GOLD,50,addition,2026-08-11,2026-08-11T08:24:20.652Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1786012380968
+,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,1,deduction,2026-08-25,2026-08-25T02:59:52.335Z,Saiyfon,ແຖມລູກຄ້າ
+,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,400,deduction,2026-08-31,2026-08-31T08:21:49.677Z,Nopphanai Phomphakdee,[MKT_TRANSFER] Return item today to MKT warehouse
