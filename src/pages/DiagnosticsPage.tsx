@@ -19,6 +19,8 @@ const DEFAULT: Record<string, CheckResult> = {
   auth: { status: 'pending', detail: 'Waiting…' },
   db_skus: { status: 'pending', detail: 'Waiting…' },
   db_tickets: { status: 'pending', detail: 'Waiting…' },
+  db_cs_skus: { status: 'pending', detail: 'Waiting…' },
+  db_cs_tx: { status: 'pending', detail: 'Waiting…' },
   storage: { status: 'pending', detail: 'Waiting…' },
   write: { status: 'pending', detail: 'Waiting…' },
 };
@@ -27,8 +29,10 @@ const KEY_LABELS: Record<string, string> = {
   env: 'App environment (build keys)',
   ping: 'Supabase API ping (auth/v1/health)',
   auth: 'Auth session',
-  db_skus: 'Database read — skus',
+  db_skus: 'Database read — skus (MKT)',
   db_tickets: 'Database read — tickets',
+  db_cs_skus: 'Database read — cs_skus (CS)',
+  db_cs_tx: 'Database read — cs_transactions',
   storage: 'Storage — sku-images bucket',
   write: 'Write test — manage_category (add + delete)',
 };
@@ -137,6 +141,20 @@ export function DiagnosticsPage() {
       (v) => `${v} tickets readable`,
       (e) => `DB error: ${e?.message || e}`,
     );
+
+    // 4b) db reads — CS skus
+    await watch('db_cs_skus', async () => {
+      const { data, error } = await supabase!.from('cs_skus').select('id', { count: 'exact', head: true });
+      if (error) throw new Error(error.message);
+      return data || [];
+    }, (v) => `${v} CS SKUs readable`, (e) => `DB error: ${e?.message || e}`);
+
+    // 4c) db reads — CS transactions
+    await watch('db_cs_tx', async () => {
+      const { data, error } = await supabase!.from('cs_transactions').select('id', { count: 'exact', head: true });
+      if (error) throw new Error(error.message);
+      return data || [];
+    }, (v) => `${v} CS transactions readable`, (e) => `DB error: ${e?.message || e}`);
 
     // 5) storage bucket
     await watch(
