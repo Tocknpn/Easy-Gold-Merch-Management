@@ -142,12 +142,10 @@ export function DiagnosticsPage() {
     await watch(
       'storage',
       async () => {
-        // listBuckets works with anon key (getBucket sometimes needs storage admin)
-        const { data, error } = await sb.storage.listBuckets();
+        // list files in the bucket — works with anon key on public buckets
+        const { data, error } = await sb.storage.from('sku-images').list('', { limit: 1 });
         if (error) throw error;
-        const found = data?.find((b) => b.name === 'sku-images');
-        if (!found) throw new Error('Bucket not found');
-        return found;
+        return data;
       },
       () => 'Bucket "sku-images" exists',
       (e) => `Storage error: ${e?.message || e}`,
