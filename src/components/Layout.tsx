@@ -2,11 +2,12 @@ import { useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Warehouse, Crown,
-  Ticket, Inbox, FileBarChart, Settings2,
+  Ticket, Inbox, FileBarChart, Settings2, HeartPulse,
   RefreshCw, LogOut, Menu, X,
 } from 'lucide-react';
 import { useAuth, getUserRoleLabel } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
+import { isSupabaseConfigured } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/primitives';
 
@@ -25,13 +26,14 @@ export const NAV_DEFS: NavDef[] = [
   { key: 'action-center', label: 'Action Center', icon: <Inbox className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { key: 'reporting', label: 'Reporting', icon: <FileBarChart className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
   { key: 'settings', label: 'System Settings', icon: <Settings2 className="h-4 w-4" />, roles: ['admin', 'warehouse', 'customer_service'] },
+  { key: 'diagnostics', label: 'Diagnostics', icon: <HeartPulse className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
 ];
 
 const ROLE_TO_PATH: Record<string, string> = {
   dashboard: 'dashboard', request: 'request',
   'manage-stock': 'manage-stock', 'ticket-tracking': 'ticket-tracking',
   'action-center': 'action-center', reporting: 'reporting',
-  settings: 'settings',
+  settings: 'settings', diagnostics: 'diagnostics',
 };
 
 export function pathToKey(path: string): string {
@@ -85,6 +87,18 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </button>
         <div className="flex-1" />
+        <span
+          className={cn(
+            'hidden items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset md:inline-flex',
+            isSupabaseConfigured()
+              ? 'bg-emerald-400/15 text-emerald-100 ring-emerald-300/40'
+              : 'bg-amber-400/20 text-amber-100 ring-amber-300/40',
+          )}
+          title={isSupabaseConfigured() ? 'Connected to Supabase' : 'Running in demo mode — edits are not saved'}
+        >
+          <span className={cn('h-1.5 w-1.5 rounded-full', isSupabaseConfigured() ? 'bg-emerald-300' : 'bg-amber-300')} />
+          {isSupabaseConfigured() ? 'LIVE' : 'DEMO'}
+        </span>
         <button
           onClick={doRefresh}
           disabled={busy || loading}

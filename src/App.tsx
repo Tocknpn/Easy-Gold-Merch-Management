@@ -13,6 +13,7 @@ import { ActionCenterPage } from '@/pages/ActionCenterPage';
 import { ReportingPage } from '@/pages/ReportingPage';
 import { ManageStockPage } from '@/pages/ManageStockPage';
 import { SystemSettingsPage } from '@/pages/SystemSettingsPage';
+import { DiagnosticsPage } from '@/pages/DiagnosticsPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
 const queryClient = new QueryClient({
@@ -29,6 +30,7 @@ const ROUTES: { path: string; pageKey: string; roles: string[] }[] = [
   { path: '/action-center', pageKey: 'action-center', roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { path: '/reporting', pageKey: 'reporting', roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
   { path: '/settings', pageKey: 'settings', roles: ['admin', 'warehouse', 'customer_service'] },
+  { path: '/diagnostics', pageKey: 'diagnostics', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
 ];
 
 function Protected() {
@@ -81,6 +83,7 @@ function PageFor({ pageKey }: { pageKey: string }) {
     case 'reporting': return <ReportingPage />;
     case 'manage-stock': return <ManageStockPage />;
     case 'settings': return <SystemSettingsPage />;
+    case 'diagnostics': return <DiagnosticsPage />;
     default: return <NotFoundPage />;
   }
 }
