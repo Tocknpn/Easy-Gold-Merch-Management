@@ -4,7 +4,7 @@ import {
   CheckCircle2, XCircle, HeartPulse, Info, Loader2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
-import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { isSupabaseConfigured, supabase, SUPABASE_URL } from '@/lib/supabase';
 import { useData } from '@/contexts/DataContext';
 import { demoDB } from '@/lib/demoStore';
 import { Spinner, ErrorBanner } from '@/components/ui/primitives';
@@ -48,9 +48,9 @@ export function DiagnosticsPage() {
   const [lastRun, setLastRun] = useState<string | null>(null);
 
   const configured = isSupabaseConfigured();
-  const baseUrl = (import.meta.env.VITE_SUPABASE_URL as string | undefined) || '';
   const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
-  const keyMask = anonKey ? `${anonKey.slice(0, 8)}…${anonKey.slice(-4)} (${anonKey.length} chars)` : '(empty)';
+  const keyMask = anonKey ? `${anonKey.slice(0, 8)}…${anonKey.slice(-4)} (${anonKey.length} chars)` : '(built-in fallback)';
+  const projectName = SUPABASE_URL ? SUPABASE_URL.replace(/^https:\/\//, '').split('.')[0] : '';
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -68,11 +68,12 @@ export function DiagnosticsPage() {
       }
     };
 
-    // 1) env keys present in this build?
+    // 1) env keys present in this build? (built-in fallback always provides them)
     if (!configured) {
-      mark('env', { status: 'fail', detail: 'VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY are NOT in this build → the app is running in DEMO mode. Edits are in-memory and reset on refresh.' });
+      mark('env', { status: 'fail', detail: 'No Supabase client available (should not happen — the build includes a fallback). Check src/lib/supabase.ts was deployed.' });
     } else {
-      mark('env', { status: 'ok', detail: `URL: ${baseUrl.replace(/^https:\/\//, '').split('.')[0]}.supabase.co · anon key: ${keyMask}` });
+      const src = anonKey ? 'provided by env' : 'built-in fallback (env not injected — OK)';
+      mark('env', { status: 'ok', detail: `URL: ${projectName}.supabase.co · anon key: ${keyMask} · source: ${src}` });
     }
 
     // Demo mode → mark the network/db/write checks as N/A
@@ -94,7 +95,7 @@ export function DiagnosticsPage() {
     await watch(
       'ping',
       async () => {
-        const res = await fetch(`${baseUrl.replace(/\/$/, '')}/auth/v1/health`, { method: 'GET' });
+        const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/health`, { method: 'GET' });
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const j = await res.json();
         if (!j?.is_healthy) throw new Error('reported not healthy');
@@ -164,7 +165,7 @@ export function DiagnosticsPage() {
 
     setRunning(false);
     setLastRun(new Date().toLocaleTimeString());
-  }, [configured, baseUrl, keyMask, user]);
+  }, [configured, keyMask, user]);
 
   useEffect(() => { run(); }, [run]);
 if (loading) return <Spinner label="Loading data…" />;
@@ -197,14 +198,12 @@ if (loading) return <Spinner label="Loading data…" />;
         <div className="flex items-start gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
           <AlertTriangle className="mt-0.5 h-5 w-5 shrink-0 text-amber-600" />
           <div className="text-sm leading-relaxed text-amber-800">
-            <p className="font-bold">⚠️ This build is running in DEMO mode — your edits are NOT saved.</p>
+            <p className="font-bold">⚠️ DEMO mode — you should NOT be seeing this.</p>
             <p className="mt-1">
-              The deployed bundle has no <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code>.
-              Two ways to fix:<br />
-              1️⃣ <b>Easiest / guaranteed</b> — locally run <code>npm run env:production</code> (generates <code>.env.production</code> with your public keys),
-              then <code>git add .env.production && git push</code>. Cloudflare rebuilds → LIVE.<br />
-              2️⃣ Cloudflare Pages → <b>Settings → Environment variables</b> → add both as <b>Plaintext</b> + <b>Production</b> →
-              <b> Save</b> → <b>Deployments → Create deployment</b> (a fresh build, not just a retry).
+              The build includes a built-in fallback with your public Supabase keys, so this
+              usually means you are viewing a <b>cached / preview</b> deployment. Try a hard
+              refresh (<code>Ctrl+Shift+R</code>) or open the production URL
+              <code> https://easy-gold-merch.pages.dev</code>.
             </p>
           </div>
         </div>
