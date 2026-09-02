@@ -296,12 +296,25 @@ It shows:
 - Supabase **API ping**, **database reads** (skus/tickets counts), **auth session**,
   **storage bucket** status, and a safe **write test** (adds/removes a temp category).
 
-If it says **DEMO**, the deployed bundle is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`:
+If it says **DEMO**, the deployed bundle is missing `VITE_SUPABASE_URL` / `VITE_SUPABASE_ANON_KEY`.
+**Guaranteed fix (no Cloudflare env-injection needed):**
+1. Locally run `npm run env:production` → creates `.env.production` from your `.env`
+   (only the **public** anon key + project URL; the service role key never goes in it).
+2. `git add .env.production && git commit -m "live build keys" && git push`.
+3. Cloudflare/GitHub rebuilds automatically → the site becomes LIVE.
+> Why this works: Vite loads `.env.production` during `vite build`, so the keys are
+> baked into the bundle regardless of Cloudflare's environment-var handling.
 
+**Alternative (Cloudflare dashboard):**
 1. Cloudflare Pages → your project → **Settings → Environment variables**.
-2. Add both (mark **Production**): `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`.
-3. **Save** → **Deployments → Retry deployment**.
-4. Reload the site → badge turns **LIVE** → `/diagnostics` goes green → edits now persist.
+2. Add both as **Plaintext/Text** (NOT secret) and ensure **Environment = Production**:
+   `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`. (Secret-typed vars are unreliable at
+   build time in some Pages accounts.)
+3. **Save** → **Deployments → Create deployment** (must be a *fresh* build; a "Retry"
+   sometimes reuses the previous env snapshot).
+4. Open the **production** URL (`easy-gold-merch.pages.dev`), not a preview hash URL.
+
+Reload the site → badge turns **LIVE** → `/diagnostics` goes green → edits now persist.
 
 ---
 

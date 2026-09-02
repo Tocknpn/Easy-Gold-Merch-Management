@@ -16,6 +16,7 @@
     "seed:generate": "node scripts/generate-seed.mjs",
     "seed:demo": "node scripts/generate-demo-data.mjs",
     "seed:auth": "node scripts/seed-auth.mjs",
+    "env:production": "node scripts/write-env-production.mjs",
     "pages:deploy": "npm run build && npx wrangler pages deploy dist --project-name easy-gold-merch"
   },
   "dependencies": {

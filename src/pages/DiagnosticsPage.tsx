@@ -200,8 +200,11 @@ if (loading) return <Spinner label="Loading data…" />;
             <p className="font-bold">⚠️ This build is running in DEMO mode — your edits are NOT saved.</p>
             <p className="mt-1">
               The deployed bundle has no <code>VITE_SUPABASE_URL</code> / <code>VITE_SUPABASE_ANON_KEY</code>.
-              Fix in Cloudflare Pages → <b>Settings → Environment variables</b> → add both (Production) →
-              <b> Save</b> → <b>Deployments → Retry deployment</b>. Then reload this page — it should turn green.
+              Two ways to fix:<br />
+              1️⃣ <b>Easiest / guaranteed</b> — locally run <code>npm run env:production</code> (generates <code>.env.production</code> with your public keys),
+              then <code>git add .env.production && git push</code>. Cloudflare rebuilds → LIVE.<br />
+              2️⃣ Cloudflare Pages → <b>Settings → Environment variables</b> → add both as <b>Plaintext</b> + <b>Production</b> →
+              <b> Save</b> → <b>Deployments → Create deployment</b> (a fresh build, not just a retry).
             </p>
           </div>
         </div>
