@@ -41,8 +41,12 @@ export function DashboardPage() {
     const low = visible.filter((r) => r.sku.currentStock <= r.sku.lowStockThreshold);
     const totalOut = [...transactions, ...csTransactions].filter((t) => t.type === 'deduction').reduce((a, t) => a + Number(t.qty || 0), 0);
     const borrows = activeBorrows(tickets);
+    // Total unique SKUs (deduplicated by ID)
+    const uniqueIds = new Set<string>();
+    skus.forEach((s) => uniqueIds.add(s.id));
+    csSkus.forEach((s) => uniqueIds.add(s.id));
     return {
-      totalSkus: skus.length + csSkus.length,
+      totalSkus: uniqueIds.size,
       low: low.length,
       totalOut,
       borrows: borrows.length,
