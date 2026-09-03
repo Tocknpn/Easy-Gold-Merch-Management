@@ -9,13 +9,14 @@ import { useSearchParams } from 'react-router-dom';
 import {
   CalendarRange, ChevronDown, ChevronUp, ChevronsUpDown,
   Download, FileText, FileBarChart, ArrowDownToLine, ArrowUpFromLine,
-  Boxes, Repeat, Scale, Loader2,
+  Boxes, Repeat, Scale, Loader2, Printer,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
 import { getStockMovement } from '@/lib/stockMovement';
+import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import type { SKU, CS_SKU, StockTransaction } from '@/lib/types';
 
 type TabKey = 'month-end' | 'stock-out' | 'stock-in' | 'stock-remain' | 'borrow' | 'balance';
@@ -230,7 +231,44 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
     }
   };
 
-  const printPdf = () => window.print();
+  // Calculate month-end totals
+  const meTotals = useMemo(() => ({
+    opening: monthRows.reduce((a, r) => ({ qty: a.qty + r.openingQty, val: a.val + r.openingVal }), { qty: 0, val: 0 }),
+    stockIn: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockInQty, val: a.val + r.stockInVal }), { qty: 0, val: 0 }),
+    stockOut: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockOutQty, val: a.val + r.stockOutVal }), { qty: 0, val: 0 }),
+    closing: monthRows.reduce((a, r) => ({ qty: a.qty + r.closingQty, val: a.val + r.closingVal }), { qty: 0, val: 0 }),
+  }), [monthRows]);
+
+  const handleExportPdf = () => {
+    exportMonthEndPdf({
+      title: 'Month End Report',
+      dateRange: `${from} to ${to}`,
+      warehouse: merged.label,
+      category: cat,
+      includeVat: vat,
+      rows: monthRows,
+      totalOpening: meTotals.opening,
+      totalStockIn: meTotals.stockIn,
+      totalStockOut: meTotals.stockOut,
+      totalClosing: meTotals.closing,
+    });
+    toast('PDF exported with signature areas');
+  };
+
+  const handlePrintPdf = () => {
+    printMonthEndPdf({
+      title: 'Month End Report',
+      dateRange: `${from} to ${to}`,
+      warehouse: merged.label,
+      category: cat,
+      includeVat: vat,
+      rows: monthRows,
+      totalOpening: meTotals.opening,
+      totalStockIn: meTotals.stockIn,
+      totalStockOut: meTotals.stockOut,
+      totalClosing: meTotals.closing,
+    });
+  };
 
 const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean }) => (
     <th className={cn('table-head pb-2', right ? 'pl-2 text-right' : 'pr-2')}>
@@ -308,9 +346,14 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
             {exporting ? 'Exporting…' : 'Export Excel'}
           </button>
           {tab === 'month-end' && (
-            <button className="btn btn-secondary btn-sm" onClick={printPdf}>
-              <FileText className="h-3.5 w-3.5" /> Print PDF
-            </button>
+            <>
+              <button className="btn btn-secondary btn-sm" onClick={handleExportPdf}>
+                <FileText className="h-3.5 w-3.5" /> Export PDF
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={handlePrintPdf}>
+                <Printer className="h-3.5 w-3.5" /> Print
+              </button>
+            </>
           )}
         </div>
       </div>
