@@ -1,14 +1,17 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState, useMemo } from 'react';
 import {
   Activity, ShieldCheck, RefreshCw, AlertTriangle,
   CheckCircle2, XCircle, HeartPulse, Info, Loader2,
+  Database, Users, Package, Receipt, ArrowRightLeft, Settings,
+  Clock, TrendingUp, Boxes, FileText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSupabaseConfigured, supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
 import { useData } from '@/contexts/DataContext';
 import { demoDB } from '@/lib/demoStore';
 import { Spinner, ErrorBanner } from '@/components/ui/primitives';
-import { cn } from '@/lib/utils';
+import { cn, fmt } from '@/lib/utils';
+import { STATUS_LABELS, TYPE_LABELS, ROLE_LABELS } from '@/lib/types';
 
 type Status = 'ok' | 'warn' | 'fail' | 'na' | 'pending';
 interface CheckResult { status: Status; detail: string; ms?: number }
@@ -46,7 +49,11 @@ const STATUS_META: Record<Exclude<Status, 'pending'>, { label: string; cls: stri
 
 export function DiagnosticsPage() {
   const { user } = useAuth();
-  const { loading, error, refresh } = useData();
+  const {
+    loading, error, refresh,
+    users, skus, csSkus, tickets, transactions, csTransactions,
+    actions, categories, config, isDemo,
+  } = useData();
   const [results, setResults] = useState<Record<string, CheckResult>>(DEFAULT);
   const [running, setRunning] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
@@ -55,6 +62,48 @@ export function DiagnosticsPage() {
   const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
   const keyMask = anonKey ? `${anonKey.slice(0, 8)}…${anonKey.slice(-4)} (${anonKey.length} chars)` : '(built-in fallback)';
   const projectName = SUPABASE_URL ? SUPABASE_URL.replace(/^https:\/\//, '').split('.')[0] : '';
+
+  // Derived data counts
+  const dataCounts = useMemo(() => ({
+    users: users.length,
+    skus: skus.length,
+    csSkus: csSkus.length,
+    tickets: tickets.length,
+    transactions: transactions.length,
+    csTransactions: csTransactions.length,
+    actions: actions.length,
+    categories: categories.length,
+    totalStock: skus.reduce((sum, s) => sum + (s.currentStock || 0), 0),
+    totalCsStock: csSkus.reduce((sum, s) => sum + (s.currentStock || 0), 0),
+    lowStockItems: skus.filter((s) => s.currentStock <= s.lowStockThreshold).length,
+  }), [users, skus, csSkus, tickets, transactions, csTransactions, actions, categories]);
+
+  // Recent activity (last 5 items)
+  const recentTickets = useMemo(() =>
+    [...tickets].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 5),
+    [tickets]
+  );
+
+  const recentTransactions = useMemo(() =>
+    [...transactions, ...csTransactions]
+      .sort((a, b) => (b.actionAt || '').localeCompare(a.actionAt || ''))
+      .slice(0, 5),
+    [transactions, csTransactions]
+  );
+
+  // Ticket status breakdown
+  const ticketStatusCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    tickets.forEach((t) => { counts[t.status] = (counts[t.status] || 0) + 1; });
+    return counts;
+  }, [tickets]);
+
+  // User role breakdown
+  const userRoleCounts = useMemo(() => {
+    const counts: Record<string, number> = {};
+    users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
+    return counts;
+  }, [users]);
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -266,6 +315,152 @@ if (loading) return <Spinner label="Loading data…" />;
         </ul>
       </div>
 
+      {/* Data Overview Dashboard */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Database className="h-4 w-4 text-brand-600" /> Data Overview
+        </h2>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-6">
+          <DataCard icon={<Users className="h-4 w-4" />} label="Users" value={dataCounts.users} color="blue" />
+          <DataCard icon={<Package className="h-4 w-4" />} label="MKT SKUs" value={dataCounts.skus} color="emerald" />
+          <DataCard icon={<Package className="h-4 w-4" />} label="CS SKUs" value={dataCounts.csSkus} color="teal" />
+          <DataCard icon={<Receipt className="h-4 w-4" />} label="Tickets" value={dataCounts.tickets} color="violet" />
+          <DataCard icon={<ArrowRightLeft className="h-4 w-4" />} label="MKT Txns" value={dataCounts.transactions} color="amber" />
+          <DataCard icon={<ArrowRightLeft className="h-4 w-4" />} label="CS Txns" value={dataCounts.csTransactions} color="orange" />
+        </div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <DataCard icon={<Boxes className="h-4 w-4" />} label="MKT Total Stock" value={fmt(dataCounts.totalStock)} color="emerald" />
+          <DataCard icon={<Boxes className="h-4 w-4" />} label="CS Total Stock" value={fmt(dataCounts.totalCsStock)} color="teal" />
+          <DataCard icon={<AlertTriangle className="h-4 w-4" />} label="Low Stock Items" value={dataCounts.lowStockItems} color={dataCounts.lowStockItems > 0 ? 'rose' : 'slate'} />
+          <DataCard icon={<Settings className="h-4 w-4" />} label="Categories" value={dataCounts.categories} color="indigo" />
+        </div>
+      </div>
+
+      {/* Ticket Status Breakdown */}
+      {Object.keys(ticketStatusCounts).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <FileText className="h-4 w-4 text-brand-600" /> Ticket Status Breakdown
+          </h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
+            {Object.entries(ticketStatusCounts).map(([status, count]) => (
+              <div key={status} className="card card-pad text-center">
+                <p className="text-lg font-bold text-slate-800">{count}</p>
+                <p className="text-[11px] text-slate-500">{STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* User Role Breakdown */}
+      {Object.keys(userRoleCounts).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <Users className="h-4 w-4 text-brand-600" /> Users by Role
+          </h2>
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-5">
+            {Object.entries(userRoleCounts).map(([role, count]) => (
+              <div key={role} className="card card-pad text-center">
+                <p className="text-lg font-bold text-slate-800">{count}</p>
+                <p className="text-[11px] text-slate-500">{ROLE_LABELS[role] || role}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recent Activity */}
+      <div className="grid gap-4 lg:grid-cols-2">
+        {/* Recent Tickets */}
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <Clock className="h-4 w-4 text-brand-600" /> Recent Tickets
+          </h2>
+          <div className="card overflow-hidden">
+            {recentTickets.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-slate-500">No tickets found</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {recentTickets.map((t) => (
+                  <li key={t.id} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                      t.status === 'pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20' :
+                      t.status === 'finalized' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' :
+                      t.status === 'rejected' ? 'bg-rose-50 text-rose-700 ring-rose-600/20' :
+                      'bg-sky-50 text-sky-700 ring-sky-600/20'
+                    )}>
+                      {STATUS_LABELS[t.status]}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-slate-700">{t.createdByName}</p>
+                      <p className="text-[10px] text-slate-400">{t.createdAt ? new Date(t.createdAt).toLocaleString() : '—'}</p>
+                    </div>
+                    <span className="text-[10px] text-slate-400">{TYPE_LABELS[t.type]}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+
+        {/* Recent Transactions */}
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <TrendingUp className="h-4 w-4 text-brand-600" /> Recent Transactions
+          </h2>
+          <div className="card overflow-hidden">
+            {recentTransactions.length === 0 ? (
+              <p className="px-4 py-3 text-xs text-slate-500">No transactions found</p>
+            ) : (
+              <ul className="divide-y divide-slate-100">
+                {recentTransactions.map((tx, i) => (
+                  <li key={i} className="flex items-center gap-3 px-4 py-2.5">
+                    <span className={cn(
+                      'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold ring-1 ring-inset',
+                      tx.type === 'addition' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20' :
+                      'bg-rose-50 text-rose-700 ring-rose-600/20'
+                    )}>
+                      {tx.type === 'addition' ? 'IN' : 'OUT'}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-xs font-medium text-slate-700">{tx.skuName || tx.skuId || '—'}</p>
+                      <p className="text-[10px] text-slate-400">{tx.actionAt ? new Date(tx.actionAt).toLocaleString() : '—'}</p>
+                    </div>
+                    <span className={cn(
+                      'text-xs font-bold',
+                      tx.type === 'addition' ? 'text-emerald-600' : 'text-rose-600'
+                    )}>
+                      {tx.type === 'addition' ? '+' : '−'}{tx.qty}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* System Configuration */}
+      {Object.keys(config).length > 0 && (
+        <div className="space-y-3">
+          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+            <Settings className="h-4 w-4 text-brand-600" /> System Configuration
+          </h2>
+          <div className="card overflow-hidden">
+            <ul className="divide-y divide-slate-100">
+              {Object.entries(config).map(([key, value]) => (
+                <li key={key} className="flex items-center justify-between px-4 py-2.5">
+                  <span className="text-xs font-medium text-slate-600">{key}</span>
+                  <span className="text-xs text-slate-800">{value || '—'}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        </div>
+      )}
+
       <div className="card card-pad max-w-3xl space-y-2 text-xs leading-relaxed text-slate-500">
         <p className="flex items-center gap-1.5 font-semibold text-slate-700"><ShieldCheck className="h-3.5 w-3.5" /> What to look at</p>
         <p>• <b>LIVE mode</b> = this build contains your Supabase keys; all data operations go to the database.</p>
@@ -289,6 +484,42 @@ function StatCard({ label, value, tone }: { label: string; value: string; tone: 
     <div className="card card-pad">
       <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
       <p className={cn('mt-1 inline-block rounded-full px-2.5 py-1 text-sm font-bold', tones[tone])}>{value}</p>
+    </div>
+  );
+}
+
+function DataCard({ icon, label, value, color }: { icon: React.ReactNode; label: string; value: string | number; color: 'blue' | 'emerald' | 'teal' | 'violet' | 'amber' | 'orange' | 'rose' | 'slate' | 'indigo' }) {
+  const colors: Record<string, string> = {
+    blue: 'bg-blue-50 text-blue-700',
+    emerald: 'bg-emerald-50 text-emerald-700',
+    teal: 'bg-teal-50 text-teal-700',
+    violet: 'bg-violet-50 text-violet-700',
+    amber: 'bg-amber-50 text-amber-700',
+    orange: 'bg-orange-50 text-orange-700',
+    rose: 'bg-rose-50 text-rose-700',
+    slate: 'bg-slate-100 text-slate-700',
+    indigo: 'bg-indigo-50 text-indigo-700',
+  };
+  const iconColors: Record<string, string> = {
+    blue: 'text-blue-500',
+    emerald: 'text-emerald-500',
+    teal: 'text-teal-500',
+    violet: 'text-violet-500',
+    amber: 'text-amber-500',
+    orange: 'text-orange-500',
+    rose: 'text-rose-500',
+    slate: 'text-slate-400',
+    indigo: 'text-indigo-500',
+  };
+  return (
+    <div className="card card-pad">
+      <div className="flex items-center gap-2">
+        <span className={cn('rounded-lg p-1.5', colors[color], iconColors[color])}>
+          {icon}
+        </span>
+        <p className="text-[11px] font-medium text-slate-500">{label}</p>
+      </div>
+      <p className={cn('mt-2 text-xl font-bold', colors[color].split(' ')[1])}>{value}</p>
     </div>
   );
 }
