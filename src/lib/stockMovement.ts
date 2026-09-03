@@ -84,7 +84,7 @@ export function actionableTicketCount(tickets: Ticket[], role: string): number {
     if (role === 'warehouse')
       return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
     if (role === 'line_manager') return t.status === 'reviewed';
-    if (role === 'director') return t.status === 'lm_approved';
+    if (role === 'director' || role === 'finance') return t.status === 'lm_approved';
     if (role === 'admin') return !['finalized', 'rejected', 'returned', 'recalled'].includes(t.status);
     return false;
   }).length;
