@@ -1,9 +1,9 @@
-import { useCallback, useEffect, useState, useMemo } from 'react';
+import { useCallback, useEffect, useState, useMemo, useRef } from 'react';
 import {
   Activity, ShieldCheck, RefreshCw, AlertTriangle,
   CheckCircle2, XCircle, HeartPulse, Info, Loader2,
   Database, Users, Package, Receipt, ArrowRightLeft, Settings,
-  Clock, TrendingUp, Boxes, FileText,
+  Clock, TrendingUp, Boxes, Wifi, WifiOff, Gauge, Timer,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSupabaseConfigured, supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
@@ -12,6 +12,9 @@ import { demoDB } from '@/lib/demoStore';
 import { Spinner, ErrorBanner } from '@/components/ui/primitives';
 import { cn, fmt } from '@/lib/utils';
 import { STATUS_LABELS, TYPE_LABELS, ROLE_LABELS } from '@/lib/types';
+
+interface PingEntry { time: number; ms: number; status: 'ok' | 'fail' }
+interface WebVitals { lcp: number | null; fid: number | null; cls: number | null; ttfb: number | null }
 
 type Status = 'ok' | 'warn' | 'fail' | 'na' | 'pending';
 interface CheckResult { status: Status; detail: string; ms?: number }
@@ -57,6 +60,12 @@ export function DiagnosticsPage() {
   const [results, setResults] = useState<Record<string, CheckResult>>(DEFAULT);
   const [running, setRunning] = useState(true);
   const [lastRun, setLastRun] = useState<string | null>(null);
+  const [pingHistory, setPingHistory] = useState<PingEntry[]>([]);
+  const [pingInterval, setPingInterval] = useState(5000);
+  const [autoPing, setAutoPing] = useState(false);
+  const [webVitals, setWebVitals] = useState<WebVitals>({ lcp: null, fid: null, cls: null, ttfb: null });
+  const [pingLog, setPingLog] = useState<string[]>([]);
+  const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const configured = isSupabaseConfigured();
   const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
@@ -104,6 +113,97 @@ export function DiagnosticsPage() {
     users.forEach((u) => { counts[u.role] = (counts[u.role] || 0) + 1; });
     return counts;
   }, [users]);
+
+  // Ping monitoring
+  const addPingLog = useCallback((msg: string) => {
+    setPingLog((prev) => {
+      const time = new Date().toLocaleTimeString();
+      const entry = `[${time}] ${msg}`;
+      return [entry, ...prev].slice(0, 50);
+    });
+  }, []);
+
+  const doPing = useCallback(async () => {
+    if (!configured || !SUPABASE_URL) return;
+    const t0 = performance.now();
+    try {
+      const res = await fetch(`${SUPABASE_URL.replace(/\/$/, '')}/auth/v1/health`, {
+        method: 'GET',
+        headers: { apikey: SUPABASE_ANON_KEY },
+      });
+      const ms = Math.round(performance.now() - t0);
+      const status: 'ok' | 'fail' = res.ok ? 'ok' : 'fail';
+      setPingHistory((prev) => [...prev, { time: Date.now(), ms, status }].slice(-30));
+      addPingLog(`${status.toUpperCase()} ${ms}ms`);
+    } catch (e: any) {
+      const ms = Math.round(performance.now() - t0);
+      const failStatus: 'fail' = 'fail';
+      setPingHistory((prev) => [...prev, { time: Date.now(), ms, status: failStatus }].slice(-30));
+      addPingLog(`FAIL ${ms}ms - ${e?.message || 'Network error'}`);
+    }
+  }, [configured, addPingLog]);
+
+  // Auto ping effect
+  useEffect(() => {
+    if (autoPing && configured) {
+      pingTimerRef.current = setInterval(doPing, pingInterval);
+      return () => { if (pingTimerRef.current) clearInterval(pingTimerRef.current); };
+    }
+    return () => { if (pingTimerRef.current) clearInterval(pingTimerRef.current); };
+  }, [autoPing, pingInterval, configured, doPing]);
+
+  // Calculate uptime and avg response
+  const pingStats = useMemo(() => {
+    if (pingHistory.length === 0) return { uptime: 0, avgResponse: 0, total: 0, lastMs: 0 };
+    const okCount = pingHistory.filter((p) => p.status === 'ok').length;
+    const uptime = Math.round((okCount / pingHistory.length) * 100);
+    const avgResponse = Math.round(pingHistory.reduce((s, p) => s + p.ms, 0) / pingHistory.length);
+    const lastMs = pingHistory[pingHistory.length - 1]?.ms || 0;
+    return { uptime, avgResponse, total: pingHistory.length, lastMs };
+  }, [pingHistory]);
+
+  // Web Vitals monitoring
+  useEffect(() => {
+    if (typeof PerformanceObserver === 'undefined') return;
+
+    // LCP
+    const lcpObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      const last = entries[entries.length - 1] as any;
+      setWebVitals((prev) => ({ ...prev, lcp: Math.round(last.startTime) }));
+    });
+    lcpObserver.observe({ type: 'largest-contentful-paint', buffered: true });
+
+    // FID
+    const fidObserver = new PerformanceObserver((list) => {
+      const entries = list.getEntries();
+      const first = entries[0] as any;
+      setWebVitals((prev) => ({ ...prev, fid: Math.round(first.processingStart - first.startTime) }));
+    });
+    fidObserver.observe({ type: 'first-input', buffered: true });
+
+    // CLS
+    let clsValue = 0;
+    const clsObserver = new PerformanceObserver((list) => {
+      for (const entry of list.getEntries() as any[]) {
+        if (!entry.hadRecentInput) clsValue += entry.value;
+      }
+      setWebVitals((prev) => ({ ...prev, cls: Math.round(clsValue * 1000) / 1000 }));
+    });
+    clsObserver.observe({ type: 'layout-shift', buffered: true });
+
+    // TTFB
+    const navEntry = performance.getEntriesByType('navigation')[0] as any;
+    if (navEntry) {
+      setWebVitals((prev) => ({ ...prev, ttfb: Math.round(navEntry.responseStart - navEntry.requestStart) }));
+    }
+
+    return () => {
+      lcpObserver.disconnect();
+      fidObserver.disconnect();
+      clsObserver.disconnect();
+    };
+  }, []);
 
   const run = useCallback(async () => {
     setRunning(true);
@@ -315,6 +415,207 @@ if (loading) return <Spinner label="Loading data…" />;
         </ul>
       </div>
 
+      {/* Connection Monitor */}
+      <div className="space-y-4">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Wifi className="h-4 w-4 text-brand-600" /> Connection Monitor
+        </h2>
+
+        {/* Status Cards */}
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <div className="card card-pad">
+            <div className="flex items-center gap-2">
+              {pingStats.uptime >= 90 ? (
+                <Wifi className="h-4 w-4 text-emerald-500" />
+              ) : pingStats.uptime > 0 ? (
+                <Wifi className="h-4 w-4 text-amber-500" />
+              ) : (
+                <WifiOff className="h-4 w-4 text-slate-400" />
+              )}
+              <p className="text-[11px] font-medium text-slate-500">Status</p>
+            </div>
+            <p className={cn(
+              'mt-2 text-lg font-bold',
+              pingStats.uptime >= 90 ? 'text-emerald-600' :
+              pingStats.uptime > 0 ? 'text-amber-600' : 'text-slate-400'
+            )}>
+              {pingStats.total === 0 ? 'N/A' : pingStats.uptime >= 90 ? 'Healthy' : pingStats.uptime > 0 ? 'Degraded' : 'Down'}
+            </p>
+          </div>
+          <div className="card card-pad">
+            <div className="flex items-center gap-2">
+              <ShieldCheck className="h-4 w-4 text-blue-500" />
+              <p className="text-[11px] font-medium text-slate-500">Uptime</p>
+            </div>
+            <p className="mt-2 text-lg font-bold text-slate-800">
+              {pingStats.total === 0 ? '—' : `${pingStats.uptime}%`}
+            </p>
+          </div>
+          <div className="card card-pad">
+            <div className="flex items-center gap-2">
+              <Timer className="h-4 w-4 text-violet-500" />
+              <p className="text-[11px] font-medium text-slate-500">Avg Response</p>
+            </div>
+            <p className="mt-2 text-lg font-bold text-slate-800">
+              {pingStats.total === 0 ? '—' : `${pingStats.avgResponse}ms`}
+            </p>
+          </div>
+          <div className="card card-pad">
+            <div className="flex items-center gap-2">
+              <Gauge className="h-4 w-4 text-teal-500" />
+              <p className="text-[11px] font-medium text-slate-500">Last Ping</p>
+            </div>
+            <p className="mt-2 text-lg font-bold text-slate-800">
+              {pingStats.total === 0 ? '—' : `${pingStats.lastMs}ms`}
+            </p>
+          </div>
+        </div>
+
+        {/* Ping History Chart */}
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <Activity className="h-4 w-4 text-brand-600" /> Connection History
+            </h3>
+            <div className="flex items-center gap-2">
+              <select
+                className="rounded border border-slate-200 px-2 py-1 text-xs"
+                value={pingInterval}
+                onChange={(e) => setPingInterval(Number(e.target.value))}
+              >
+                <option value={1000}>1s</option>
+                <option value={3000}>3s</option>
+                <option value={5000}>5s</option>
+                <option value={10000}>10s</option>
+                <option value={30000}>30s</option>
+              </select>
+              <button
+                className={cn('btn btn-sm', autoPing ? 'btn-primary' : 'btn-ghost')}
+                onClick={() => setAutoPing(!autoPing)}
+              >
+                {autoPing ? 'Stop' : 'Start'}
+              </button>
+              <button className="btn btn-ghost btn-sm" onClick={doPing}>
+                <RefreshCw className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          </div>
+          <div className="p-4">
+            {pingHistory.length === 0 ? (
+              <p className="py-8 text-center text-xs text-slate-400">No ping data yet. Click Start to begin monitoring.</p>
+            ) : (
+              <div className="relative h-32 w-full">
+                <div className="absolute inset-0 flex flex-col justify-between">
+                  {[0, 1, 2, 3].map((i) => (
+                    <div key={i} className="border-t border-slate-100" />
+                  ))}
+                </div>
+                <div className="absolute inset-0 flex items-end gap-0.5">
+                  {pingHistory.map((entry, i) => {
+                    const maxMs = Math.max(...pingHistory.map((p) => p.ms), 100);
+                    const height = Math.max((entry.ms / maxMs) * 100, 5);
+                    return (
+                      <div
+                        key={i}
+                        className={cn(
+                          'flex-1 rounded-t transition-all',
+                          entry.status === 'ok' ? 'bg-emerald-400' : 'bg-rose-400'
+                        )}
+                        style={{ height: `${height}%` }}
+                        title={`${entry.ms}ms`}
+                      />
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Core Web Vitals */}
+        <div className="card overflow-hidden">
+          <div className="border-b border-slate-100 px-4 py-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <Gauge className="h-4 w-4 text-brand-600" /> Core Web Vitals
+            </h3>
+          </div>
+          <div className="grid grid-cols-2 gap-4 p-4 sm:grid-cols-4">
+            <div className="text-center">
+              <p className={cn(
+                'text-xl font-bold',
+                webVitals.lcp === null ? 'text-slate-300' :
+                webVitals.lcp <= 2500 ? 'text-emerald-600' :
+                webVitals.lcp <= 4000 ? 'text-amber-600' : 'text-rose-600'
+              )}>
+                {webVitals.lcp === null ? '—' : `${webVitals.lcp}ms`}
+              </p>
+              <p className="text-[11px] text-slate-500">LCP</p>
+            </div>
+            <div className="text-center">
+              <p className={cn(
+                'text-xl font-bold',
+                webVitals.fid === null ? 'text-slate-300' :
+                webVitals.fid <= 100 ? 'text-emerald-600' :
+                webVitals.fid <= 300 ? 'text-amber-600' : 'text-rose-600'
+              )}>
+                {webVitals.fid === null ? '—' : `${webVitals.fid}ms`}
+              </p>
+              <p className="text-[11px] text-slate-500">FID</p>
+            </div>
+            <div className="text-center">
+              <p className={cn(
+                'text-xl font-bold',
+                webVitals.cls === null ? 'text-slate-300' :
+                webVitals.cls <= 0.1 ? 'text-emerald-600' :
+                webVitals.cls <= 0.25 ? 'text-amber-600' : 'text-rose-600'
+              )}>
+                {webVitals.cls === null ? '—' : webVitals.cls.toFixed(3)}
+              </p>
+              <p className="text-[11px] text-slate-500">CLS</p>
+            </div>
+            <div className="text-center">
+              <p className={cn(
+                'text-xl font-bold',
+                webVitals.ttfb === null ? 'text-slate-300' :
+                webVitals.ttfb <= 800 ? 'text-emerald-600' :
+                webVitals.ttfb <= 1800 ? 'text-amber-600' : 'text-rose-600'
+              )}>
+                {webVitals.ttfb === null ? '—' : `${webVitals.ttfb}ms`}
+              </p>
+              <p className="text-[11px] text-slate-500">TTFB</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Ping Log */}
+        <div className="card overflow-hidden">
+          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+            <h3 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+              <Clock className="h-4 w-4 text-brand-600" /> Ping Log
+            </h3>
+            <button className="text-xs text-slate-400 hover:text-slate-600" onClick={() => setPingLog([])}>
+              Clear
+            </button>
+          </div>
+          <div className="max-h-40 overflow-y-auto p-2">
+            {pingLog.length === 0 ? (
+              <p className="py-4 text-center text-xs text-slate-400">No log entries</p>
+            ) : (
+              <div className="space-y-1">
+                {pingLog.map((entry, i) => (
+                  <p key={i} className={cn(
+                    'rounded px-2 py-1 text-[11px] font-mono',
+                    entry.includes('FAIL') ? 'bg-rose-50 text-rose-700' : 'bg-slate-50 text-slate-600'
+                  )}>
+                    {entry}
+                  </p>
+                ))}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+
       {/* Data Overview Dashboard */}
       <div className="space-y-4">
         <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
@@ -335,23 +636,6 @@ if (loading) return <Spinner label="Loading data…" />;
           <DataCard icon={<Settings className="h-4 w-4" />} label="Categories" value={dataCounts.categories} color="indigo" />
         </div>
       </div>
-
-      {/* Ticket Status Breakdown */}
-      {Object.keys(ticketStatusCounts).length > 0 && (
-        <div className="space-y-3">
-          <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
-            <FileText className="h-4 w-4 text-brand-600" /> Ticket Status Breakdown
-          </h2>
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 lg:grid-cols-7">
-            {Object.entries(ticketStatusCounts).map(([status, count]) => (
-              <div key={status} className="card card-pad text-center">
-                <p className="text-lg font-bold text-slate-800">{count}</p>
-                <p className="text-[11px] text-slate-500">{STATUS_LABELS[status as keyof typeof STATUS_LABELS] || status}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
 
       {/* User Role Breakdown */}
       {Object.keys(userRoleCounts).length > 0 && (
