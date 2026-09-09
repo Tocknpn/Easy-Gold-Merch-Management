@@ -18,11 +18,25 @@ body,
 
 body {
   margin: 0;
-  background: #eef2f8;
+  background: #f2f5fa;
   color: #101828;
-  font-family: 'Google Sans', Inter, Roboto, system-ui, sans-serif;
+  font-family: 'Inter', 'Noto Sans Lao', system-ui, sans-serif;
+  font-weight: 400;
+  font-size: 14px;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+}
+
+/* Headers — Inter SemiBold / Bold */
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-family: 'Inter', 'Noto Sans Lao', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 
 /* thin scrollbars */
@@ -54,7 +68,7 @@ body {
       disabled:pointer-events-none select-none whitespace-nowrap;
   }
   .btn-primary {
-    @apply btn bg-brand-600 text-white hover:bg-brand-700 shadow-glow;
+    @apply btn bg-brand-600 text-white hover:bg-brand-700;
   }
   .btn-secondary {
     @apply btn bg-white text-slate-700 border border-slate-300 hover:bg-slate-50;

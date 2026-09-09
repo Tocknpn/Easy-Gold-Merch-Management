@@ -41,14 +41,14 @@ export function LoginPage() {
 
       <div className="relative w-full max-w-md">
         <div className="mb-6 text-center">
-          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-amber-300 shadow-glow ring-1 ring-white/25 backdrop-blur">
+          <div className="mx-auto mb-3 flex h-14 w-14 items-center justify-center rounded-2xl bg-white/15 text-gold-300 shadow-sm ring-1 ring-white/25 backdrop-blur">
             <Crown className="h-7 w-7" />
           </div>
           <h1 className="text-2xl font-bold text-white">Easy Gold Merch</h1>
           <p className="mt-1 text-sm text-brand-200">MIMS 2026 — StockFlow Manager</p>
         </div>
 
-        <form onSubmit={submit} className="rounded-2xl bg-white p-6 shadow-pop sm:p-8">
+        <form onSubmit={submit} className="rounded-2xl bg-white p-6 shadow-card sm:p-8">
           <label className="label">Email address</label>
           <div className="relative mb-4">
             <Mail className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />

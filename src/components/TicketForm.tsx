@@ -352,7 +352,7 @@ export function TicketForm({
                     <div className="relative min-w-0 flex-1">
                       <p className={cn('truncate text-sm font-semibold', out ? 'text-slate-400' : 'text-slate-800')}>{sku.name}</p>
                       {sku.name.length > 16 && (
-                        <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-lg group-hover:block">
+                        <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-card group-hover:block">
                           {sku.name}
                         </span>
                       )}
@@ -517,7 +517,7 @@ export function TicketForm({
       {totalItems > 0 && (
         <a
           href="#cart-summary"
-          className="no-print fixed inset-x-4 bottom-4 z-40 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-pop lg:hidden"
+          className="no-print fixed inset-x-4 bottom-4 z-40 flex items-center gap-2 rounded-2xl bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-card lg:hidden"
         >
           <ShoppingBag className="h-4 w-4 text-brand-300" />
           <span>{totalItems} {totalItems === 1 ? 'item' : 'items'} · {money(subtotal)}</span>

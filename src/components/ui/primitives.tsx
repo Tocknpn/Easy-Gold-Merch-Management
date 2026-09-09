@@ -38,7 +38,7 @@ export function ToastViewport() {
         <div
           key={t.id}
           className={cn(
-            'flex items-start gap-2.5 rounded-xl border bg-white px-4 py-3 shadow-pop animate-slide-in-right text-sm',
+            'flex items-start gap-2.5 rounded-xl border bg-white px-4 py-3 shadow-card animate-slide-in-right text-sm',
             t.type === 'error' ? 'border-rose-200' : t.type === 'info' ? 'border-sky-200' : 'border-emerald-200',
           )}
         >
@@ -106,7 +106,7 @@ export function Modal({
   if (!open) return null;
   return (
     <div className="fixed inset-0 z-[90] flex items-start justify-center overflow-y-auto bg-slate-900/50 p-4 backdrop-blur-sm sm:items-center">
-      <div className={cn('my-6 w-full rounded-2xl bg-white shadow-pop animate-scale-in', wide ? 'max-w-3xl' : 'max-w-lg')}>
+      <div className={cn('my-6 w-full rounded-2xl bg-white shadow-card animate-scale-in', wide ? 'max-w-3xl' : 'max-w-lg')}>
         <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
           <h3 className="text-base font-semibold text-slate-900">{title}</h3>
           <button onClick={onClose} className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
