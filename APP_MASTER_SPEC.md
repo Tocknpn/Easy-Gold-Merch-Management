@@ -289,12 +289,12 @@ Statuses: `pending → reviewed → lm_approved → finalized`; plus `rejected`,
 
 | Transition | Trigger | Backend side effects |
 |---|---|---|
-| create → `pending` | Staff submits | Tickets row + TicketItems rows appended; email → all `warehouse` users |
-| `pending → reviewed` | Warehouse reviews | Writes WH_Comment; sets `Actual_Delivery_Date`; **books stock**: for each item appends a `deduction` tx (`Status='Booked'`) and decrements `Current_Stock` (floor 0) using `qtyApproved ?? qtyRequested`; email → `line_manager` |
+| create → `pending` | Staff submits | Tickets row + TicketItems rows appended; **stock booked immediately (accrual)**: per item `Current_Stock -= qtyRequested` + `deduction` tx (`Status='Booked'`, "Stock booked on ticket submission"); creation is **refused** when availability (`Current_Stock` − legacy unbooked pending qty) < requested, with SKU rows locked (`FOR UPDATE`) so two simultaneous submissions can never both pass; email → all `warehouse` users |
+| `pending → reviewed` | Warehouse reviews | Writes WH_Comment; sets `Actual_Delivery_Date`; **confirms the booking**: `Current_Stock` true-up by `qtyApproved − bookedQty` (never deducts twice); booking tx qty updated to approved qty; legacy tickets without a booking tx deduct here as before; approving 0 releases the booking; email → `line_manager` |
 | `reviewed → lm_approved` | Line Manager approves | Writes LM_Comment; email → `director` |
 | `lm_approved → finalized` | Director finalizes | email → requester. **If `Type = cs_transfer`** → `autoRestockCsWarehouse(items, ticketId)` |
-| `reviewed`/`lm_approved → rejected` | any approver rejects | **restock**: `addition` tx `Status='Rejected - Stock Returned'`, `Current_Stock += qty`; email → requester |
-| `reviewed`/`lm_approved → recalled` | admin/WH recall | **restock**: `addition` tx `Status='Recalled - Stock Returned'`, `Current_Stock += qty`; email → requester |
+| `reviewed`/`lm_approved`/`pending` → `rejected` | any approver rejects | **restock**: from reviewed/lm_approved `addition` tx `Status='Rejected - Stock Returned'`, `Current_Stock += qty`; from pending the submission booking is released (`addition` tx `Status='Rejected - Booking Released'`, booking tx → `Booking Cancelled`); email → requester |
+| `reviewed`/`lm_approved` → `recalled` | admin/WH recall | **restock**: `addition` tx `Status='Recalled - Stock Returned'`, `Current_Stock += qty`; email → requester |
 | `finalized → returned` (borrow) | Warehouse “Return Completed” | For each returned item: `qtyReturned ?? qtyApproved ?? qtyRequested` added back (`addition` tx `Status='Returned'`), optional `qtyBroken` recorded in the tx; `Current_Stock += qtyRet`. Comment suffixes `(N broken/lost)`. email → requester |
 | any → `returned`/`finalized` | — | sets Return_Date / type / actual dates as provided |
 

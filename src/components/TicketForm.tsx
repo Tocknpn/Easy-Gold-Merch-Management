@@ -74,7 +74,7 @@ function QtyStepper({ qty, onSet }: { qty: number; onSet: (n: number) => void })
   );
 }
 
-function StockBadge({ sku }: { sku: SKU }) {
+function StockBadge({ sku, booked = 0 }: { sku: SKU; booked?: number }) {
   const stock = sku.currentStock;
   const threshold = sku.lowStockThreshold ? sku.lowStockThreshold : 0;
   const tone =
@@ -93,6 +93,8 @@ function StockBadge({ sku }: { sku: SKU }) {
     <span className={cn('inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset', tone)}>
       <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', stock === 0 ? 'bg-slate-400' : stock <= threshold ? 'bg-amber-500' : 'bg-emerald-500')} />
       {label}
+      {/* qty already booked by other open tickets (stock is booked at submission) */}
+      {booked > 0 && <span className="shrink-0 opacity-70">· {fmt(booked)} booked</span>}
     </span>
   );
 }
@@ -107,12 +109,28 @@ export function TicketForm({
   onModeChange?: (m: 'request' | 'borrow') => void;
 }) {
   const { user } = useAuth();
-  const { skus: allSkus, loading, createTicket } = useData();
+  const { skus: allSkus, tickets, loading, createTicket } = useData();
   // Inactive SKUs (disabled in Manage Stock → SKU Setup) are hidden from the shop picker
   const skus = useMemo(() => allSkus.filter((s) => s.status !== 'inactive'), [allSkus]);
   const navigate = useNavigate();
   const isBorrow = mode === 'borrow';
   const isCS = user?.role === 'customer_service';
+
+  // Stock already booked by open (pending) tickets — displayed for
+  // transparency; the backend books the qty the moment a ticket is
+  // submitted, so `currentStock` already reflects those bookings.
+  // Pending = nothing approved yet, so the booked amount is qtyRequested
+  // (live rows may carry qtyApproved = 0 from legacy data — not meaningful).
+  const bookedMap = useMemo(() => {
+    const map: Record<string, number> = {};
+    for (const t of tickets) {
+      if (t.status !== 'pending') continue;
+      for (const it of t.items || []) {
+        map[it.skuId] = (map[it.skuId] || 0) + (it.qtyRequested || 0);
+      }
+    }
+    return map;
+  }, [tickets]);
 
   const [cart, setCart] = useState<Record<string, number>>({});
   const [search, setSearch] = useState('');
@@ -381,7 +399,7 @@ export function TicketForm({
                     </div>
 
                     <div className="mt-2 flex items-center justify-between gap-2">
-                      <StockBadge sku={sku} />
+                      <StockBadge sku={sku} booked={bookedMap[sku.id] || 0} />
                       {inCart && (
                         <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
                           <QtyStepper qty={qty} onSet={(n) => setQty(sku.id, String(n))} />

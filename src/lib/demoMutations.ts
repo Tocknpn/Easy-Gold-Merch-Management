@@ -11,6 +11,33 @@ export function demoCreateTicket(p: {
 }): string {
   const items = p.items.filter((i) => castNumber(i.qtyRequested) > 0);
   if (items.length === 0) throw new Error('Ticket must have at least one item');
+
+  // ── availability guard (mirrors create_ticket SQL) ─────────────
+  // Stock requested by tickets that are still pending is already
+  // booked (deducted at submission), so currentStock IS availability —
+  // except for legacy pending tickets created before booking-at-creation.
+  const hasBooking = (ticketId: string, skuId: string) =>
+    demoDB.transactions.some((tx) => tx.ticketId === ticketId && tx.skuId === skuId && tx.type === 'deduction' && tx.status === 'Booked');
+  const need = new Map<string, number>();
+  for (const i of items) need.set(i.skuId, (need.get(i.skuId) || 0) + i.qtyRequested);
+  for (const [skuId, qty] of need) {
+    const sku = demoDB.skus.find((s) => s.id === skuId);
+    if (!sku) throw new Error(`Unknown item: ${skuId}`);
+    let unbooked = 0;
+    for (const t of demoDB.tickets) {
+      if (t.status !== 'pending') continue;
+      for (const it of demoDB.items[t.id] || []) {
+        if (it.skuId === skuId && !hasBooking(t.id, skuId)) unbooked += it.qtyRequested;
+      }
+    }
+    if (qty > sku.currentStock - unbooked) {
+      throw new Error(
+        `Insufficient stock for "${sku.name}" — available: ${sku.currentStock - unbooked}, requested: ${qty}. ` +
+        'Someone may have just booked it — please refresh and try again.',
+      );
+    }
+  }
+
   const id = nextId('TKT-');
   demoDB.tickets.unshift({
     id, createdBy: p.createdBy, createdByName: p.createdByName, department: p.department,
@@ -21,6 +48,18 @@ export function demoCreateTicket(p: {
   });
   demoDB.items[id] = items.map((i) => ({ skuId: i.skuId, skuName: i.skuName, qtyRequested: i.qtyRequested, qtyApproved: null, unit: i.unit || 'pcs' }));
   demoDB.actions.unshift({ ticketId: id, action: 'Created', status: 'pending', actionAt: new Date().toISOString(), actionBy: p.createdByName, role: '', comment: 'Ticket submitted' });
+
+  // ── BOOK the requested qty right away (accrual) ────────────────
+  for (const i of items) {
+    const sku = demoDB.skus.find((s) => s.id === i.skuId);
+    if (!sku) continue;
+    sku.currentStock -= i.qtyRequested;
+    demoDB.transactions.unshift({
+      ticketId: id, skuId: i.skuId, skuName: i.skuName, qty: i.qtyRequested, type: 'deduction',
+      date: todayStr(), actionAt: new Date().toISOString(), actionBy: p.createdByName,
+      status: 'Booked', comment: 'Stock booked on ticket submission',
+    });
+  }
   return id;
 }
 
@@ -47,19 +86,46 @@ export function demoUpdateTicketStatus(
 
   const actor = meta.actorName || 'System';
 
-  // REVIEWED: deduct (book) stock, apply approved quantities
+  // REVIEWED: confirm the booking made at submission (true-up to approved qty)
   if (status === 'reviewed') {
     for (const it of demoDB.items[t.id] || []) {
       const mt = meta.items?.find((m) => m.skuId === it.skuId);
-      const qty = mt && mt.qtyApproved !== undefined ? mt.qtyApproved : (it.qtyApproved ?? it.qtyRequested);
+      // NULL-safe: a stale 0 on pending rows means "not approved yet"
+      const qty = mt && mt.qtyApproved !== undefined ? mt.qtyApproved : (it.qtyApproved || it.qtyRequested);
+      const booking = demoDB.transactions.find(
+        (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
+      );
+      const bookedQty = booking ? booking.qty : 0;
+
+      if (qty <= 0) {
+        // nothing approved → release whatever was booked
+        it.qtyApproved = 0;
+        if (booking) {
+          const sku0 = demoDB.skus.find((s) => s.id === it.skuId);
+          if (sku0) sku0.currentStock += bookedQty;
+          booking.status = 'Booking Cancelled';
+          booking.comment = 'Booking released - nothing approved at review';
+        }
+        continue;
+      }
+
       it.qtyApproved = qty;
-      if (qty <= 0) continue;
       const sku = demoDB.skus.find((s) => s.id === it.skuId);
-      if (sku) sku.currentStock = Math.max(0, sku.currentStock - qty);
-      demoDB.transactions.unshift({
-        ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'deduction',
-        date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
-      });
+      if (booking) {
+        // booking exists: true-up only the difference (never deduct twice)
+        if (qty !== bookedQty) {
+          if (sku) sku.currentStock = Math.max(0, sku.currentStock - (qty - bookedQty));
+          booking.qty = qty;
+          booking.comment = 'Stock booked - confirmed at review';
+        }
+      } else if (sku) {
+        // legacy ticket submitted before booking-at-creation: deduct now
+        sku.currentStock = Math.max(0, sku.currentStock - qty);
+        demoDB.transactions.unshift({
+          ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'deduction',
+          date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
+        });
+      }
     }
   }
 
@@ -85,17 +151,29 @@ export function demoUpdateTicketStatus(
       });
     }
   }
-// REJECTED / RECALLED: return booked stock (addition)
-  if ((status === 'rejected' || status === 'recalled') && (old === 'reviewed' || old === 'lm_approved')) {
+  // REJECTED / RECALLED: return booked stock (addition)
+  if ((status === 'rejected' || status === 'recalled') && ['pending', 'reviewed', 'lm_approved'].includes(old)) {
     for (const it of demoDB.items[t.id] || []) {
-      const qty = it.qtyApproved ?? it.qtyRequested;
+      let qty: number;
+      if (old === 'pending') {
+        // rejected/recalled before review → release the booking made at submission
+        const booking = demoDB.transactions.find(
+          (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
+        );
+        qty = booking ? booking.qty : 0;
+        if (booking) booking.status = 'Booking Cancelled';
+      } else {
+        qty = it.qtyApproved ?? it.qtyRequested;
+      }
       if (qty <= 0) continue;
       const sku = demoDB.skus.find((s) => s.id === it.skuId);
       if (sku) sku.currentStock += qty;
       demoDB.transactions.unshift({
         ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'addition',
         date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor,
-        status: status === 'rejected' ? 'Rejected - Stock Returned' : 'Recalled - Stock Returned',
+        status: status === 'rejected'
+          ? (old === 'pending' ? 'Rejected - Booking Released' : 'Rejected - Stock Returned')
+          : (old === 'pending' ? 'Recalled - Booking Released' : 'Recalled - Stock Returned'),
         comment: meta.comment || '',
       });
     }

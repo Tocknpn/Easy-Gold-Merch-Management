@@ -11,6 +11,22 @@ const check = (name: string, cond: boolean) => {
   if (cond) { pass++; console.log(`  ok ${name}`); }
   else { fail++; console.error(`  FAIL ${name}`); }
 };
+// availability exactly as the engine sees it: currentStock minus the qty
+// still booked on pending tickets that were created before booking-at-creation
+const pendingUnbooked = (skuId: string) => {
+  let unbooked = 0;
+  for (const t of demoDB.tickets) {
+    if (t.status !== 'pending') continue;
+    for (const it of demoDB.items[t.id] || []) {
+      const hasBooking = demoDB.transactions.some((tx) =>
+        tx.ticketId === t.id && tx.skuId === skuId && tx.type === 'deduction' && tx.status === 'Booked');
+      if (it.skuId === skuId && !hasBooking) unbooked += it.qtyRequested;
+    }
+  }
+  return unbooked;
+};
+const availability = (skuId: string) =>
+  demoDB.skus.find((s) => s.id === skuId)!.currentStock - pendingUnbooked(skuId);
 
 console.log('-- Login (real seeded users) --');
 const admin = demoLogin('tockppd@gmail.com', 'easygold1234');
@@ -52,18 +68,19 @@ check('reject returns the 5', afterReject === afterReview2 + 5);
 check('reject tx status', demoDB.transactions.some((tx) => tx.ticketId === t2 && tx.type === 'addition' && /Rejected/i.test(tx.status || '')));
 
 console.log('-- CS transfer auto-restock --');
-// pick an MKT-only SKU so we test auto-creation in CS
-const mktOnly = demoDB.skus.find((s) => !demoDB.csSkus.some((c) => c.id === s.id))!;
+// pick an MKT-only SKU with available stock so we test auto-creation in CS
+const mktOnly = demoDB.skus.find((s) => !demoDB.csSkus.some((c) => c.id === s.id) && availability(s.id) >= 1)!;
+const transferQty = Math.min(20, availability(mktOnly.id));
 const csSkuCount = demoDB.csSkus.length;
 const t3 = demoCreateTicket({
   createdBy: cs.email, createdByName: cs.fullName, department: 'CS', type: 'cs_transfer',
-  items: [{ skuId: mktOnly.id, skuName: mktOnly.name, qtyRequested: 20, unit: mktOnly.unit }],
+  items: [{ skuId: mktOnly.id, skuName: mktOnly.name, qtyRequested: transferQty, unit: mktOnly.unit }],
 });
 demoUpdateTicketStatus(t3, 'reviewed', { actorName: 'WH', actorRole: 'warehouse' });
 demoUpdateTicketStatus(t3, 'lm_approved', { actorName: 'LM', actorRole: 'line_manager' });
 demoUpdateTicketStatus(t3, 'finalized', { actorName: 'Dir', actorRole: 'director' });
 const csNewSku = demoDB.csSkus.find((s) => s.id === mktOnly.id);
-check('cs auto-created from MKT', Boolean(csNewSku) && csNewSku.currentStock === 20 && demoDB.csSkus.length === csSkuCount + 1);
+check('cs auto-created from MKT', Boolean(csNewSku) && csNewSku.currentStock === transferQty && demoDB.csSkus.length === csSkuCount + 1);
 check('cs tx logged', demoDB.csTransactions.some((tx) => tx.ticketId === t3 && tx.type === 'addition'));
 
 console.log('-- Borrow + return --');
@@ -82,6 +99,42 @@ demoUpdateTicketStatus(t4, 'returned', {
 });
 const retTx = demoDB.transactions.find((tx) => tx.ticketId === t4 && tx.type === 'addition');
 check('return added 7 + broken', Boolean(retTx) && retTx.qty === 7 && retTx.qtyBroken === 1);
+
+console.log('-- Booking at creation (accrual) --');
+const bSku = demoDB.skus.find((s) => s.id !== mktOnly.id && pendingUnbooked(s.id) === 0 && availability(s.id) >= 40)!;
+const bBefore = bSku.currentStock;
+const tb = demoCreateTicket({
+  createdBy: admin.email, createdByName: admin.fullName, department: 'MKT', type: 'request',
+  deliveryDate: '2026-12-05',
+  items: [{ skuId: bSku.id, skuName: bSku.name, qtyRequested: 12, unit: bSku.unit }],
+});
+check('create books 12 immediately', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore - 12);
+
+// while booked, nobody else can request past what is left
+const availNow = demoDB.skus.find((s) => s.id === bSku.id)!.currentStock;
+try {
+  demoCreateTicket({
+    createdBy: cs.email, createdByName: cs.fullName, department: 'CS', type: 'request',
+    deliveryDate: '2026-12-05',
+    items: [{ skuId: bSku.id, skuName: bSku.name, qtyRequested: availNow + 1, unit: bSku.unit }],
+  });
+  check('overbooking blocked', false);
+} catch (e: any) { check('overbooking blocked', /insufficient stock/i.test(e.message)); }
+
+// rejecting the pending ticket releases the booking
+demoUpdateTicketStatus(tb, 'rejected', { actorName: 'WH', actorRole: 'warehouse', comment: 'not needed' });
+check('reject before review releases booking', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore);
+
+// re-book → review with a smaller approval releases the difference, not the full qty
+const tb2 = demoCreateTicket({
+  createdBy: admin.email, createdByName: admin.fullName, department: 'MKT', type: 'request',
+  deliveryDate: '2026-12-06',
+  items: [{ skuId: bSku.id, skuName: bSku.name, qtyRequested: 12, unit: bSku.unit }],
+});
+demoUpdateTicketStatus(tb2, 'reviewed', { actorName: 'WH', actorRole: 'warehouse', items: [{ skuId: bSku.id, qtyApproved: 8 }] });
+check('review true-up releases only 4', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore - 8);
+demoUpdateTicketStatus(tb2, 'rejected', { actorName: 'WH', actorRole: 'warehouse', comment: 'cancel' });
+check('reject after review returns the 8', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore);
 
 console.log('-- SKU + CS operations --');
 const newSkuId = demoAddSku({ name: 'Smoke Item', category: 'Merch', unit: 'pcs', openingBalance: 10, costPerUnit: 100 });

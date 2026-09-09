@@ -85,6 +85,8 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 3 | `supabase/migrations/0003_ticket_engine.sql` | create tickets |
    | 4 | `supabase/migrations/0004_ticket_state_machine.sql` | approvals + stock accounting rules |
    | 5 | `supabase/migrations/0005_sku_image_storage.sql` | SKU photo bucket + policies |
+   | 6 | `supabase/migrations/0006_ensure_reads.sql` | read-access grants for the anon client |
+   | 7 | `supabase/migrations/0007_booking_at_creation.sql` | **stock booking at ticket submission** (accrual) + booking-aware approvals |
 
    Each should show **"Success. No rows returned"** (or similar).
 
