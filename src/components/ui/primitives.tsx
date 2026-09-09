@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertCircle, Info, X } from 'lucide-react';
+import { CheckCircle2, AlertCircle, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── toast system (module-level store) ───────────────────────────────────
@@ -173,6 +173,102 @@ export function ErrorBanner({ msg, retry }: { msg: string; retry?: () => void })
         <p className="mt-1 text-xs text-rose-600">{msg}</p>
       </div>
       {retry && <button onClick={retry} className="btn btn-secondary btn-sm">Retry</button>}
+    </div>
+  );
+}
+
+// ── Pagination ──────────────────────────────────────────────────────────
+const PAGE_SIZE_OPTIONS = [10, 25, 50, 100];
+
+/** Compact page list: 1 … c-1 c c+1 … last (never balloons on long ranges) */
+function pageList(current: number, total: number): (number | 'ellipsis')[] {
+  if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+  const pages: (number | 'ellipsis')[] = [1];
+  const start = Math.max(2, current - 1);
+  const end = Math.min(total - 1, current + 1);
+  if (start > 2) pages.push('ellipsis');
+  for (let p = start; p <= end; p++) pages.push(p);
+  if (end < total - 1) pages.push('ellipsis');
+  pages.push(total);
+  return pages;
+}
+
+export function Pagination({
+  page, pageSize, total, onPageChange, onPageSizeChange, unit = 'records', className,
+}: {
+  page: number;
+  pageSize: number;
+  total: number;
+  onPageChange: (p: number) => void;
+  onPageSizeChange: (n: number) => void;
+  unit?: string;
+  className?: string;
+}) {
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const from = total === 0 ? 0 : (page - 1) * pageSize + 1;
+  const to = Math.min(page * pageSize, total);
+  const nav =
+    'grid h-8 min-w-[2rem] place-items-center rounded-lg px-2 text-xs font-semibold transition disabled:pointer-events-none disabled:opacity-40';
+
+  return (
+    <div className={cn('flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 px-4 py-3 no-print', className)}>
+      <div className="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-500">
+        <span>
+          Showing <b className="tabular-nums text-slate-700">{from}–{to}</b> of{' '}
+          <b className="tabular-nums text-slate-700">{total}</b> {unit}
+        </span>
+        <label className="flex items-center gap-1.5">
+          <span className="hidden sm:inline">Rows per page</span>
+          <select
+            className="h-8 rounded-lg border border-slate-200 bg-white px-2 text-xs font-semibold text-slate-700 focus:outline-none focus:ring-2 focus:ring-brand-500/40"
+            value={pageSize}
+            onChange={(e) => onPageSizeChange(Number(e.target.value))}
+          >
+            {PAGE_SIZE_OPTIONS.map((n) => (
+              <option key={n} value={n}>{n}</option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="flex items-center gap-1">
+        <button
+          type="button"
+          aria-label="Previous page"
+          className={cn(nav, 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50')}
+          disabled={page <= 1}
+          onClick={() => onPageChange(page - 1)}
+        >
+          <ChevronLeft className="h-3.5 w-3.5" />
+        </button>
+        {pageList(page, totalPages).map((p, i) =>
+          p === 'ellipsis' ? (
+            <span key={`gap-${i}`} className="px-0.5 text-xs text-slate-400">…</span>
+          ) : (
+            <button
+              key={p}
+              type="button"
+              aria-label={`Page ${p}`}
+              aria-current={p === page ? 'page' : undefined}
+              onClick={() => onPageChange(p)}
+              className={cn(
+                nav,
+                p === page ? 'bg-brand-600 text-white shadow-sm' : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+              )}
+            >
+              {p}
+            </button>
+          ),
+        )}
+        <button
+          type="button"
+          aria-label="Next page"
+          className={cn(nav, 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50')}
+          disabled={page >= totalPages}
+          onClick={() => onPageChange(page + 1)}
+        >
+          <ChevronRight className="h-3.5 w-3.5" />
+        </button>
+      </div>
     </div>
   );
 }

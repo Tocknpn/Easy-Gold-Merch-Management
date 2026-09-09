@@ -1,5 +1,5 @@
 // ── Ticket Tracking: your requests + every ticket + full stock-movement audit ──
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ListChecks, ArrowRightLeft, Clock3, CircleCheck, XCircle, Undo2, Loader2,
@@ -7,7 +7,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { Modal, Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
+import { Modal, Spinner, ErrorBanner, EmptyState, Pagination, toast } from '@/components/ui/primitives';
 import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { TicketDetail } from '@/components/TicketDetail';
 import { fmt, money, cn } from '@/lib/utils';
@@ -192,6 +192,8 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
   const [status, setStatus] = useState<string>('all');
   const [type, setType] = useState('all');
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(10);
 
   const rows = useMemo(() => {
     let out = tickets;
@@ -217,6 +219,18 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
         (b.createdAt || '').localeCompare(a.createdAt || ''),
     );
   }, [tickets, mineOnly, user, status, type, q]);
+
+  // Pagination — jump back to page 1 whenever the filter set changes
+  useEffect(() => {
+    setPage(1);
+  }, [mineOnly, status, type, q]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const curPage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => rows.slice((curPage - 1) * pageSize, curPage * pageSize),
+    [rows, curPage, pageSize],
+  );
 
   const count = (s: string) => {
     let base = tickets;
@@ -298,7 +312,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((t) => {
+                {pageRows.map((t) => {
                   const pr = isPendingReturn(t);
                   return (
                     <tr
@@ -386,6 +400,16 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
             </table>
           </div>
         )}
+        {rows.length > 0 && (
+          <Pagination
+            page={curPage}
+            pageSize={pageSize}
+            total={rows.length}
+            unit="tickets"
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
+        )}
       </div>
 
 {open && (
@@ -469,6 +493,8 @@ function MovementsTab() {
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');
   const [q, setQ] = useState('');
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(25);
 
   const rows = useMemo<MoveRow[]>(() => {
     const costById = new Map<string, number>();
@@ -508,6 +534,18 @@ function MovementsTab() {
       transfer: rows.filter((r) => r.cat === 'transfer').reduce((a, r) => a + (r.tx.qty || 0), 0),
     }),
     [rows],
+  );
+
+  // Pagination — reset to page 1 whenever any filter changes
+  useEffect(() => {
+    setPage(1);
+  }, [wh, cat, from, to, q]);
+
+  const totalPages = Math.max(1, Math.ceil(rows.length / pageSize));
+  const curPage = Math.min(page, totalPages);
+  const pageRows = useMemo(
+    () => rows.slice((curPage - 1) * pageSize, curPage * pageSize),
+    [rows, curPage, pageSize],
   );
 
   const exportCsv = () =>
@@ -582,7 +620,7 @@ function MovementsTab() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {rows.map((r, i) => (
+                {pageRows.map((r, i) => (
                   <tr key={`${r.tx.ticketId}-${r.tx.skuId}-${i}`} className="transition hover:bg-slate-50/70">
                     <td className={`${td} pl-4 whitespace-nowrap text-xs text-slate-500`}>{r.at.replace('T', ' ').slice(0, 16)}</td>
                     <td className={`${td} whitespace-nowrap`}>
@@ -619,6 +657,16 @@ function MovementsTab() {
               </tbody>
             </table>
           </div>
+        )}
+        {rows.length > 0 && (
+          <Pagination
+            page={curPage}
+            pageSize={pageSize}
+            total={rows.length}
+            unit="movements"
+            onPageChange={setPage}
+            onPageSizeChange={(n) => { setPageSize(n); setPage(1); }}
+          />
         )}
       </div>
     </div>

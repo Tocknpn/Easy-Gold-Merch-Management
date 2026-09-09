@@ -338,7 +338,7 @@ export function TicketForm({
                       }
                     }}
                     className={cn(
-                      'card group flex flex-col p-3.5 transition select-none',
+                      'card group flex flex-col p-3 transition select-none',
                       out && 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 grayscale',
                       inCart
                         ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500'
@@ -346,8 +346,8 @@ export function TicketForm({
                     )}
                     title={out ? 'Out of stock — not available' : inCart ? 'Click to remove from selection' : 'Click to select'}
                   >
-                    <div className="flex items-start gap-3">
-                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                    <div className="flex items-center gap-3">
+                      <div className="relative h-14 w-14 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                         <SkuThumb sku={sku} className="h-full w-full object-cover" />
                       </div>
 
@@ -380,7 +380,7 @@ export function TicketForm({
                       </div>
                     </div>
 
-                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                    <div className="mt-2 flex items-center justify-between gap-2">
                       <StockBadge sku={sku} />
                       {inCart && (
                         <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
@@ -389,7 +389,7 @@ export function TicketForm({
                       )}
                     </div>
 
-                    <p className={cn('mt-2.5 text-[15px] font-bold leading-none', out ? 'text-slate-400' : 'text-slate-900')}>
+                    <p className={cn('mt-2 text-[15px] font-bold leading-none', out ? 'text-slate-400' : 'text-slate-900')}>
                       {money(sku.costPerUnit)}
                     </p>
                   </div>
