@@ -3,6 +3,7 @@ import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ListChecks, ArrowRightLeft, Clock3, CircleCheck, XCircle, Undo2, Loader2,
+  Package, FileX2, MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -31,6 +32,38 @@ const CAT_STYLE: Record<CatKey, string> = {
   transfer: 'bg-amber-50 text-amber-700 ring-amber-600/20',
   opening: 'bg-violet-50 text-violet-700 ring-violet-600/20',
 };
+
+/* ── Compact-row visuals: leading type/status icon tile + initials avatar ── */
+
+function TypeTile({ ticket }: { ticket: TicketWithItems }) {
+  const base = 'flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ring-1';
+  if (ticket.status === 'rejected') {
+    return <span className={cn(base, 'bg-rose-50 text-rose-600 ring-rose-100')}><FileX2 className="h-4 w-4" /></span>;
+  }
+  if (ticket.type === 'borrow') {
+    return <span className={cn(base, 'bg-violet-50 text-violet-600 ring-violet-100')}><Package className="h-4 w-4" /></span>;
+  }
+  if (ticket.type === 'cs_transfer') {
+    return <span className={cn(base, 'bg-cyan-50 text-cyan-600 ring-cyan-100')}><ArrowRightLeft className="h-4 w-4" /></span>;
+  }
+  return <span className={cn(base, 'bg-brand-50 text-brand-600 ring-brand-100')}><Package className="h-4 w-4" /></span>;
+}
+
+function Initial({ name, size = 'md' }: { name?: string | null; size?: 'sm' | 'md' }) {
+  const letter = (name || '?').trim().charAt(0).toUpperCase() || '?';
+  return (
+    <span
+      className={cn(
+        'flex shrink-0 items-center justify-center rounded-full font-bold',
+        size === 'sm'
+          ? 'h-5 w-5 bg-brand-50 text-[9px] text-brand-600 ring-1 ring-brand-100'
+          : 'h-7 w-7 bg-brand-100 text-[11px] text-brand-700',
+      )}
+    >
+      {letter}
+    </span>
+  );
+}
 
 function catOf(tx: StockTransaction): CatKey {
   const ref = tx.ticketId || '';
@@ -250,7 +283,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
           <EmptyState icon={<ListChecks className="h-6 w-6" />} title="No tickets match" sub="Try clearing the filters." />
         ) : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1060px] text-sm">
+            <table className="w-full min-w-[1120px] text-sm">
               <thead className="bg-slate-50">
                 <tr className="text-left">
                   <th className={`${th} pl-4`}>Ticket</th>
@@ -261,6 +294,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
                   <th className={th}>Return due</th>
                   <th className={th}>Last action</th>
                   <th className={`${th} pr-4`}>Status</th>
+                  <th className="w-12" aria-hidden="true" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -270,28 +304,41 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
                     <tr
                       key={t.id}
                       onClick={() => setOpen(t)}
-                      className={cn('cursor-pointer transition hover:bg-brand-50/40', pr && 'bg-indigo-50/40')}
+                      className={cn('group cursor-pointer transition hover:bg-brand-50/40', pr && 'bg-indigo-50/40')}
                     >
-                      <td className={`${td} max-w-[180px] pl-4`}>
-                        <p className="truncate font-semibold text-brand-700" title={t.id}>{t.id}</p>
-                        <TypeBadge type={t.type} />
+                      <td className={`${td} pl-4`}>
+                        <div className="flex items-center gap-3">
+                          <TypeTile ticket={t} />
+                          <div className="min-w-0">
+                            <p className="truncate text-[13px] font-semibold text-brand-700" title={t.id}>{t.id}</p>
+                            <TypeBadge type={t.type} />
+                          </div>
+                        </div>
                       </td>
                       {!mineOnly && (
-                        <td className={`${td} max-w-[170px]`}>
-                          <p className="truncate font-medium text-slate-800" title={t.createdByName || ''}>{t.createdByName || '—'}</p>
-                          <p className="truncate text-xs text-slate-400" title={t.department || ''}>{t.department || '—'}</p>
+                        <td className={td}>
+                          <div className="flex items-center gap-2.5">
+                            <Initial name={t.createdByName} />
+                            <div className="min-w-0">
+                              <p className="truncate text-[13px] font-medium text-slate-800" title={t.createdByName || ''}>{t.createdByName || '—'}</p>
+                              <p className="truncate text-[11px] text-slate-400" title={t.department || ''}>{t.department || '—'}</p>
+                            </div>
+                          </div>
                         </td>
                       )}
                       <td className={`${td} max-w-[225px]`}>
-                        <p className="truncate text-slate-600" title={t.items.map((i) => i.skuName).join(', ')}>
-                          {t.items.map((i) => i.skuName).join(', ')}
-                        </p>
-                        <p className="text-xs text-slate-400">
+                        <div className="flex items-center gap-1.5">
+                          <Package className="h-3.5 w-3.5 shrink-0 text-brand-400" />
+                          <p className="truncate text-[13px] text-slate-700" title={t.items.map((i) => i.skuName).join(', ')}>
+                            {t.items.map((i) => i.skuName).join(', ') || '—'}
+                          </p>
+                        </div>
+                        <p className="pl-5 text-[11px] text-slate-400">
                           {t.items.length} item{t.items.length > 1 ? 's' : ''} · ×{t.items.reduce((a, i) => a + (i.qtyApproved ?? i.qtyRequested), 0)} total
                         </p>
                       </td>
-                      <td className={`${td} whitespace-nowrap text-slate-500`}>{(t.createdAt || '').slice(0, 10)}</td>
-                      <td className={`${td} whitespace-nowrap text-slate-500`}>{(t.deliveryDate || '').slice(0, 10) || '—'}</td>
+                      <td className={`${td} whitespace-nowrap text-[13px] text-slate-500`}>{(t.createdAt || '').slice(0, 10)}</td>
+                      <td className={`${td} whitespace-nowrap text-[13px] text-slate-500`}>{(t.deliveryDate || '').slice(0, 10) || '—'}</td>
                       <td className={`${td} whitespace-nowrap`}>
                         {t.type === 'borrow' ? (
                           <span className={cn('text-xs font-semibold', pr ? 'text-indigo-600' : 'text-slate-500')}>
@@ -301,12 +348,19 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
                         ) : '—'}
                       </td>
                       <td className={`${td} max-w-[170px]`}>
-                        <p className="truncate text-xs font-medium capitalize text-slate-600">{(t.lastActionStatus || '—').replace('_', ' ')}</p>
-                        <p className="truncate text-xs text-slate-400" title={t.lastActionBy ? `${t.lastActionBy}${t.lastActionAt ? ` · ${t.lastActionAt.slice(0, 10)}` : ''}` : ''}>
-                          {t.lastActionBy}{t.lastActionAt ? ` · ${t.lastActionAt.slice(0, 10)}` : ''}
-                        </p>
+                        <p className="truncate text-[13px] font-medium capitalize text-slate-700">{(t.lastActionStatus || '—').replace('_', ' ')}</p>
+                        {t.lastActionBy ? (
+                          <div className="mt-0.5 flex items-center gap-1.5">
+                            <Initial name={t.lastActionBy} size="sm" />
+                            <p className="truncate text-[11px] text-slate-400" title={t.lastActionBy ? `${t.lastActionBy}${t.lastActionAt ? ` · ${t.lastActionAt.slice(0, 10)}` : ''}` : ''}>
+                              {t.lastActionBy}{t.lastActionAt ? ` · ${t.lastActionAt.slice(0, 10)}` : ''}
+                            </p>
+                          </div>
+                        ) : (
+                          <p className="text-[11px] text-slate-400">—</p>
+                        )}
                       </td>
-                      <td className={`${td} pr-4 whitespace-nowrap`}>
+                      <td className={`${td} whitespace-nowrap`}>
                         <div className="flex flex-wrap items-center gap-1.5">
                           <StatusBadge status={t.status} />
                           {pr && (
@@ -315,6 +369,15 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
                             </span>
                           )}
                         </div>
+                      </td>
+                      <td className="px-2 text-right">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setOpen(t); }}
+                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+                          title="Open ticket"
+                        >
+                          <MoreHorizontal className="h-4 w-4" />
+                        </button>
                       </td>
                     </tr>
                   );
