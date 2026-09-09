@@ -1,15 +1,16 @@
 import { useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { format } from 'date-fns';
 import {
   Inbox, CheckCircle2, XCircle, Undo2, PackageCheck, MessageSquare,
-  CalendarDays, User2, Loader2, ChevronRight, Clock,
-  AlertTriangle, Package, FileText, X,
+  CalendarDays, User2, Users, Loader2, ChevronRight, Clock, ChevronDown,
+  AlertTriangle, Package, FileText, X, Search, Send, ArrowUpDown, Gift, MoreHorizontal,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
-import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
-import { cn, fmt, money, lastActionWhen, todayStr } from '@/lib/utils';
+import { StatusBadge } from '@/components/StatusBadge';
+import { cn, fmt, money, lastActionWhen, todayStr, safeImageUrl } from '@/lib/utils';
 import type { TicketWithItems, TicketStatus, SKU, TicketAction } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
 
@@ -22,20 +23,87 @@ const PIPELINE = [
   { status: 'finalized', label: 'Finalize', who: 'Director / Admin' },
 ];
 
+const STATUS_CHIPS: { key: 'all' | 'pending' | 'review' | 'approved' | 'rejected'; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'review', label: 'In Review' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+];
+
+type StatusGroup = 'all' | 'pending' | 'review' | 'approved' | 'rejected';
+
+function statusGroup(t: TicketWithItems): Exclude<StatusGroup, 'all'> | 'other' {
+  if (t.status === 'pending') return 'pending';
+  if (t.status === 'reviewed' || t.status === 'lm_approved') return 'review';
+  if (t.status === 'finalized') return 'approved';
+  if (t.status === 'rejected') return 'rejected';
+  return 'other';
+}
+
+const fmtDate = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso.slice(0, 10) : format(d, 'MMM d, yyyy');
+};
+
+const fmtDateTime = (iso?: string | null) => {
+  if (!iso) return '—';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? iso : format(d, 'MMM d, yyyy h:mm a');
+};
+
+function ItemThumb({ imageUrl, name, className }: { imageUrl?: string | null; name: string; className?: string }) {
+  const [broken, setBroken] = useState(false);
+  const url = safeImageUrl(imageUrl);
+  if (!url || broken) {
+    return <div className={cn('flex items-center justify-center bg-slate-100 text-slate-300', className)}><Package className="h-4 w-4" /></div>;
+  }
+  return <img src={url} alt={name} loading="lazy" onError={() => setBroken(true)} className={cn('h-full w-full object-cover', className)} />;
+}
+
 export function ActionCenterPage() {
   const { user } = useAuth();
   const { tickets, skus, actions, updateTicketStatus, loading, error, refresh } = useData();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [q, setQ] = useState('');
+  const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
+  const [statusFilter, setStatusFilter] = useState<StatusGroup>('all');
   const role = user?.role || 'staff';
 
-  const queue = useMemo(() => tickets.filter((t) => {
+  const roleQueue = useMemo(() => tickets.filter((t) => {
     if (role === 'warehouse') return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
     if (role === 'line_manager') return t.status === 'reviewed';
     if (role === 'director') return t.status === 'lm_approved';
     if (role === 'admin') return !['finalized', 'rejected', 'returned', 'recalled'].includes(t.status);
     return false;
   }).sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')), [tickets, role]);
+
+  const searched = useMemo(() => {
+    const s = q.trim().toLowerCase();
+    if (!s) return roleQueue;
+    return roleQueue.filter((t) =>
+      t.id.toLowerCase().includes(s) ||
+      (t.createdByName || '').toLowerCase().includes(s) ||
+      (t.department || '').toLowerCase().includes(s) ||
+      t.items.some((i) => (i.skuName || '').toLowerCase().includes(s)),
+    );
+  }, [roleQueue, q]);
+
+  const counts = useMemo(() => {
+    const c: Record<StatusGroup, number> = { all: searched.length, pending: 0, review: 0, approved: 0, rejected: 0 };
+    for (const t of searched) {
+      const g = statusGroup(t);
+      if (g !== 'other') c[g] += 1;
+    }
+    return c;
+  }, [searched]);
+
+  const queue = useMemo(() => {
+    const arr = statusFilter === 'all' ? searched : searched.filter((t) => statusGroup(t) === statusFilter);
+    return sort === 'newest' ? arr : [...arr].reverse();
+  }, [searched, statusFilter, sort]);
 
   const selected = queue.find((t) => t.id === selectedId) || null;
 
@@ -68,24 +136,74 @@ export function ActionCenterPage() {
 
   return (
     <div className="space-y-5">
-      <div>
-        <h1 className="text-xl font-bold text-slate-900">Action Center</h1>
+      <div className="flex items-center gap-3.5">
+        <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
+          <Send className="h-5 w-5" />
+        </span>
+        <div>
+          <h1 className="text-[22px] font-bold leading-tight tracking-tight text-slate-900">Action Center</h1>
+          <p className="text-[13px] text-slate-400">Review, approve and manage your requests and workflows</p>
+        </div>
       </div>
 
-      {queue.length === 0 ? (
+      {roleQueue.length === 0 ? (
         <EmptyState icon={<Inbox className="h-6 w-6" />} title="Nothing needs your action right now 🎉" />
       ) : (
         <div className="grid items-start gap-5 lg:grid-cols-[340px_1fr]">
-          <div className={cn('space-y-2 lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto lg:pr-1', selected && 'hidden lg:block')}>
-            {queue.map((t) => (
-              <QueueCard
-                key={t.id}
-                ticket={t}
-                active={t.id === selectedId}
-                isReturn={isReturn(t)}
-                onClick={() => setSelectedId(t.id)}
+          <div className={cn('space-y-2.5 lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto lg:pr-1', selected && 'hidden lg:block')}>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input h-10 rounded-xl pl-9 text-[13px]"
+                placeholder="Search by ticket, requester, item or department…"
+                value={q}
+                onChange={(e) => setQ(e.target.value)}
               />
-            ))}
+            </div>
+            <div className="relative">
+              <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <select
+                className="input h-10 rounded-xl pl-9 pr-8 text-[13px]"
+                value={sort}
+                onChange={(e) => setSort(e.target.value as 'newest' | 'oldest')}
+              >
+                <option value="newest">Sort: Newest</option>
+                <option value="oldest">Sort: Oldest</option>
+              </select>
+            </div>
+            <div className="flex flex-wrap gap-1.5 pb-1">
+              {STATUS_CHIPS.map((c) => (
+                <button
+                  key={c.key}
+                  onClick={() => setStatusFilter(c.key)}
+                  className={cn(
+                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
+                    statusFilter === c.key
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                  )}
+                >
+                  {c.label} <span className={cn('font-bold', statusFilter === c.key ? 'text-brand-200' : 'text-slate-400')}>({counts[c.key]})</span>
+                </button>
+              ))}
+            </div>
+            {queue.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
+                No tickets match your search.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {queue.map((t) => (
+                  <QueueCard
+                    key={t.id}
+                    ticket={t}
+                    active={t.id === selectedId}
+                    isReturn={isReturn(t)}
+                    onClick={() => setSelectedId(t.id)}
+                  />
+                ))}
+              </div>
+            )}
           </div>
 
           {selected ? (
@@ -123,44 +241,37 @@ export function ActionCenterPage() {
 function QueueCard({ ticket, active, isReturn, onClick }: {
   ticket: TicketWithItems; active: boolean; isReturn: boolean; onClick: () => void;
 }) {
-  const totalItems = ticket.items.reduce((s, i) => s + (i.qtyApproved ?? i.qtyRequested), 0);
   return (
     <button
       onClick={onClick}
       className={cn(
         'w-full rounded-xl border p-3 text-left transition-all',
         active
-          ? 'border-brand-400 bg-brand-50 shadow-sm ring-2 ring-brand-200'
-          : 'border-slate-200 bg-white hover:border-slate-300 hover:shadow-sm',
+          ? 'border-brand-500 bg-brand-50/70 shadow-sm ring-1 ring-brand-200'
+          : 'border-slate-200 bg-white hover:border-brand-200 hover:shadow-card-hover',
       )}
     >
-      <div className="flex items-start justify-between gap-2">
+      <div className="flex items-start gap-3">
+        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+          {isReturn ? <PackageCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+        </span>
         <div className="min-w-0 flex-1">
-          <div className="flex items-center gap-1.5">
-            <span className="text-sm font-bold text-brand-700">{ticket.id}</span>
-            {isReturn && <PackageCheck className="h-3.5 w-3.5 text-emerald-600" />}
+          <div className="flex items-center justify-between gap-2">
+            <span className="truncate text-[13px] font-bold text-brand-700">{ticket.id}</span>
+            <StatusBadge status={ticket.status} />
           </div>
-          <p className="mt-0.5 truncate text-xs text-slate-600">{ticket.createdByName}</p>
-          <p className="text-[11px] text-slate-400">{ticket.department}</p>
+          <p className="mt-1 truncate text-[13px] font-medium text-slate-800">{ticket.createdByName}</p>
+          <p className="mt-0.5 truncate text-[11px] text-slate-400">
+            {ticket.department} · {ticket.items.length} item{ticket.items.length > 1 ? 's' : ''}
+          </p>
         </div>
-        <ChevronRight className={cn('mt-1 h-4 w-4 shrink-0', active ? 'text-brand-500' : 'text-slate-300')} />
+        <div className="flex shrink-0 flex-col items-end justify-between self-stretch">
+          <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-slate-400">
+            <CalendarDays className="h-3 w-3" />{fmtDate(ticket.createdAt)}
+          </span>
+          <ChevronRight className={cn('h-4 w-4', active ? 'text-brand-500' : 'text-slate-300')} />
+        </div>
       </div>
-
-      <div className="mt-2 flex flex-wrap items-center gap-1.5">
-        <TypeBadge type={ticket.type} />
-        <StatusBadge status={ticket.status} />
-      </div>
-
-      <div className="mt-2 flex items-center justify-between text-[11px] text-slate-500">
-        <span className="flex items-center gap-1"><Package className="h-3 w-3" />{totalItems} pcs · {ticket.items.length} item{ticket.items.length > 1 ? 's' : ''}</span>
-        <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{lastActionWhen(ticket.createdAt)}</span>
-      </div>
-
-      {ticket.deliveryDate && (
-        <p className="mt-1 flex items-center gap-1 text-[11px] text-slate-400">
-          <CalendarDays className="h-3 w-3" />Due {ticket.deliveryDate}
-        </p>
-      )}
     </button>
   );
 }
@@ -169,16 +280,16 @@ function QueueCard({ ticket, active, isReturn, onClick }: {
 
 const RETURNED_STEP = { status: 'returned', label: 'Returned', who: 'Warehouse' };
 
-function Pipeline({ status, steps }: { status: TicketStatus; steps: typeof PIPELINE }) {
+function Pipeline({ status, steps, createdAt }: { status: TicketStatus; steps: typeof PIPELINE; createdAt?: string | null }) {
   const idx = steps.findIndex((s) => s.status === status);
   const pct = idx <= 0 ? 0 : (idx / (steps.length - 1)) * 100;
   return (
     <div className="relative px-1 pt-1">
-      <div className="absolute left-[17px] right-[17px] top-[17px] h-0.5 rounded bg-slate-200" />
+      <div className="absolute left-[19px] right-[19px] top-[15px] h-0.5 rounded bg-slate-200" />
       {idx > 0 && (
         <div
-          className="absolute left-[17px] top-[17px] h-0.5 rounded bg-brand-500 transition-all duration-500"
-          style={{ width: `calc((100% - 34px) * ${pct / 100})` }}
+          className="absolute left-[19px] top-[15px] h-0.5 rounded bg-brand-500 transition-all duration-500"
+          style={{ width: `calc((100% - 38px) * ${pct / 100})` }}
         />
       )}
       <div className="relative flex items-start justify-between">
@@ -189,18 +300,20 @@ function Pipeline({ status, steps }: { status: TicketStatus; steps: typeof PIPEL
             <div key={s.status} className="flex w-16 flex-col items-center text-center">
               <div
                 className={cn(
-                  'flex h-7 w-7 items-center justify-center rounded-full text-[11px] font-bold ring-4 ring-white',
-                  done && 'bg-brand-600 text-white',
-                  current && 'border-2 border-brand-500 bg-brand-50 text-brand-700',
-                  !done && !current && 'bg-slate-100 text-slate-400',
+                  'flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ring-4 ring-white transition',
+                  (done || current) && 'bg-brand-600 text-white shadow-sm',
+                  !done && !current && 'border border-slate-200 bg-white text-slate-400',
                 )}
               >
                 {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
               </div>
-              <p className={cn('mt-1.5 text-[10px] font-semibold leading-tight', current ? 'text-brand-700' : done ? 'text-slate-600' : 'text-slate-400')}>
+              <p className={cn('mt-1.5 text-[11px] font-semibold leading-tight', current ? 'text-brand-700' : done ? 'text-slate-700' : 'text-slate-400')}>
                 {s.label}
               </p>
-              <p className="text-[9px] leading-tight text-slate-400">{s.who}</p>
+              <p className="text-[10px] leading-tight text-slate-400">{s.who}</p>
+              {i === 0 && createdAt && (
+                <p className="mt-0.5 text-[9px] leading-tight text-slate-400">{fmtDateTime(createdAt)}</p>
+              )}
             </div>
           );
         })}
@@ -211,23 +324,14 @@ function Pipeline({ status, steps }: { status: TicketStatus; steps: typeof PIPEL
 
 /* ───────────────────── Small building blocks ───────────────────── */
 
-function SectionTitle({ icon, children }: { icon?: ReactNode; children: ReactNode }) {
-  return (
-    <h3 className="mb-2 flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-      {icon}
-      {children}
-    </h3>
-  );
-}
-
 function Tile({ icon, label, value }: { icon?: ReactNode; label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-slate-50 p-2.5 ring-1 ring-slate-100">
+    <div className="rounded-xl border border-slate-200 bg-white p-3">
       <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wide text-slate-400">
         {icon}
         {label}
       </p>
-      <p className="mt-0.5 truncate text-sm font-medium text-slate-800" title={value}>{value}</p>
+      <p className="mt-1 truncate text-[13px] font-medium text-slate-800" title={value}>{value}</p>
     </div>
   );
 }
@@ -319,6 +423,8 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
   const [returns, setReturns] = useState<Record<string, { ret: string; broken: string }>>(
     Object.fromEntries(ticket.items.map((i) => [i.skuId, { ret: String(i.qtyApproved ?? i.qtyRequested ?? ''), broken: '0' }])),
   );
+  const [pipeOpen, setPipeOpen] = useState(true);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   const setQty = (skuId: string, v: number) => setQtys((q) => ({ ...q, [skuId]: String(Math.max(0, v)) }));
   const setReturn = (skuId: string, field: 'ret' | 'broken', v: string) =>
@@ -358,43 +464,53 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
     <div className="card lg:sticky lg:top-[68px] lg:max-h-[calc(100vh-84px)] lg:overflow-y-auto">
       {/* header */}
       <div className="flex items-start justify-between gap-2 border-b border-slate-100 p-4 pb-3">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-base font-bold text-brand-700">{ticket.id}</h2>
-            <TypeBadge type={ticket.type} />
-            <StatusBadge status={ticket.status} />
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+            <FileText className="h-4 w-4" />
+          </span>
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <h2 className="text-base font-bold text-brand-700">{ticket.id}</h2>
+              <StatusBadge status={ticket.status} />
+            </div>
+            <p className="mt-1 truncate text-xs text-slate-400">
+              {ticket.createdByName || '—'} · {ticket.department || '—'} · {fmtDateTime(ticket.createdAt)}
+            </p>
           </div>
-          <p className="mt-1.5 text-xs text-slate-400">
-            Last action: {ticket.lastActionStatus
-              ? STATUS_LABELS[ticket.lastActionStatus as TicketStatus] || ticket.lastActionStatus
-              : '—'}
-            {ticket.lastActionBy ? ` · ${ticket.lastActionBy}` : ''}
-            {ticket.lastActionAt ? ` · ${lastActionWhen(ticket.lastActionAt)}` : ''}
-          </p>
         </div>
-        <button
-          className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
-          onClick={onBack} title="Close" aria-label="Close panel"
-        >
-          <X className="h-4 w-4" />
-        </button>
+        <div className="flex shrink-0 items-center gap-1">
+          <span className="grid h-8 w-8 place-items-center rounded-lg text-slate-300" title={ticket.type.replace('_', ' ')}>
+            <MoreHorizontal className="h-4 w-4" />
+          </span>
+          <button
+            className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
+            onClick={onBack} title="Close" aria-label="Close panel"
+          >
+            <X className="h-4 w-4" />
+          </button>
+        </div>
       </div>
 
       {/* decision bar — comment + actions, always visible at the top */}
       <div className="sticky top-14 z-10 border-b border-slate-100 bg-white/95 p-4 backdrop-blur lg:top-0">
-        <label className="label">
-          Comment {isReturn ? '' : '(optional)'} — shared with the requester & next approver
+        <label className="mb-1.5 flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+          <MessageSquare className="h-3.5 w-3.5 text-brand-500" />
+          Comments {isReturn ? '' : '(Optional)'} — shared with the requester & next approver
         </label>
-        <textarea
-          className="input min-h-[60px] resize-y"
-          placeholder={isReturn
-            ? 'e.g. all items returned in good condition…'
-            : role === 'warehouse'
-              ? 'e.g. stock booked, 2 units unavailable until next restock…'
-              : 'e.g. approved — please deliver before Friday…'}
-          value={comment}
-          onChange={(e) => setComment(e.target.value)}
-        />
+        <div className="relative">
+          <textarea
+            className="input min-h-[64px] resize-y pb-6"
+            maxLength={500}
+            placeholder={isReturn
+              ? 'e.g. all items returned in good condition…'
+              : role === 'warehouse'
+                ? 'e.g. stock booked, 2 units unavailable until next restock…'
+                : 'e.g. approved — please deliver before Friday…'}
+            value={comment}
+            onChange={(e) => setComment(e.target.value)}
+          />
+          <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] font-medium text-slate-300">{comment.length}/500</span>
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!isReturn && canRecall && (
             <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onRecall(comment)}>
@@ -416,58 +532,69 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
       </div>
 
       <div className="space-y-4 p-4">
-        {/* pipeline */}
-        <section>
-          <SectionTitle>Approval pipeline</SectionTitle>
-          <Pipeline status={ticket.status} steps={ticket.type === 'borrow' ? [...PIPELINE, RETURNED_STEP] : PIPELINE} />
+        {/* pipeline (collapsible) */}
+        <section className="relative rounded-xl border border-slate-200 bg-white p-4">
+          <button
+            className="absolute right-3 top-3 grid h-6 w-6 place-items-center rounded-md text-slate-300 transition hover:bg-slate-50 hover:text-slate-500"
+            onClick={() => setPipeOpen((o) => !o)}
+            aria-expanded={pipeOpen}
+            aria-label={pipeOpen ? 'Collapse pipeline' : 'Expand pipeline'}
+          >
+            <X className="h-3.5 w-3.5" />
+          </button>
+          {pipeOpen && (
+            <>
+              <h3 className="mb-3 text-[13px] font-bold text-brand-700">Approval Pipeline</h3>
+              <Pipeline status={ticket.status} steps={ticket.type === 'borrow' ? [...PIPELINE, RETURNED_STEP] : PIPELINE} createdAt={ticket.createdAt} />
+            </>
+          )}
         </section>
 
         {/* request details (left) + items (right) — one screen */}
         <div className="grid gap-4 lg:grid-cols-[300px_1fr]">
         {/* request details */}
         <section className="order-2 lg:order-1">
-          <SectionTitle>Request details</SectionTitle>
+          <h3 className="mb-2 text-[13px] font-bold text-slate-800">Request Details</h3>
           <div className="grid grid-cols-2 gap-2.5">
-            <Tile icon={<User2 className="h-3.5 w-3.5" />} label="Requester" value={ticket.createdByName} />
-            <Tile label="Department" value={ticket.department} />
-            <Tile icon={<Clock className="h-3.5 w-3.5" />} label="Created" value={lastActionWhen(ticket.createdAt)} />
-            <Tile icon={<CalendarDays className="h-3.5 w-3.5" />} label="Needed by" value={ticket.deliveryDate || '—'} />
+            <Tile icon={<User2 className="h-3 w-3" />} label="Requester" value={ticket.createdByName} />
+            <Tile icon={<Users className="h-3 w-3" />} label="Department" value={ticket.department} />
+            <Tile icon={<Clock className="h-3 w-3" />} label="Created" value={fmtDate(ticket.createdAt)} />
+            <Tile icon={<CalendarDays className="h-3 w-3" />} label="Needed by" value={ticket.deliveryDate || '—'} />
             {ticket.type === 'borrow' && (
-              <Tile icon={<CalendarDays className="h-3.5 w-3.5" />} label="Return date" value={ticket.returnDate || '—'} />
+              <Tile icon={<CalendarDays className="h-3 w-3" />} label="Return date" value={ticket.returnDate || '—'} />
             )}
             {ticket.actualDeliveryDate && (
-              <Tile icon={<CheckCircle2 className="h-3.5 w-3.5" />} label="Delivered on" value={ticket.actualDeliveryDate} />
+              <Tile icon={<CheckCircle2 className="h-3 w-3" />} label="Delivered on" value={ticket.actualDeliveryDate} />
             )}
           </div>
           {ticket.remark && (
-            <p className="mt-2.5 flex items-start gap-1.5 rounded-lg bg-amber-50 p-2.5 text-xs text-amber-800 ring-1 ring-amber-100">
-              <FileText className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            <p className="mt-2.5 flex items-start gap-2 rounded-xl bg-amber-50 p-3 text-xs text-amber-800 ring-1 ring-amber-100">
+              <Gift className="mt-0.5 h-3.5 w-3.5 shrink-0" />
               <span><span className="font-semibold">Remark: </span>{ticket.remark}</span>
             </p>
           )}
         </section>
         {/* items */}
         <section className="order-1 lg:order-2">
-          <div className="flex items-center justify-between">
-            <SectionTitle>{isReturn ? 'Items to return' : 'Items'}</SectionTitle>
-            <span className="-mt-2 text-xs font-medium text-slate-500">
+          <div className="mb-2 flex items-center justify-between">
+            <h3 className="text-[13px] font-bold text-slate-800">Items <span className="font-semibold text-slate-400">({ticket.items.length})</span></h3>
+            <span className="text-xs text-slate-400">
               Est. value <span className="font-bold text-slate-700">{money(estTotal)}</span>
             </span>
           </div>
-          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 lg:max-h-[300px] lg:overflow-y-auto">
+          <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white lg:max-h-[300px] lg:overflow-y-auto">
             {ticket.items.map((it) => {
               const sku = skus.find((s) => s.id === it.skuId);
               const q = Number(qtys[it.skuId]) || 0;
               const over = !isReturn && !!sku && q > sku.currentStock;
               return (
-                <div key={it.skuId} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-2.5">
+                <div key={it.skuId} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
+                  <ItemThumb imageUrl={sku?.imageUrl} name={it.skuName} className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-slate-200" />
                   <div className="min-w-0 flex-1">
-                    <p className={cn('truncate text-sm font-medium', over ? 'text-rose-700' : 'text-slate-800')}>{it.skuName}</p>
-                    <p className="mt-0.5 text-xs text-slate-400">
-                      Requested <span className="font-semibold text-slate-600">{fmt(it.qtyRequested)} {it.unit}</span>
-                      {sku && (
-                        <> · In stock <span className={cn('font-semibold', sku.currentStock >= q ? 'text-emerald-600' : 'text-rose-600')}>{fmt(sku.currentStock)}</span></>
-                      )}
+                    <p className={cn('truncate text-[13px] font-semibold', over ? 'text-rose-700' : 'text-slate-800')} title={it.skuName}>{it.skuName}</p>
+                    <p className="mt-0.5 text-[11px] text-slate-400">
+                      Requested {fmt(it.qtyRequested)} {it.unit}
+                      {sku && <> · in stock <span className={cn('font-semibold', sku.currentStock >= q ? 'text-emerald-600' : 'text-rose-600')}>{fmt(sku.currentStock)}</span></>}
                     </p>
                   </div>
                   {isReturn ? (
@@ -480,13 +607,13 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
                       <span className="text-[10px] font-medium uppercase text-slate-400">broken</span>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-1.5">
                       <button
                         className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
                         disabled={busy} onClick={() => setQty(it.skuId, q - 1)} aria-label={`Decrease approved qty of ${it.skuName}`}
                       >−</button>
                       <input
-                        className="w-14 rounded-lg border border-slate-200 py-1 text-center text-sm font-semibold text-slate-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                        className="w-12 rounded-lg border border-slate-200 py-1 text-center text-[13px] font-semibold text-slate-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
                         type="number" min={0} value={qtys[it.skuId] ?? ''}
                         onChange={(e) => setQtys((s) => ({ ...s, [it.skuId]: e.target.value }))}
                         aria-label={`Approved qty of ${it.skuName}`}
@@ -495,7 +622,7 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
                         className="flex h-7 w-7 items-center justify-center rounded-lg border border-slate-200 text-sm font-bold text-slate-500 transition hover:bg-slate-50 disabled:opacity-50"
                         disabled={busy} onClick={() => setQty(it.skuId, q + 1)} aria-label={`Increase approved qty of ${it.skuName}`}
                       >+</button>
-                      <span className="w-8 shrink-0 text-xs text-slate-400">{it.unit}</span>
+                      <span className="w-7 shrink-0 text-[11px] text-slate-400">{it.unit}</span>
                     </div>
                   )}
                 </div>
@@ -517,10 +644,22 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
         </section>
         </div>
 
-        {/* comments & history */}
-        <section>
-          <SectionTitle icon={<MessageSquare className="h-3.5 w-3.5" />}>Comments & history</SectionTitle>
-          <ActionTrail actions={actions} />
+        {/* comments & history (collapsible) */}
+        <section className="rounded-xl border border-slate-200 bg-white">
+          <button
+            className="flex w-full items-center gap-2.5 px-4 py-3 text-left"
+            onClick={() => setHistoryOpen((o) => !o)}
+            aria-expanded={historyOpen}
+          >
+            <span className="grid h-7 w-7 place-items-center rounded-lg bg-brand-50 text-brand-600"><MessageSquare className="h-3.5 w-3.5" /></span>
+            <span className="flex-1 text-[13px] font-bold text-slate-800">Comments & History</span>
+            <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform', historyOpen && 'rotate-180')} />
+          </button>
+          {historyOpen && (
+            <div className="border-t border-slate-100 p-4">
+              <ActionTrail actions={actions} />
+            </div>
+          )}
         </section>
       </div>
 
