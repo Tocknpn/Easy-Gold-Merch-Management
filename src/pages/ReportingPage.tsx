@@ -301,10 +301,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Reporting</h1>
-        <p className="text-sm text-slate-500">All inventory &amp; stock movement reports · {merged.label}</p>
       </div>
-
-      {/* shared filter bar */}
       <div className="flex flex-wrap items-end gap-2 no-print">
         <div>
           <label className="label">Part</label>

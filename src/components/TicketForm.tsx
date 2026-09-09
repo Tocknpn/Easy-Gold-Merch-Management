@@ -211,11 +211,6 @@ export function TicketForm({
           <h1 className="text-xl font-bold text-slate-900">
             {onModeChange ? 'Request' : isBorrow ? 'Item Borrow' : 'New Request'}
           </h1>
-          <p className="mt-0.5 text-sm text-slate-500">
-            {isBorrow
-              ? 'Picking items to borrow — they must come back by the return date below.'
-              : 'Pick the items you need and submit for approval.'}
-          </p>
         </div>
         <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
           <ShoppingBag className="h-4 w-4 text-brand-600" />

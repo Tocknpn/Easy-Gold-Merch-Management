@@ -354,9 +354,6 @@ if (loading) return <Spinner label="Loading data…" />;
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
             <HeartPulse className="h-5 w-5 text-brand-600" /> Diagnostics &amp; Health
           </h1>
-          <p className="text-sm text-slate-500">
-            Checks the app→Supabase connection, database reads, auth and storage.
-          </p>
         </div>
         <button className="btn btn-primary btn-sm" onClick={run} disabled={running}>
           {running ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}

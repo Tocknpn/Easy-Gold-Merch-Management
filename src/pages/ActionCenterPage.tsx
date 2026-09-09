@@ -70,9 +70,6 @@ export function ActionCenterPage() {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-slate-900">Action Center</h1>
-        <p className="text-sm text-slate-500">
-          {queue.length} ticket{queue.length === 1 ? '' : 's'} need your action
-        </p>
       </div>
 
       {queue.length === 0 ? (

@@ -47,9 +47,6 @@ export function ManageStockPage() {
           <h1 className="flex items-center gap-2 text-xl font-bold text-slate-900">
             <Warehouse className="h-5 w-5 text-brand-600" /> Manage Stock
           </h1>
-          <p className="text-sm text-slate-500">
-            One workspace for balances, transfers, refills and SKU setup — no ticket needed
-          </p>
         </div>
         <div className="flex flex-wrap gap-2 text-xs">
           <span className="rounded-full bg-slate-50 px-3 py-1.5 font-medium text-slate-600 ring-1 ring-slate-200">

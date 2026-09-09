@@ -130,9 +130,6 @@ export function TicketTrackingPage() {
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Ticket Tracking</h1>
-          <p className="text-sm text-slate-500">
-            What's pending, what's done, and every stock movement — one workspace
-          </p>
         </div>
         <div className="flex flex-wrap gap-1.5 rounded-2xl bg-slate-50 p-1.5 ring-1 ring-slate-200">
           {scopeBtn('mine', <ListChecks className="h-4 w-4" />, `My Requests · ${mine.length}`)}

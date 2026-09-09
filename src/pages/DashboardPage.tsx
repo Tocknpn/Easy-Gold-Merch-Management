@@ -69,7 +69,6 @@ export function DashboardPage() {
       <div className="flex flex-wrap items-center justify-between gap-3 no-print">
         <div>
           <h1 className="text-xl font-bold text-slate-900">Dashboard</h1>
-          <p className="text-sm text-slate-500">Stock movement &amp; value · Easy Gold MIMS 2026</p>
         </div>
         {canToggle && <Segmented value={scope} onChange={setScope} options={scopeOptions} />}
       </div>
