@@ -1,6 +1,6 @@
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Search, Plus, Minus, Trash2, Send, Loader2, ShoppingBag, Package, ArrowUpDown, Check, MousePointerClick, FilePlus2, Repeat } from 'lucide-react';
+import { Search, Plus, Minus, Trash2, Send, Loader2, ShoppingBag, Package, ArrowUpDown, Check, Lightbulb, FilePlus2, Repeat, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { toast } from '@/components/ui/primitives';
@@ -42,16 +42,16 @@ function QtyStepper({ qty, onSet }: { qty: number; onSet: (n: number) => void })
   };
 
   return (
-    <div className="no-print inline-flex items-center rounded-xl border border-slate-200 bg-white shadow-sm">
+    <div className="no-print inline-flex items-center rounded-lg border border-slate-200 bg-white">
       <button
         type="button"
         onClick={() => commit(Math.max(0, qty - 1))}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-l-xl text-slate-500 transition hover:bg-slate-50 hover:text-rose-600"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-l-lg text-slate-500 transition hover:bg-slate-50 hover:text-rose-600"
       >
-        <Minus className="h-3.5 w-3.5" />
+        <Minus className="h-3 w-3" />
       </button>
       <input
-        className="h-8 w-14 border-x border-slate-200 text-center text-sm font-semibold text-slate-800 outline-none"
+        className="h-7 w-10 border-x border-slate-200 text-center text-[13px] font-semibold text-slate-800 outline-none"
         value={draft ?? String(qty)}
         inputMode="numeric"
         onChange={(e) => {
@@ -66,9 +66,9 @@ function QtyStepper({ qty, onSet }: { qty: number; onSet: (n: number) => void })
       <button
         type="button"
         onClick={() => commit(qty + 1)}
-        className="grid h-8 w-8 shrink-0 place-items-center rounded-r-xl text-slate-500 transition hover:bg-slate-50 hover:text-brand-600"
+        className="grid h-7 w-7 shrink-0 place-items-center rounded-r-lg text-slate-500 transition hover:bg-slate-50 hover:text-brand-600"
       >
-        <Plus className="h-3.5 w-3.5" />
+        <Plus className="h-3 w-3" />
       </button>
     </div>
   );
@@ -79,7 +79,7 @@ function StockBadge({ sku }: { sku: SKU }) {
   const threshold = sku.lowStockThreshold ? sku.lowStockThreshold : 0;
   const tone =
     stock === 0
-      ? 'bg-rose-50 text-rose-700 ring-rose-600/20'
+      ? 'bg-slate-100 text-slate-500 ring-slate-400/20'
       : stock <= threshold
         ? 'bg-amber-50 text-amber-700 ring-amber-600/20'
         : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20';
@@ -91,7 +91,7 @@ function StockBadge({ sku }: { sku: SKU }) {
         : `In stock · ${fmt(stock)} ${sku.unit}`;
   return (
     <span className={cn('inline-flex max-w-full items-center gap-1 truncate rounded-full px-2 py-0.5 text-[10px] font-bold ring-1 ring-inset', tone)}>
-      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', stock === 0 ? 'bg-rose-500' : stock <= threshold ? 'bg-amber-500' : 'bg-emerald-500')} />
+      <span className={cn('h-1.5 w-1.5 shrink-0 rounded-full', stock === 0 ? 'bg-slate-400' : stock <= threshold ? 'bg-amber-500' : 'bg-emerald-500')} />
       {label}
     </span>
   );
@@ -159,6 +159,15 @@ export function TicketForm({
     return arr;
   }, [skus, search, cat, sortBy]);
 
+  // Per-category counts (respect the search so chips double as result preview)
+  const catCounts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const base = skus.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
+    const map: Record<string, number> = { All: base.length };
+    for (const s of base) if (s.category) map[s.category] = (map[s.category] || 0) + 1;
+    return map;
+  }, [skus, search]);
+
   const qtyOf = (id: string) => cart[id] || 0;
   const totalItems = Object.values(cart).reduce((a, b) => a + b, 0);
   const subtotal = skus.reduce((sum, s) => sum + s.costPerUnit * qtyOf(s.id), 0);
@@ -206,16 +215,24 @@ export function TicketForm({
   return (
     <div className="space-y-4 pb-16 lg:pb-0">
       {/* Header */}
-      <div className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="text-xl font-bold text-slate-900">
-            {onModeChange ? 'Request' : isBorrow ? 'Item Borrow' : 'New Request'}
-          </h1>
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-3.5">
+          <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
+            <Package className="h-5 w-5" />
+          </span>
+          <div>
+            <h1 className="text-[22px] font-bold leading-tight tracking-tight text-slate-900">
+              {onModeChange ? 'Request' : isBorrow ? 'Item Borrow' : 'New Request'}
+            </h1>
+            <p className="text-[13px] text-slate-400">
+              {isBorrow ? 'Borrow items from stock — return them by the due date' : 'Manage your stock request easily and quickly'}
+            </p>
+          </div>
         </div>
-        <div className="flex items-center gap-2 rounded-xl bg-white px-3 py-2 text-xs text-slate-500 shadow-sm ring-1 ring-slate-200">
+        <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs text-slate-500 ring-1 ring-slate-200">
           <ShoppingBag className="h-4 w-4 text-brand-600" />
           <span>
-            <b className="text-slate-800">{totalItems}</b> item{totalItems === 1 ? '' : 's'} · <b className="text-slate-800">{money(subtotal)}</b>
+            <b className="text-slate-800">{totalItems}</b> item{totalItems === 1 ? '' : 's'} · <b className="text-slate-800">{skus.length}</b>
           </span>
         </div>
       </div>
@@ -232,44 +249,43 @@ export function TicketForm({
       )}
 
       {/* Toolbar: search + sort + categories */}
-      <div className="card p-3 sm:p-4">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-          <div className="relative flex-1 min-w-0">
+      <div className="card p-4">
+        <div className="flex flex-col gap-3 lg:flex-row">
+          <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
             <input
-              className="input pl-10"
-              placeholder="Search items by name or category…"
+              className="input h-11 rounded-xl pl-10"
+              placeholder="Search by item name, category, or keyword…"
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <div className="relative w-full sm:w-56 shrink-0">
+          <div className="relative w-full shrink-0 lg:w-52">
             <ArrowUpDown className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select className="input pl-10 pr-9" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="name-asc">Sort · Name A→Z</option>
-              <option value="name-desc">Sort · Name Z→A</option>
-              <option value="stock-low">Sort · In stock first</option>
-              <option value="stock-high">Sort · Most stock</option>
-              <option value="price-low">Sort · Price low → high</option>
-              <option value="price-high">Sort · Price high → low</option>
+            <select className="input h-11 rounded-xl pl-10 pr-9" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
+              <option value="name-asc">Sort by : Name A – Z</option>
+              <option value="name-desc">Sort by : Name Z – A</option>
+              <option value="stock-low">Sort by : In stock first</option>
+              <option value="stock-high">Sort by : Most stock</option>
+              <option value="price-low">Sort by : Price low → high</option>
+              <option value="price-high">Sort by : Price high → low</option>
             </select>
           </div>
-          <p className="shrink-0 text-xs text-slate-500">
-            {filtered.length} of {skus.length} items
-          </p>
         </div>
-        <div className="mt-3 flex flex-wrap gap-1.5">
+        <div className="mt-3 flex flex-wrap gap-2">
           {categories.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCat(c)}
               className={cn(
-                'rounded-full px-3 py-1 text-xs font-semibold transition',
-                cat === c ? 'bg-brand-600 text-white shadow-sm' : 'bg-slate-100 text-slate-600 hover:bg-slate-200',
+                'rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
+                cat === c
+                  ? 'bg-brand-600 text-white shadow-sm'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
               )}
             >
-              {c}
+              {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
             </button>
           ))}
         </div>
@@ -292,11 +308,13 @@ export function TicketForm({
             </div>
           ) : (
             <>
-              <div className="mb-2 flex items-center gap-1.5 text-[11px] font-medium text-slate-400">
-                <MousePointerClick className="h-3.5 w-3.5 text-brand-500" />
+              <div className="mb-2.5 flex items-center gap-2 text-xs text-slate-500">
+                <span className="grid h-6 w-6 place-items-center rounded-full bg-brand-50 ring-1 ring-brand-100">
+                  <Lightbulb className="h-3.5 w-3.5 text-brand-500" />
+                </span>
                 Tap an item to select it — tap again to remove it
               </div>
-              <div className="grid grid-cols-1 gap-2.5 md:grid-cols-2 xl:grid-cols-3">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
               {filtered.map((sku) => {
                 const qty = qtyOf(sku.id);
                 const inCart = qty > 0;
@@ -320,54 +338,60 @@ export function TicketForm({
                       }
                     }}
                     className={cn(
-                      'card group flex items-center gap-3 p-2.5 transition',
-                      out
-                        ? 'cursor-not-allowed select-none border-slate-200 bg-slate-50 opacity-60 grayscale'
-                        : 'cursor-pointer select-none',
+                      'card group flex flex-col p-3.5 transition select-none',
+                      out && 'cursor-not-allowed border-slate-200 bg-slate-50 opacity-60 grayscale',
                       inCart
-                        ? 'bg-brand-50/60 ring-2 ring-brand-500/70'
-                        : 'hover:shadow-md hover:ring-1 hover:ring-brand-300 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70',
+                        ? 'border-brand-500 bg-brand-50/50 ring-2 ring-brand-500'
+                        : !out && 'cursor-pointer hover:border-brand-200 hover:shadow-card-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-500/70',
                     )}
                     title={out ? 'Out of stock — not available' : inCart ? 'Click to remove from selection' : 'Click to select'}
                   >
-                    <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100">
-                      <SkuThumb sku={sku} className="h-full w-full object-cover" />
-                      {inCart && (
-                        <>
-                          <span className="absolute inset-0 grid place-items-center bg-brand-600/35">
-                            <Check className="h-7 w-7 text-white drop-shadow-sm" />
+                    <div className="flex items-start gap-3">
+                      <div className="relative h-16 w-16 shrink-0 overflow-hidden rounded-xl bg-slate-100">
+                        <SkuThumb sku={sku} className="h-full w-full object-cover" />
+                      </div>
+
+                      <div className="relative min-w-0 flex-1">
+                        <div className="flex items-start justify-between gap-2">
+                          <p className={cn('truncate text-sm font-semibold', out ? 'text-slate-400' : 'text-slate-800')}>{sku.name}</p>
+                          {inCart ? (
+                            <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-600 text-white shadow-sm">
+                              <Check className="h-3 w-3" />
+                            </span>
+                          ) : (
+                            <span className="mt-0.5 shrink-0 text-slate-300 transition group-hover:text-slate-400" title={sku.name}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </span>
+                          )}
+                        </div>
+                        {sku.name.length > 16 && (
+                          <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-card group-hover:block">
+                            {sku.name}
                           </span>
-                          <span className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded-lg bg-brand-600 text-[10px] font-bold text-white shadow">
-                            {qty}
-                          </span>
-                        </>
-                      )}
+                        )}
+                        <span className="mt-1 inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
+                          {sku.category || 'General'}
+                        </span>
+                        {overStock && (
+                          <p className="mt-1 text-[10px] font-medium text-amber-600">
+                            Only {fmt(sku.currentStock)} now — rest from restock
+                          </p>
+                        )}
+                      </div>
                     </div>
 
-                    <div className="relative min-w-0 flex-1">
-                      <p className={cn('truncate text-sm font-semibold', out ? 'text-slate-400' : 'text-slate-800')}>{sku.name}</p>
-                      {sku.name.length > 16 && (
-                        <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-card group-hover:block">
-                          {sku.name}
+                    <div className="mt-2.5 flex items-center justify-between gap-2">
+                      <StockBadge sku={sku} />
+                      {inCart && (
+                        <span className="shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <QtyStepper qty={qty} onSet={(n) => setQty(sku.id, String(n))} />
                         </span>
                       )}
-                      <p className="truncate text-[11px] text-slate-400">{sku.category || 'General'} · {sku.unit}</p>
-                      <div className="mt-1.5">
-                        <StockBadge sku={sku} />
-                      </div>
-                      <p className={cn('mt-1 text-xs font-bold leading-none', out ? 'text-slate-400' : 'text-brand-700')}>
-                        {money(sku.costPerUnit)}
-                      </p>
-                      {overStock && (
-                        <p className="mt-1 text-[10px] font-medium text-amber-600">
-                          Only {fmt(sku.currentStock)} now — rest from restock
-                        </p>
-                      )}
                     </div>
 
-                    <div className="flex shrink-0 items-center" onClick={(e) => e.stopPropagation()}>
-                      {inCart && <QtyStepper qty={qty} onSet={(n) => setQty(sku.id, String(n))} />}
-                    </div>
+                    <p className={cn('mt-2.5 text-[15px] font-bold leading-none', out ? 'text-slate-400' : 'text-slate-900')}>
+                      {money(sku.costPerUnit)}
+                    </p>
                   </div>
                 );
               })}
@@ -379,8 +403,8 @@ export function TicketForm({
         <aside id="cart-summary" className="scroll-mt-20 lg:sticky lg:top-6 lg:h-fit">
           <div className="card card-pad">
             <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <span className="grid h-8 w-8 place-items-center rounded-xl bg-brand-50 text-brand-600">
+              <div className="flex items-center gap-2.5">
+                <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
                   <ShoppingBag className="h-4 w-4" />
                 </span>
                 <div>
@@ -391,23 +415,29 @@ export function TicketForm({
                 </div>
               </div>
               {totalItems > 0 && (
-                <button type="button" onClick={clearCart} className="btn btn-ghost btn-sm text-rose-500">
+                <button
+                  type="button"
+                  onClick={clearCart}
+                  className="flex items-center gap-1 text-xs font-semibold text-rose-500 transition hover:text-rose-600"
+                >
                   <Trash2 className="h-3.5 w-3.5" /> Clear
                 </button>
               )}
             </div>
 
             {onModeChange && (
-              <div className="mt-3">
-                <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1">
+              <div className="mt-4">
+                <div className="grid grid-cols-2 gap-2">
                   {(['request', 'borrow'] as const).map((m) => (
                     <button
                       key={m}
                       type="button"
                       onClick={() => onModeChange(m)}
                       className={cn(
-                        'flex items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-xs font-bold transition',
-                        mode === m ? 'bg-white text-brand-700 shadow-sm ring-1 ring-brand-200' : 'text-slate-500 hover:text-slate-700',
+                        'flex items-center justify-center gap-1.5 rounded-xl px-2 py-2.5 text-xs font-bold transition',
+                        mode === m
+                          ? 'bg-brand-600 text-white shadow-sm'
+                          : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
                       )}
                     >
                       {m === 'request' ? <FilePlus2 className="h-3.5 w-3.5" /> : <Repeat className="h-3.5 w-3.5" />}
@@ -415,7 +445,7 @@ export function TicketForm({
                     </button>
                   ))}
                 </div>
-                <p className="mt-1.5 text-[11px] text-slate-400">
+                <p className="mt-2 text-[11px] text-slate-400">
                   {isBorrow
                     ? 'Borrow — you must return the items by the return date below.'
                     : 'Request — items are fulfilled from stock after approval.'}
@@ -438,16 +468,13 @@ export function TicketForm({
                     const qty = qtyOf(sku.id);
                     return (
                       <div key={sku.id} className="flex items-center gap-3">
-                        <div className="relative h-11 w-11 shrink-0 overflow-hidden rounded-lg bg-slate-100">
+                        <div className="relative h-12 w-12 shrink-0 overflow-hidden rounded-xl bg-slate-100">
                           <SkuThumb sku={sku} className="h-full w-full object-cover" />
-                          <span className="absolute right-0 top-0 grid h-4 w-4 place-items-center rounded-bl-lg bg-brand-600 text-[9px] font-bold text-white">
-                            {qty}
-                          </span>
                         </div>
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-xs font-semibold text-slate-800">{sku.name}</p>
+                          <p className="truncate text-[13px] font-semibold text-slate-800">{sku.name}</p>
                           <p className="text-[11px] text-slate-400">
-                            {money(sku.costPerUnit)} / {sku.unit}
+                            {sku.category || 'General'} · {sku.unit}
                           </p>
                         </div>
                         <div className="flex flex-col items-end gap-1">
