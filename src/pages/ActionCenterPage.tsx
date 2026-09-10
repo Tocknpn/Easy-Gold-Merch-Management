@@ -4,7 +4,7 @@ import { format } from 'date-fns';
 import {
   Inbox, CheckCircle2, XCircle, Undo2, PackageCheck, MessageSquare,
   CalendarDays, User2, Users, Loader2, ChevronRight, Clock, ChevronDown,
-  AlertTriangle, Package, FileText, X, Search, Send, ArrowUpDown, Gift, MoreHorizontal,
+  AlertTriangle, Package, FileText, X, Search, Send, ArrowUpDown, Gift, MoreHorizontal, Eye,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -14,6 +14,17 @@ import { cn, fmt, money, lastActionWhen, todayStr, safeImageUrl } from '@/lib/ut
 import type { TicketWithItems, TicketStatus, SKU, TicketAction } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
 
+/* Status visuals for the queue-card icon tile (color tint + corner badge) */
+const CARD_STATUS: Record<string, { badge: string; tile: string; icon: ReactNode }> = {
+  pending:     { badge: 'text-amber-600 ring-amber-200',   tile: 'bg-amber-50 text-amber-600 ring-amber-100',   icon: <Clock className="h-3 w-3" /> },
+  reviewed:    { badge: 'text-sky-600 ring-sky-200',       tile: 'bg-sky-50 text-sky-600 ring-sky-100',         icon: <Eye className="h-3 w-3" /> },
+  lm_approved: { badge: 'text-violet-600 ring-violet-200', tile: 'bg-violet-50 text-violet-600 ring-violet-100', icon: <CheckCircle2 className="h-3 w-3" /> },
+  finalized:   { badge: 'text-emerald-600 ring-emerald-200', tile: 'bg-emerald-50 text-emerald-600 ring-emerald-100', icon: <CheckCircle2 className="h-3 w-3" /> },
+  rejected:    { badge: 'text-rose-600 ring-rose-200',     tile: 'bg-rose-50 text-rose-600 ring-rose-100',      icon: <XCircle className="h-3 w-3" /> },
+  returned:    { badge: 'text-slate-500 ring-slate-200',   tile: 'bg-slate-100 text-slate-500 ring-slate-200',  icon: <Undo2 className="h-3 w-3" /> },
+  recalled:    { badge: 'text-slate-500 ring-slate-200',   tile: 'bg-slate-100 text-slate-500 ring-slate-200',  icon: <Undo2 className="h-3 w-3" /> },
+};
+
 type DecisionKind = 'approve' | 'reject' | 'recall' | 'return';
 
 const PIPELINE = [
@@ -22,24 +33,6 @@ const PIPELINE = [
   { status: 'lm_approved', label: 'Approve', who: 'Line Manager' },
   { status: 'finalized', label: 'Finalize', who: 'Director / Admin' },
 ];
-
-const STATUS_CHIPS: { key: 'all' | 'pending' | 'review' | 'approved' | 'rejected'; label: string }[] = [
-  { key: 'all', label: 'All' },
-  { key: 'pending', label: 'Pending' },
-  { key: 'review', label: 'In Review' },
-  { key: 'approved', label: 'Approved' },
-  { key: 'rejected', label: 'Rejected' },
-];
-
-type StatusGroup = 'all' | 'pending' | 'review' | 'approved' | 'rejected';
-
-function statusGroup(t: TicketWithItems): Exclude<StatusGroup, 'all'> | 'other' {
-  if (t.status === 'pending') return 'pending';
-  if (t.status === 'reviewed' || t.status === 'lm_approved') return 'review';
-  if (t.status === 'finalized') return 'approved';
-  if (t.status === 'rejected') return 'rejected';
-  return 'other';
-}
 
 const fmtDate = (iso?: string | null) => {
   if (!iso) return '—';
@@ -69,7 +62,6 @@ export function ActionCenterPage() {
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
   const [sort, setSort] = useState<'newest' | 'oldest'>('newest');
-  const [statusFilter, setStatusFilter] = useState<StatusGroup>('all');
   const role = user?.role || 'staff';
 
   const roleQueue = useMemo(() => tickets.filter((t) => {
@@ -91,19 +83,10 @@ export function ActionCenterPage() {
     );
   }, [roleQueue, q]);
 
-  const counts = useMemo(() => {
-    const c: Record<StatusGroup, number> = { all: searched.length, pending: 0, review: 0, approved: 0, rejected: 0 };
-    for (const t of searched) {
-      const g = statusGroup(t);
-      if (g !== 'other') c[g] += 1;
-    }
-    return c;
-  }, [searched]);
-
   const queue = useMemo(() => {
-    const arr = statusFilter === 'all' ? searched : searched.filter((t) => statusGroup(t) === statusFilter);
+    const arr = searched;
     return sort === 'newest' ? arr : [...arr].reverse();
-  }, [searched, statusFilter, sort]);
+  }, [searched, sort]);
 
   const selected = queue.find((t) => t.id === selectedId) || null;
 
@@ -140,10 +123,7 @@ export function ActionCenterPage() {
         <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
           <Send className="h-5 w-5" />
         </span>
-        <div>
-          <h1 className="text-[22px] font-bold leading-tight tracking-tight text-slate-900">Action Center</h1>
-          <p className="text-[13px] text-slate-400">Review, approve and manage your requests and workflows</p>
-        </div>
+        <h1 className="text-[20px] font-bold leading-none tracking-tight text-slate-900">Action Center</h1>
       </div>
 
       {roleQueue.length === 0 ? (
@@ -170,22 +150,6 @@ export function ActionCenterPage() {
                 <option value="newest">Sort: Newest</option>
                 <option value="oldest">Sort: Oldest</option>
               </select>
-            </div>
-            <div className="flex flex-wrap gap-1.5 pb-1">
-              {STATUS_CHIPS.map((c) => (
-                <button
-                  key={c.key}
-                  onClick={() => setStatusFilter(c.key)}
-                  className={cn(
-                    'rounded-full px-3 py-1.5 text-xs font-semibold transition',
-                    statusFilter === c.key
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                  )}
-                >
-                  {c.label} <span className={cn('font-bold', statusFilter === c.key ? 'text-brand-200' : 'text-slate-400')}>({counts[c.key]})</span>
-                </button>
-              ))}
             </div>
             {queue.length === 0 ? (
               <p className="rounded-xl border border-dashed border-slate-200 p-4 text-center text-xs text-slate-400">
@@ -252,13 +216,26 @@ function QueueCard({ ticket, active, isReturn, onClick }: {
       )}
     >
       <div className="flex items-start gap-3">
-        <span className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
-          {isReturn ? <PackageCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+        <span className="relative shrink-0">
+          <span className={cn(
+            'grid h-10 w-10 place-items-center rounded-xl ring-1',
+            CARD_STATUS[ticket.status]?.tile || 'bg-brand-50 text-brand-600 ring-brand-100',
+          )}>
+            {isReturn ? <PackageCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+          </span>
+          <span
+            title={STATUS_LABELS[ticket.status] || ticket.status}
+            className={cn(
+              'absolute -right-1.5 -top-1.5 grid h-5 w-5 place-items-center rounded-full bg-white shadow-sm ring-1',
+              CARD_STATUS[ticket.status]?.badge || 'text-slate-500 ring-slate-200',
+            )}
+          >
+            {CARD_STATUS[ticket.status]?.icon}
+          </span>
         </span>
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-[13px] font-bold text-brand-700">{ticket.id}</span>
-            <StatusBadge status={ticket.status} />
           </div>
           <p className="mt-1 truncate text-[13px] font-medium text-slate-800">{ticket.createdByName}</p>
           <p className="mt-0.5 truncate text-[11px] text-slate-400">
