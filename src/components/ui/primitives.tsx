@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { CheckCircle2, AlertCircle, Info, X, ChevronLeft, ChevronRight } from 'lucide-react';
+import { CheckCircle2, AlertCircle, CloudOff, Info, X, ChevronLeft, ChevronRight, RefreshCw, LogOut } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ── toast system (module-level store) ───────────────────────────────────
@@ -164,7 +164,13 @@ export function EmptyState({ icon, title, sub }: { icon: React.ReactNode; title:
   );
 }
 
+// Errors that mean the saved sign-in session is stale / out of sync with the
+// server clock (e.g. "JWT issued at future") — a plain retry will never fix it;
+// the user must refresh the page or clear the session and sign in again.
+const SESSION_ERR_RE = /jwt issued at future|jwt expired|invalid claim|token .*future|session not found|bad jwt/i;
+
 export function ErrorBanner({ msg, retry }: { msg: string; retry?: () => void }) {
+  if (SESSION_ERR_RE.test(msg)) return <SessionIssueOverlay msg={msg} />;
   return (
     <div className="card card-pad flex items-start gap-3 border-rose-200 bg-rose-50">
       <AlertCircle className="mt-0.5 h-5 w-5 shrink-0 text-rose-600" />
@@ -173,6 +179,55 @@ export function ErrorBanner({ msg, retry }: { msg: string; retry?: () => void })
         <p className="mt-1 text-xs text-rose-600">{msg}</p>
       </div>
       {retry && <button onClick={retry} className="btn btn-secondary btn-sm">Retry</button>}
+    </div>
+  );
+}
+
+/** Full-screen popup shown when the app can't connect because the saved
+ *  session is stale (clock skew / expired token). The user MUST refresh. */
+export function SessionIssueOverlay({ msg }: { msg?: string }) {
+  const refreshPage = () => window.location.reload();
+
+  const signOutAndReload = () => {
+    try {
+      // Clear the stale Supabase session + local app session, then reload.
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith('sb-') || k === 'sf_user')
+        .forEach((k) => localStorage.removeItem(k));
+    } catch { /* ignore */ }
+    window.location.href = '/';
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] grid place-items-center bg-slate-900/60 p-4 backdrop-blur-sm">
+      <div className="w-full max-w-md rounded-2xl bg-white p-6 text-center shadow-xl ring-1 ring-slate-200">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-50 text-amber-600 ring-1 ring-amber-200">
+          <CloudOff className="h-7 w-7" />
+        </div>
+        <h2 className="mt-4 text-lg font-bold text-slate-900">Connection problem</h2>
+        <p className="mt-1.5 text-sm text-slate-500">
+          The app can't reach the server because your sign-in session is out of sync.
+          This usually happens when the page has been idle for a long time or your
+          device's date &amp; time is slightly off.
+        </p>
+        {msg && (
+          <p className="mt-3 truncate rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400 ring-1 ring-slate-100" title={msg}>
+            {msg}
+          </p>
+        )}
+        <div className="mt-5 grid gap-2">
+          <button onClick={refreshPage} className="btn btn-primary w-full">
+            <RefreshCw className="h-4 w-4" /> Refresh page
+          </button>
+          <button onClick={signOutAndReload} className="btn btn-secondary w-full">
+            <LogOut className="h-4 w-4" /> Sign out &amp; sign in again
+          </button>
+        </div>
+        <p className="mt-4 text-[11px] leading-relaxed text-slate-400">
+          Tip: if this keeps happening after a refresh, check that your device clock
+          is set to the correct date, time and time zone.
+        </p>
+      </div>
     </div>
   );
 }
