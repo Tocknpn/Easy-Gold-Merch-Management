@@ -39,7 +39,7 @@ export function demoRestockSku(id: string, qty: number, actionBy?: string, comme
 }
 
 export function demoCsAddSku(sku: Partial<CS_SKU>): string {
-  const id = sku.id || 'CS-SKU-' + Math.floor(Date.now()).toString();
+  const id = sku.id || nextId('CS-SKU-');
   const opening = castNumber(sku.openingBalance);
   demoDB.csSkus.push({
     id, name: sku.name || 'Untitled', category: sku.category || '', unit: sku.unit || 'pcs',

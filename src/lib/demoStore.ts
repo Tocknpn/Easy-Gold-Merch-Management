@@ -57,7 +57,16 @@ export const demoDB: DemoDB = {
   remarks: (raw.remarks || []).map((r: any) => ({ ...r })),
 };
 
-const nextId = (prefix: string) => prefix + Math.floor(Date.now()).toString();
+// Millisecond keys collide when two ids are created in the same ms (two rapid
+// ticket submissions, a burst of SKU adds, …) — append a per-ms sequence so
+// demo ids are unique too (live uses the same ms scheme; see finding §B).
+let _lastMs = -1;
+let _seqMs = 0;
+const nextId = (prefix: string): string => {
+  const ms = Math.floor(Date.now());
+  if (ms === _lastMs) _seqMs += 1; else { _lastMs = ms; _seqMs = 0; }
+  return `${prefix}${ms}${_seqMs === 0 ? '' : '-' + _seqMs}`;
+};
 export { nextId };
 
 export function demoLogin(email: string, password: string): AppUser {

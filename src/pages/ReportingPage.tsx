@@ -1,13 +1,13 @@
-// ── Reporting — unified Inventory + Month End workspace (6 tabs, shared filters) ─
+// ── Reporting — unified Inventory + Month End workspace (7 tabs, shared filters) ─
 // Tabs: Month End Report · Item Stock Out · Stock In Details · Stock Remain ·
-//       Borrow Item · Stock Balance.
+//       Borrow Item · Ticket Delivery · Stock Balance.
 // Shared filter bar: Date from→to · Part (MKT/CS/All) · Merch Type (category) ·
 //       VAT (visible only on Month End tab).
-// Export Excel → 6 sheets in one .xlsx. Print PDF → only Month End tab (screen match).
+// Export Excel → 7 sheets in one .xlsx. Print PDF → only Month End tab (screen match).
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
-  CalendarRange, ChevronDown, ChevronUp, ChevronsUpDown,
+  CalendarRange, CalendarDays, ChevronDown, ChevronUp, ChevronsUpDown,
   Download, FileText, FileBarChart, ArrowDownToLine, ArrowUpFromLine,
   Boxes, Repeat, Scale, Loader2, Printer,
 } from 'lucide-react';
@@ -17,9 +17,9 @@ import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primiti
 import { fmt, money, cn } from '@/lib/utils';
 import { getStockMovement } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
-import type { SKU, CS_SKU, StockTransaction } from '@/lib/types';
+import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
-type TabKey = 'month-end' | 'stock-out' | 'stock-in' | 'stock-remain' | 'borrow' | 'balance';
+type TabKey = 'month-end' | 'stock-out' | 'stock-in' | 'stock-remain' | 'borrow' | 'delivery' | 'balance';
 type Wh = 'mkt' | 'cs' | 'all';
 type Tone = 'slate' | 'amber' | 'emerald' | 'brand';
 
@@ -35,6 +35,7 @@ const TAB_DEFS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'stock-in', label: 'Stock In Details', icon: <ArrowUpFromLine className="h-4 w-4" /> },
   { key: 'stock-remain', label: 'Stock Remain', icon: <Boxes className="h-4 w-4" /> },
   { key: 'borrow', label: 'Borrow Item', icon: <Repeat className="h-4 w-4" /> },
+  { key: 'delivery', label: 'Ticket Delivery', icon: <CalendarDays className="h-4 w-4" /> },
   { key: 'balance', label: 'Stock Balance', icon: <Scale className="h-4 w-4" /> },
 ];
 
@@ -122,9 +123,9 @@ const merged = useMemo(() => {
     [shown]);
 
   const borrowRows = useMemo(() =>
-    tickets.filter((t) => t.type === 'borrow' && inRange(t.actualDeliveryDate || t.createdAt))
+    tickets.filter((t) => t.type === 'borrow' && inRange(t.actualDeliveryDate || t.deliveryDate || t.createdAt))
       .map((t) => ({
-        date: (t.actualDeliveryDate || t.createdAt || '').slice(0, 10),
+        date: (t.actualDeliveryDate || t.deliveryDate || t.createdAt || '').slice(0, 10),
         items: t.items.map((i) => i.skuName).join(', '),
         qty: t.items.reduce((a, i) => a + (i.qtyApproved ?? i.qtyRequested), 0),
         by: t.createdByName,
@@ -132,6 +133,24 @@ const merged = useMemo(() => {
         est: t.items.reduce((a, i) => a + (i.qtyApproved ?? i.qtyRequested) * cpuOf(i.skuId, i.skuName), 0),
       }))
       .sort((a, b) => a.date.localeCompare(b.date)), [tickets, from, to, merged.list]);
+
+  // Ticket Delivery: report on the ticket's delivery date(s) — the NEEDED-BY
+  // date the requester chose at submission and the ACTUAL date the warehouse
+  // recorded at review. Both are stored on the ticket (not on the stock txs).
+  const deliveryRows = useMemo(() =>
+    tickets
+      .filter((t) => inRange(t.deliveryDate || t.actualDeliveryDate))
+      .map((t) => ({
+        ticket: t.id,
+        items: t.items.map((i) => i.skuName).join(', '),
+        requester: t.createdByName,
+        dept: t.department,
+        neededBy: t.deliveryDate || '—',
+        actual: t.actualDeliveryDate || '—',
+        status: STATUS_LABELS[t.status] || t.status,
+      }))
+      .sort((a, b) => (b.neededBy > a.neededBy ? 1 : b.neededBy < a.neededBy ? -1 : 0)),
+    [tickets, from, to]);
 
   const balanceRows = useMemo(() => {
     const dir = bSort.dir === 'asc' ? 1 : -1;
@@ -224,8 +243,14 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       ...balanceRows.map((r) => [r.sku.name, r.sku.category || '', r.opening, r.stockIn, r.stockOut, r.sku.currentStock,
         r.broken, r.sku.costPerUnit, r.lossValue, `${r.usagePct.toFixed(0)}%`]),
     ]), 'Stock Balance');
+    // Sheet 7: Ticket Delivery (needed-by vs actual delivery dates)
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      ['TICKET DELIVERY'],
+      ['TICKET', 'ITEM(S)', 'REQUESTER', 'DEPARTMENT', 'DELIVERY DATE', 'ACTUAL DELIVERY', 'STATUS'],
+      ...deliveryRows.map((r) => [r.ticket, r.items, r.requester, r.dept, r.neededBy, r.actual, r.status]),
+    ]), 'Ticket Delivery');
     XLSX.writeFile(wb, `report-${wh}-${from}-to-${to}.xlsx`);
-    toast('Report exported — 6 sheets (Excel)');
+    toast('Report exported — 7 sheets (Excel)');
     } finally {
       setExporting(false);
     }
@@ -561,6 +586,44 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                 <td className="border border-slate-200 px-3 py-1.5 text-right font-bold tabular-nums text-brand-800">{money(tBorrow.v)}</td>
               </tr>
             </tfoot>
+          </table>
+        </Panel>
+      )}
+
+{tab === 'delivery' && (
+        <Panel title="Ticket Delivery" tone="brand">
+          <table className="w-full text-sm">
+            <thead><tr className="bg-slate-50">
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Ticket</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Item(s)</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Requester</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Department</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Delivery Date</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Actual Delivery</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Status</th>
+            </tr></thead>
+            <tbody>
+              {deliveryRows.map((r, i) => (
+                <tr key={i} className="odd:bg-white even:bg-slate-50/50">
+                  <td className={`${cellCls} font-mono text-xs font-medium text-brand-700`}>{r.ticket}</td>
+                  <td className={`${cellCls} max-w-[260px]`}><p className="truncate text-slate-700" title={r.items}>{r.items}</p></td>
+                  <td className={`${cellCls} text-slate-600`}>{r.requester}</td>
+                  <td className={`${cellCls} text-slate-600`}>{r.dept}</td>
+                  <td className={`${cellCls} tabular-nums text-slate-600`}>{r.neededBy}</td>
+                  <td className={`${cellCls} tabular-nums text-slate-600`}>{r.actual}</td>
+                  <td className={cellCls}>
+                    <span className={cn('inline-flex rounded-full px-2 py-0.5 text-[10px] font-bold ring-1',
+                      r.status === 'Finalized' ? 'bg-emerald-50 text-emerald-700 ring-emerald-600/20'
+                        : r.status === 'Pending' ? 'bg-amber-50 text-amber-700 ring-amber-600/20'
+                          : r.status === 'Rejected' || r.status === 'Recalled' ? 'bg-rose-50 text-rose-700 ring-rose-600/20'
+                            : 'bg-slate-100 text-slate-600 ring-slate-500/20')}>
+                      {r.status}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+              {deliveryRows.length === 0 && <tr><td colSpan={7} className={`${cellCls} text-center text-slate-400`}>No tickets in this delivery range</td></tr>}
+            </tbody>
           </table>
         </Panel>
       )}

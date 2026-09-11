@@ -75,6 +75,25 @@ export function demoUpdateTicketStatus(
   if (!t) throw new Error('Ticket not found');
   const old = t.status;
 
+  // Resolve the caller's REAL role from the known user directory (demo mode has
+  // no JWT — the UI always passes the logged-in user's name/role). Mirrors the
+  // live engine's enforcement: auth.uid() → public.users.role.
+  let callerRole = meta.actorRole || '';
+  let callerEmail = '';
+  const actorUser = demoDB.users.find(
+    (u) => u.fullName && u.fullName.toLowerCase() === String(meta.actorName || '').trim().toLowerCase(),
+  );
+  if (actorUser) { callerRole = actorUser.role; callerEmail = actorUser.email; }
+
+  const roleOk =
+    (status === 'reviewed' && ['warehouse', 'admin'].includes(callerRole)) ||
+    (status === 'lm_approved' && callerRole === 'line_manager') ||
+    (status === 'finalized' && ['director', 'admin'].includes(callerRole)) ||
+    (status === 'rejected' && ['warehouse', 'line_manager', 'director', 'admin'].includes(callerRole)) ||
+    (status === 'recalled' && (['warehouse', 'admin'].includes(callerRole) || (callerEmail && callerEmail === t.createdBy))) ||
+    (status === 'returned' && ['warehouse', 'admin'].includes(callerRole));
+  if (!roleOk) throw new Error(`Not authorized: ${callerRole || 'unknown'} cannot ${status}`);
+
   const allowed =
     (status === 'reviewed' && old === 'pending') ||
     (status === 'lm_approved' && old === 'reviewed') ||
@@ -90,8 +109,12 @@ export function demoUpdateTicketStatus(
   if (status === 'reviewed') {
     for (const it of demoDB.items[t.id] || []) {
       const mt = meta.items?.find((m) => m.skuId === it.skuId);
-      // NULL-safe: a stale 0 on pending rows means "not approved yet"
-      const qty = mt && mt.qtyApproved !== undefined ? mt.qtyApproved : (it.qtyApproved || it.qtyRequested);
+      // NULL-safe: a stale 0 on pending rows means "not approved yet".
+      // Cap qty_approved at qty_requested — the warehouse can never approve
+      // (and book) MORE than was requested (mirrors the SQL cap).
+      const qty = mt && mt.qtyApproved !== undefined
+        ? Math.min(Math.max(0, mt.qtyApproved), it.qtyRequested)
+        : (it.qtyApproved || it.qtyRequested);
       const booking = demoDB.transactions.find(
         (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
       );
@@ -183,7 +206,11 @@ export function demoUpdateTicketStatus(
   if (status === 'returned') {
     for (const it of demoDB.items[t.id] || []) {
       const rt = meta.returns?.find((m) => m.skuId === it.skuId);
-      const ret = rt && rt.qtyReturned !== undefined ? rt.qtyReturned : (it.qtyApproved ?? it.qtyRequested ?? 0);
+      // Returned qty is capped at the approved qty (mirrors the SQL cap).
+      const approved = it.qtyApproved ?? it.qtyRequested ?? 0;
+      const ret = rt && rt.qtyReturned !== undefined
+        ? Math.min(Math.max(0, rt.qtyReturned), approved)
+        : approved;
       const broken = rt?.qtyBroken || 0;
       if (ret <= 0) continue;
       const sku = demoDB.skus.find((s) => s.id === it.skuId);

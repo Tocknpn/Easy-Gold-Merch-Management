@@ -11,6 +11,7 @@
     "preview": "vite preview --host :: --port 8080",
     "typecheck": "tsc --noEmit",
     "test:smoke": "tsx scripts/smoke-test.ts",
+    "test:workflow": "tsx scripts/workflow-test.ts",
     "csv:export": "node scripts/export-csv.mjs",
     "seed:all": "npm run csv:export && npm run seed:generate && npm run seed:demo",
     "seed:generate": "node scripts/generate-seed.mjs",

@@ -403,7 +403,12 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
   const [pipeOpen, setPipeOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
 
-  const setQty = (skuId: string, v: number) => setQtys((q) => ({ ...q, [skuId]: String(Math.max(0, v)) }));
+  const setQty = (skuId: string, v: number) => {
+    // Clamp to what was requested — the engine also caps server-side, but the
+    // input should never even suggest approving more than the requester asked.
+    const req = ticket.items.find((i) => i.skuId === skuId)?.qtyRequested || 0;
+    setQtys((q) => ({ ...q, [skuId]: String(Math.min(Math.max(0, v), req)) }));
+  };
   const setReturn = (skuId: string, field: 'ret' | 'broken', v: string) =>
     setReturns((r) => ({ ...r, [skuId]: { ...r[skuId], [field]: v } }));
 
@@ -432,7 +437,10 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
       onApprove({
         comment,
         actualDeliveryDate: role === 'warehouse' ? delivery : null,
-        items: Object.entries(qtys).map(([skuId, q]) => ({ skuId, qtyApproved: Number(q) || 0 })),
+        items: Object.entries(qtys).map(([skuId, q]) => {
+          const req = ticket.items.find((i) => i.skuId === skuId)?.qtyRequested || 0;
+          return { skuId, qtyApproved: Math.min(Number(q) || 0, req) };
+        }),
       });
     }
   };
