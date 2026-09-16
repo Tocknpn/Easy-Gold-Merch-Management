@@ -3,7 +3,7 @@ import { useMemo, useState, type ReactNode, type FormEvent } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   ShieldCheck, SlidersHorizontal, ArrowLeftRight, PackagePlus, Settings2,
-  Pencil, Trash2, Power, PlusCircle, Search, Loader2, Warehouse, ImagePlus,
+  Pencil, Trash2, Power, PlusCircle, Search, Loader2, Warehouse, ImagePlus, Download,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -19,7 +19,7 @@ const TAB_DEFS: { key: TabKey; label: string; icon: ReactNode; roles: string[]; 
   { key: 'adjust', label: 'Adjust Balance', icon: <SlidersHorizontal className="h-4 w-4" />, roles: ['warehouse', 'customer_service', 'admin'], hint: 'Rebalance, destock, loss/broken' },
   { key: 'transfer', label: 'Transfer', icon: <ArrowLeftRight className="h-4 w-4" />, roles: ['warehouse', 'admin'], hint: 'Move stock MKT ⇄ CS' },
   { key: 'stockio', label: 'Stock In / Out', icon: <PackagePlus className="h-4 w-4" />, roles: ['warehouse', 'customer_service', 'admin'], hint: 'Refill / issue with invoice ref' },
-  { key: 'sku', label: 'SKU Setup', icon: <Settings2 className="h-4 w-4" />, roles: ['warehouse', 'admin'], hint: 'Add, edit, activate, remove' },
+  { key: 'sku', label: 'SKU Setup', icon: <Settings2 className="h-4 w-4" />, roles: ['warehouse', 'customer_service', 'admin'], hint: 'Add, edit, activate, remove' },
 ];
 
 export function ManageStockPage() {
@@ -90,10 +90,11 @@ export function ManageStockPage() {
 
 /* ── shared small parts ─────────────────────────────────────────────────── */
 
-function WhToggle({ value, onChange }: { value: Wh; onChange: (w: Wh) => void }) {
+function WhToggle({ value, onChange, lockedToCs }: { value: Wh; onChange: (w: Wh) => void; lockedToCs?: boolean }) {
+  const options: Wh[] = lockedToCs ? ['cs'] : ['mkt', 'cs'];
   return (
     <div className="inline-flex rounded-xl bg-slate-100 p-1">
-      {(['mkt', 'cs'] as Wh[]).map((w) => (
+      {options.map((w) => (
         <button
           key={w}
           onClick={() => onChange(w)}
@@ -286,7 +287,8 @@ const ADJUST_OPS: { key: AdjustOp; label: string; desc: string; sign: -1 | 0 | 1
 function AdjustTab() {
   const { user } = useAuth();
   const { skus, csSkus, restockSku, mktDestockSku, csRestockSku, csDestockSku } = useData();
-  const [wh, setWh] = useState<Wh>('mkt');
+  const isCsLocked = user?.role === 'customer_service';
+  const [wh, setWh] = useState<Wh>(isCsLocked ? 'cs' : 'mkt');
   const [op, setOp] = useState<AdjustOp>('destock');
   const [skuId, setSkuId] = useState('');
   const [qty, setQty] = useState('');
@@ -365,7 +367,7 @@ function AdjustTab() {
             <h2 className="text-sm font-bold text-slate-800">Adjust item balance</h2>
             <p className="text-xs text-slate-500">Corrections are logged immediately with your name — no approval ticket</p>
           </div>
-          <WhToggle value={wh} onChange={(w) => { setWh(w); setSkuId(''); }} />
+          <WhToggle value={wh} lockedToCs={isCsLocked} onChange={(w) => { setWh(w); setSkuId(''); }} />
         </div>
 
         <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -571,7 +573,8 @@ function TransferTab() {
 function StockIOTab() {
   const { user } = useAuth();
   const { skus, csSkus, transactions, csTransactions, restockSku, mktDestockSku, csRestockSku, csDestockSku } = useData();
-  const [wh, setWh] = useState<Wh>('mkt');
+  const isCsLocked = user?.role === 'customer_service';
+  const [wh, setWh] = useState<Wh>(isCsLocked ? 'cs' : 'mkt');
   const [dir, setDir] = useState<'in' | 'out'>('in');
   const [skuId, setSkuId] = useState('');
   const [qty, setQty] = useState('');
@@ -611,7 +614,7 @@ function StockIOTab() {
             <h2 className="text-sm font-bold text-slate-800">Stock In / Out</h2>
             <p className="text-xs text-slate-500">Refill stock or issue items out, tied to an invoice / delivery note / PO reference</p>
           </div>
-          <WhToggle value={wh} onChange={(w) => { setWh(w); setSkuId(''); }} />
+          <WhToggle value={wh} lockedToCs={isCsLocked} onChange={(w) => { setWh(w); setSkuId(''); }} />
         </div>
 
         <div className="inline-flex rounded-xl bg-slate-100 p-1">
@@ -709,13 +712,17 @@ const emptyForm = (wh: Wh): SkuForm => ({
 function SkuTab() {
   const { user } = useAuth();
   const { skus, csSkus, categories, addSku, updateSku, deleteSku, csAddSku, csUpdateSku, csDeleteSku, restockSku, csRestockSku, mktDestockSku, csDestockSku, uploadSkuImage, deleteSkuImage, setSkuImage } = useData();
-  const [wh, setWh] = useState<Wh>('mkt');
+  const isCsLocked = user?.role === 'customer_service';
+  const [wh, setWh] = useState<Wh>(isCsLocked ? 'cs' : 'mkt');
   const [q, setQ] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'active' | 'inactive'>('all');
   const [form, setForm] = useState<SkuForm | null>(null);
   const [deleting, setDeleting] = useState<(SKU | CS_SKU) | null>(null);
   const [busy, setBusy] = useState(false);
   const [uploading, setUploading] = useState(false);
+  // "Import from MKT" — CS users can pull an MKT SKU's details into their CS catalog
+  const [importOpen, setImportOpen] = useState(false);
+  const [importQuery, setImportQuery] = useState('');
 
   const list = wh === 'mkt' ? skus : csSkus;
   const rows = useMemo(() => {
@@ -725,6 +732,37 @@ function SkuTab() {
     if (statusFilter !== 'all') out = out.filter((s) => (s.status || 'active') === statusFilter);
     return [...out].sort((a, b) => a.name.localeCompare(b.name, 'la'));
   }, [list, q, statusFilter]);
+
+  // MKT SKUs not yet present in the CS catalog (matched by shared ID) — candidates to import
+  const importable = useMemo(() => {
+    if (!importOpen) return [];
+    const csIds = new Set(csSkus.map((s) => s.id));
+    const term = importQuery.trim().toLowerCase();
+    return skus
+      .filter((s) => !csIds.has(s.id))
+      .filter((s) => !term || (s.name || '').toLowerCase().includes(term) || (s.category || '').toLowerCase().includes(term))
+      .sort((a, b) => a.name.localeCompare(b.name, 'la'));
+  }, [importOpen, importQuery, skus, csSkus]);
+
+  const doImport = async (s: SKU) => {
+    if (busy) return;
+    setBusy(true);
+    try {
+      await csAddSku({
+        id: s.id, name: s.name, category: s.category || '', unit: s.unit || 'pcs',
+        openingBalance: 0, currentStock: 0, totalInflow: 0,
+        lowStockThreshold: s.lowStockThreshold, costPerUnit: s.costPerUnit,
+        imageUrl: s.imageUrl || null, status: 'active',
+      });
+      toast(`Imported “${s.name}” into CS warehouse`);
+      setImportOpen(false);
+      setImportQuery('');
+    } catch (e: any) {
+      toast(e?.message || 'Import failed', 'error');
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const openEdit = (s: SKU | CS_SKU) =>
     setForm({
@@ -851,13 +889,18 @@ function SkuTab() {
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
-        <WhToggle value={wh} onChange={setWh} />
+        <WhToggle value={wh} lockedToCs={isCsLocked} onChange={setWh} />
         <input className="input w-52" placeholder="Search SKU…" value={q} onChange={(e) => setQ(e.target.value)} />
         <select className="input w-36" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value as any)}>
           <option value="all">All statuses</option>
           <option value="active">Active only</option>
           <option value="inactive">Inactive only</option>
         </select>
+        {wh === 'cs' && (
+          <button className="btn btn-outline btn-sm" onClick={() => { setImportOpen(true); setImportQuery(''); }}>
+            <Download className="h-4 w-4" /> Import from MKT
+          </button>
+        )}
         <button className="btn btn-primary btn-sm ml-auto" onClick={() => setForm(emptyForm(wh))}>
           <PlusCircle className="h-4 w-4" /> Add SKU
         </button>
@@ -1005,6 +1048,55 @@ function SkuTab() {
               <button className="btn btn-sm bg-rose-600 text-white hover:bg-rose-700" disabled={busy} onClick={doDelete}>
                 {busy && <Loader2 className="h-3.5 w-3.5 animate-spin" />} Delete permanently
               </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {importOpen && (
+        <Modal open onClose={() => setImportOpen(false)} title="Import from MKT">
+          <div className="space-y-3">
+            <p className="text-sm text-slate-500">
+              Copy details (name, category, unit, threshold, cost, photo) from an MKT warehouse item not yet in the CS
+              catalog. It is added with <b>0 stock</b> — restock or request a transfer to bring quantity in.
+            </p>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input w-full pl-9"
+                placeholder="Search MKT items…"
+                value={importQuery}
+                onChange={(e) => setImportQuery(e.target.value)}
+                autoFocus
+              />
+            </div>
+            <div className="max-h-72 space-y-1.5 overflow-y-auto pr-1">
+              {importable.length === 0 ? (
+                <p className="rounded-xl bg-slate-50 p-4 text-center text-sm text-slate-400">
+                  No MKT items available to import (all may already be in the CS catalog).
+                </p>
+              ) : (
+                importable.map((s) => (
+                  <button
+                    key={s.id}
+                    className="flex w-full items-center gap-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-left transition hover:border-brand-300 hover:bg-brand-50/40"
+                    disabled={busy}
+                    onClick={() => doImport(s)}
+                  >
+                    {s.imageUrl
+                      ? <img src={safeImageUrl(s.imageUrl)} alt="" className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200" loading="lazy" />
+                      : <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-sm">📦</span>}
+                    <span className="min-w-0 flex-1">
+                      <span className="block truncate text-sm font-semibold text-slate-800">{s.name}</span>
+                      <span className="block truncate text-xs text-slate-400">{s.category || 'General'} · {s.costPerUnit ? money(s.costPerUnit) : '₭0'}/unit</span>
+                    </span>
+                    {busy ? <Loader2 className="h-4 w-4 animate-spin text-brand-600" /> : <Download className="h-4 w-4 text-brand-600" />}
+                  </button>
+                ))
+              )}
+            </div>
+            <div className="flex justify-end">
+              <button className="btn btn-outline btn-sm" onClick={() => setImportOpen(false)}>Close</button>
             </div>
           </div>
         </Modal>

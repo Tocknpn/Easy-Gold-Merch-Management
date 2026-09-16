@@ -68,7 +68,7 @@ export function ReportingPage() {
     const d = new Date(); d.setDate(0);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
   });
-  const [wh, setWh] = useState<Wh>('all');
+  const [wh, setWh] = useState<Wh>(user?.role === 'customer_service' ? 'cs' : 'all');
   const [cat, setCat] = useState('All');
   const [vat, setVat] = useState(false);
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
@@ -331,7 +331,9 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
         <div>
           <label className="label">Part</label>
           <div className="inline-flex rounded-xl bg-slate-100 p-1">
-            {(['all', 'mkt', 'cs'] as Wh[]).map((w) => (
+            {(['all', 'mkt', 'cs'] as Wh[])
+              .filter((w) => user?.role !== 'customer_service' || w === 'cs')
+              .map((w) => (
               <button key={w} onClick={() => setWh(w)}
                 className={cn('rounded-lg px-3 py-1.5 text-xs font-bold uppercase tracking-wide transition',
                   wh === w ? 'bg-white text-slate-800 shadow-sm ring-1 ring-slate-200' : 'text-slate-400 hover:text-slate-600')}>
