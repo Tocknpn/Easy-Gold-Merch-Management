@@ -19,12 +19,12 @@
 begin;
 
 update public.users
-   set role = case lower(btrim(role))
-     when 'warehouse manager' then 'warehouse'
-     when 'line manager'      then 'line_manager'
-     when 'customer service'  then 'customer_service'
-     when 'staff','warehouse','line_manager','director','admin',
-          'finance','customer_service','hr','pa' then lower(btrim(role))
+   set role = case
+     when lower(btrim(role)) in ('warehouse', 'warehouse manager') then 'warehouse'
+     when lower(btrim(role)) in ('line manager', 'line_manager')   then 'line_manager'
+     when lower(btrim(role)) = 'customer service'                  then 'customer_service'
+     when lower(btrim(role)) in ('staff', 'warehouse', 'line_manager', 'director', 'admin',
+          'finance', 'customer_service', 'hr', 'pa')               then lower(btrim(role))
      else 'staff'
    end;
 

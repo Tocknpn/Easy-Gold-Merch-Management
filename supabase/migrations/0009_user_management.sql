@@ -115,12 +115,12 @@ begin
     v_role     := nullif(trim(coalesce(p_user->>'role', '')), '');
     -- Canonicalize the role so it is always stored consistently with the
     -- format the app and update_ticket_status expect (lowercase snake_case).
-    v_role := case lower(btrim(coalesce(v_role, '')))
-      when 'warehouse manager' then 'warehouse'
-      when 'line manager'      then 'line_manager'
-      when 'customer service'  then 'customer_service'
-      when 'staff','warehouse','line_manager','director','admin',
-           'finance','customer_service','hr','pa' then lower(btrim(v_role))
+    v_role := case
+      when lower(btrim(coalesce(v_role, ''))) in ('warehouse', 'warehouse manager') then 'warehouse'
+      when lower(btrim(coalesce(v_role, ''))) in ('line manager', 'line_manager')   then 'line_manager'
+      when lower(btrim(coalesce(v_role, ''))) = 'customer service'                  then 'customer_service'
+      when lower(btrim(coalesce(v_role, ''))) in ('staff', 'warehouse', 'line_manager', 'director',
+           'admin', 'finance', 'customer_service', 'hr', 'pa')                      then lower(btrim(v_role))
       else null
     end;
 
@@ -216,12 +216,12 @@ begin
 
   -- Canonicalize a role provided on update (matches the add branch).
   v_role := nullif(trim(coalesce(p_user->>'role', '')), '');
-  v_role := case lower(btrim(coalesce(v_role, '')))
-    when 'warehouse manager' then 'warehouse'
-    when 'line manager'      then 'line_manager'
-    when 'customer service'  then 'customer_service'
-    when 'staff','warehouse','line_manager','director','admin',
-         'finance','customer_service','hr','pa' then lower(btrim(v_role))
+  v_role := case
+    when lower(btrim(coalesce(v_role, ''))) in ('warehouse', 'warehouse manager') then 'warehouse'
+    when lower(btrim(coalesce(v_role, ''))) in ('line manager', 'line_manager')   then 'line_manager'
+    when lower(btrim(coalesce(v_role, ''))) = 'customer service'                  then 'customer_service'
+    when lower(btrim(coalesce(v_role, ''))) in ('staff', 'warehouse', 'line_manager', 'director',
+         'admin', 'finance', 'customer_service', 'hr', 'pa')                      then lower(btrim(v_role))
     else null
   end;
 
