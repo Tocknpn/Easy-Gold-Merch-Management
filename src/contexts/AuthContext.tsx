@@ -19,8 +19,10 @@ const SESSION_KEY = 'sf_user';
 export const roleFromRaw = (raw?: string | null): UserRole => {
   const m: Record<string, UserRole> = {
     staff: 'staff', warehouse: 'warehouse', 'warehouse manager': 'warehouse',
-    'line manager': 'line_manager', director: 'director', admin: 'admin',
-    finance: 'finance', 'customer service': 'customer_service', hr: 'hr', pa: 'pa',
+    'line manager': 'line_manager', 'line_manager': 'line_manager',
+    director: 'director', admin: 'admin',
+    finance: 'finance', 'customer service': 'customer_service', 'customer_service': 'customer_service',
+    hr: 'hr', pa: 'pa',
   };
   return m[String(raw || '').toLowerCase().trim()] || 'staff';
 };
