@@ -422,7 +422,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
               <b> {open.returnDate || 'the due date'}</b>.
             </div>
           )}
-          {['reviewed', 'lm_approved'].includes(open.status) && (
+          {['pending', 'reviewed', 'lm_approved'].includes(open.status) && (
             <CreatorRecall ticket={open} onDone={() => setOpen(null)} />
           )}
         </Modal>

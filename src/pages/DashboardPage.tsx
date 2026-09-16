@@ -15,9 +15,11 @@ interface RowItem { sku: SKU; wh: 'mkt' | 'cs'; tx: StockTransaction[] }
 export function DashboardPage() {
   const { user } = useAuth();
   const { skus, csSkus, tickets, transactions, csTransactions, loading, error, refresh } = useData();
-  const [scope, setScope] = useState<Scope>(user?.role === 'customer_service' ? 'cs' : 'all');
+  const [scope, setScope] = useState<Scope>(
+    user?.role === 'customer_service' ? 'cs' : (['warehouse', 'line_manager'].includes(user?.role || '') ? 'mkt' : 'all'),
+  );
   const [detail, setDetail] = useState<{ sku: SKU; wh: 'mkt' | 'cs' } | null>(null);
-  const canToggle = ['admin', 'director', 'customer_service'].includes(user?.role || '');
+  const canToggle = ['admin', 'director', 'customer_service', 'warehouse', 'line_manager'].includes(user?.role || '');
 
   const visible = useMemo<RowItem[]>(() => {
     if (scope === 'mkt') return skus.map((s) => ({ sku: s, wh: 'mkt' as const, tx: transactions }));

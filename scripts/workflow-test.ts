@@ -100,7 +100,16 @@ const t2 = demoCreateTicket({
 });
 check('pending → lm_approved blocked', throws(() => demoUpdateTicketStatus(t2, 'lm_approved', { actorRole: 'line_manager' }), /illegal transition/i));
 check('pending → finalized blocked', throws(() => demoUpdateTicketStatus(t2, 'finalized', { actorRole: 'director' }), /illegal transition/i));
-check('pending → recalled blocked (matches SQL)', throws(() => demoUpdateTicketStatus(t2, 'recalled', { actorRole: 'warehouse' }), /illegal transition/i));
+// pending recall is now allowed (WH/admin/creator) and releases the booking
+const sku2r = addSku({ name: 'WF Recall Pending', category: 'MKT', unit: 'pcs', openingBalance: 10 });
+const t2r = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: sku2r, skuName: 'WF Recall Pending', qtyRequested: 4, unit: 'pcs' }],
+});
+const recBefore = skuStock(sku2r);
+demoUpdateTicketStatus(t2r, 'recalled', { actorRole: 'warehouse' });
+check('pending → recalled works now (matches SQL)', demoTicketsWithItems().find((t) => t.id === t2r)!.status === 'recalled');
+check('pending recall returns the booking to stock', skuStock(sku2r) === recBefore + 4);
 demoUpdateTicketStatus(t2, 'reviewed', { actorRole: 'warehouse' });
 check('reviewed → finalized blocked', throws(() => demoUpdateTicketStatus(t2, 'finalized', { actorRole: 'director' }), /illegal transition/i));
 check('reviewed → reviewed blocked (idempotency guard)', throws(() => demoUpdateTicketStatus(t2, 'reviewed', { actorRole: 'warehouse' }), /illegal transition/i));
@@ -158,8 +167,8 @@ demoUpdateTicketStatus(t3c, 'lm_approved', { actorRole: 'line_manager' });
 const b3c = skuStock(sku3);
 demoUpdateTicketStatus(t3c, 'rejected', { actorRole: 'director', comment: 'director veto' });
 check('reject(lm_approved) returns stock', skuStock(sku3) === b3c + 7);
-console.log('\n── 4) Recall (warehouse + creator), incl. pending blocked');
-// pending → recalled already proven blocked in §2. Warehouse recall from reviewed:
+console.log('\n── 4) Recall (warehouse + creator), incl. pending recall (proven in §2)');
+// Warehouse recall from reviewed (pending recall works — proven in §2):
 const sku4 = addSku({ name: 'WF Recall', category: 'MKT', unit: 'pcs', openingBalance: 40 });
 const t4wh = demoCreateTicket({
   createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',

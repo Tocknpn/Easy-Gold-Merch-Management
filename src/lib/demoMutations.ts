@@ -99,7 +99,7 @@ export function demoUpdateTicketStatus(
     (status === 'lm_approved' && old === 'reviewed') ||
     (status === 'finalized' && (old === 'lm_approved' || (meta.forceFinalize && (old === 'pending' || old === 'reviewed')))) ||
     (status === 'rejected' && ['pending', 'reviewed', 'lm_approved'].includes(old)) ||
-    (status === 'recalled' && ['reviewed', 'lm_approved'].includes(old)) ||
+    (status === 'recalled' && ['pending', 'reviewed', 'lm_approved'].includes(old)) ||
     (status === 'returned' && old === 'finalized' && t.type === 'borrow');
   if (!allowed) throw new Error(`Illegal transition: ${old} → ${status}`);
 
@@ -174,6 +174,16 @@ export function demoUpdateTicketStatus(
       });
     }
   }
+  // FINALIZED: mark the confirmed MKT booking as deducted (Book → Deduct)
+  if (status === 'finalized') {
+    for (const tx of demoDB.transactions) {
+      if (tx.ticketId === t.id && tx.type === 'deduction' && tx.status === 'Booked') {
+        tx.status = 'Deducted';
+        tx.comment = 'Stock deducted on finalize';
+      }
+    }
+  }
+
   // REJECTED / RECALLED: return booked stock (addition)
   if ((status === 'rejected' || status === 'recalled') && ['pending', 'reviewed', 'lm_approved'].includes(old)) {
     for (const it of demoDB.items[t.id] || []) {

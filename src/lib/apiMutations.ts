@@ -104,27 +104,34 @@ export async function apiMktDestockSku(id: string, qty: number, actionBy?: strin
 export async function apiTransferMktToCs(skuId: string, qty: number, actionBy: string, comment?: string): Promise<void> {
   if (!isLive()) return demoData.demoTransferMktToCs(skuId, qty, actionBy, comment);
   const cs = await supabase!.from('cs_skus').select('*').eq('id', skuId).maybeSingle();
+  let name = skuId;
   if (!cs.error && cs.data) {
+    name = cs.data.name;
     await supabase!.from('cs_skus')
       .update({ current_stock: cs.data.current_stock + qty, total_inflow: cs.data.total_inflow + qty })
       .eq('id', skuId);
   } else {
     const mkt = await supabase!.from('skus').select('*').eq('id', skuId).single();
+    if (mkt.error) throw new Error(mkt.error.message);
+    name = mkt.data.name;
     await supabase!.from('cs_skus').insert({
       id: skuId, name: mkt.data.name, category: mkt.data.category, unit: mkt.data.unit,
       opening_balance: qty, current_stock: qty, total_inflow: qty, image_url: mkt.data.image_url,
       low_stock_threshold: mkt.data.low_stock_threshold, cost_per_unit: mkt.data.cost_per_unit,
     });
   }
+  // Deduct from the MKT warehouse — manage_sku 'destock' records the MKT ledger row
   const { data, error } = await supabase!.rpc('manage_sku', {
-    p_action: 'destock', p_sku: { id: skuId, qty }, p_remark: comment || 'Transferred to CS warehouse', p_action_by: actionBy,
+    p_action: 'destock', p_sku: { id: skuId, qty, ticket_id: 'MKT_TRANSFER' },
+    p_remark: comment || 'Transferred to CS warehouse', p_action_by: actionBy,
   });
   if (error) throw new Error(error.message);
   ok(data);
-  await supabase!.from('stock_transactions').insert({
-    ticket_id: 'MKT_TRANSFER', sku_id: skuId, qty, type: 'deduction',
+  // Record the CS receipt so the CS ledger reflects the transfer too
+  await supabase!.from('cs_transactions').insert({
+    ticket_id: 'MKT_TRANSFER', sku_id: skuId, sku_name: name, qty, type: 'addition',
     date: new Date().toISOString().slice(0, 10), action_by: actionBy,
-    status: 'Transferred to CS', comment: comment || 'Transferred to CS warehouse',
+    comment: comment || 'Transferred to CS warehouse',
   });
 }
 // ── CS → MKT transfer ───────────────────────────────────────────────────
