@@ -51,6 +51,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           .eq('email', data.session.user.email.toLowerCase())
           .maybeSingle();
         if (profile) {
+          // A deactivated account must not be able to resume an old session.
+          if (String(profile.status || 'Active').toLowerCase() !== 'active') {
+            await supabase!.auth.signOut().catch(() => {});
+            localStorage.removeItem(SESSION_KEY);
+            setUser(null);
+            return;
+          }
           const u: AppUser = {
             id: profile.id, username: profile.username, email: profile.email,
             fullName: profile.full_name || data.session.user.email,

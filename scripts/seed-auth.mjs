@@ -63,7 +63,7 @@ function readUsersCsv() {
 async function main() {
   const users = readUsersCsv();
   console.log(`Seeding ${users.length} auth users...`);
-  let ok = 0, updated = 0, skipped = 0, failed = 0;
+  let ok = 0, updated = 0, skipped = 0, failed = 0, passwordColumnMissing = false;
 
   for (const u of users) {
     if (!u.password) { console.log(`  skip ${u.email}: no password`); skipped++; continue; }
@@ -93,8 +93,18 @@ async function main() {
         if (err) throw err;
         uid = created.user.id;
       }
-      // 2) map public.users row -> this auth id
-      const { error: upd } = await supabase.from('users').update({ id: uid }).eq('email', u.email);
+      // 2) map public.users row -> this auth id AND store the visible password
+      //    (System Settings → Users shows it to Admins — needs migration 0009)
+      let { error: upd } = await supabase.from('users').update({
+        id: uid,
+        password: u.password,
+        password_updated_at: new Date().toISOString(),
+      }).eq('email', u.email);
+      if (upd && /password/i.test(upd.message || '')) {
+        // 0009_user_management.sql has not been applied yet — id-only fallback
+        ({ error: upd } = await supabase.from('users').update({ id: uid }).eq('email', u.email));
+        passwordColumnMissing = true;
+      }
       if (upd) throw upd;
       ok++;
     } catch (e) {
@@ -104,6 +114,11 @@ async function main() {
   }
   console.log(`Done. created/updated=${ok} skipped=${skipped} failed=${failed}`);
   console.log('Login accounts now use the passwords from your Users.csv (default easygold1234).');
+  if (passwordColumnMissing) {
+    console.log('NOTE: public.users.password does not exist yet — run');
+    console.log('      supabase/migrations/0009_user_management.sql in the Supabase SQL Editor,');
+    console.log('      then run `npm run seed:auth` again to back-fill the passwords.');
+  }
 }
 
 main();

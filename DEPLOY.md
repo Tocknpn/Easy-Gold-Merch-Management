@@ -87,8 +87,15 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 5 | `supabase/migrations/0005_sku_image_storage.sql` | SKU photo bucket + policies |
    | 6 | `supabase/migrations/0006_ensure_reads.sql` | read-access grants for the anon client |
    | 7 | `supabase/migrations/0007_booking_at_creation.sql` | **stock booking at ticket submission** (accrual) + booking-aware approvals |
+   | 8 | `supabase/migrations/0008_workflow_hardening.sql` | caller role enforced from the login token (JWT) + approval caps |
+   | 9 | `supabase/migrations/0009_user_management.sql` | **user management**: `users.password` + `manage_user()` / `reveal_user_password()` RPCs (System Settings → Users) |
 
-   Each should show **"Success. No rows returned"** (or similar).
+   Each should show **"Success. No rows returned"** (or similar). All of them are safe to re-run
+   (paste + **Run** again any time). If you re-run `0006`, re-run `0009` after it.
+
+   > 👥 **User management in the app:** after step 9 an **Admin** can add/edit users, activate or
+   > deactivate them and set (or look up) their password right from **System Settings → Users** —
+   > no more Supabase Dashboard needed.
 
 ### 2.3 Load your real data (from the Excel)
 The file **`supabase/seed.sql`** was generated from your Excel (in `Current Stock Data from previous Web.xlsx`) — 19 users, 40 MKT SKUs, 11 CS SKUs, 89 tickets, 205 transactions, with all Lao text intact.
@@ -283,7 +290,9 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 | Site loads but "login" fails | Re-check `VITE_SUPABASE_ANON_KEY` (public) and that `npm run seed:auth` succeeded |
 | Site shows **demo data** instead of live | The build ran **without** `VITE_SUPABASE_URL` set → set vars in Cloudflare / GitHub Actions secrets and redeploy (see below) |
 | **Edits don't save / revert after refresh** | Same root cause: the deployed build is in **DEMO mode** (no keys baked in). Fix below. |
-| "relation does not exist" / "function does not exist" | A migration didn't run or ran out of order → re-run 0001→0005 in order |
+| "relation does not exist" / "function does not exist" | A migration didn't run or ran out of order → re-run `0001` → `0009` in order |
+| Users tab: "Only an Admin can manage users" / "function public.manage_user does not exist" | Run `supabase/migrations/0009_user_management.sql` |
+| Password column shows **— not set —** for old users | Run `0009_user_management.sql`, then `npm run seed:auth` (back-fills from `data/Users.csv`) |
 | Photos won't upload | Run `0005_sku_image_storage.sql` (creates the `sku-images` bucket) |
 | Lao shows as `???` in Excel | Re-export with `npm run csv:export` (files now carry a UTF-8 **BOM**) |
 | Deploy fails: "Authentication error" | Regenerate the Cloudflare API token + update the GitHub secret |

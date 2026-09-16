@@ -39,6 +39,10 @@ export async function apiLogin(email: string, password: string): Promise<AppUser
     .eq('email', email.toLowerCase())
     .maybeSingle();
   if (!profile) throw new Error('No application profile found for this account');
+  if (String(profile.status || '').toLowerCase() !== 'active') {
+    await supabase!.auth.signOut().catch(() => {});
+    throw new Error('Account is inactive');
+  }
   return {
     id: profile.id, username: profile.username, email: profile.email,
     fullName: profile.full_name || email, department: profile.department || '',
@@ -50,7 +54,7 @@ const mapAuthError = (msg: string): string => {
   const m = msg.toLowerCase();
   if (m.includes('invalid login')) return 'Invalid password';
   if (m.includes('not found')) return 'User not found';
-  if (m.includes('inactive')) return 'Account is inactive';
+  if (m.includes('inactive') || m.includes('banned')) return 'Account is inactive';
   if (m.includes('already registered')) return 'Account already registered';
   return msg;
 };
@@ -215,5 +219,7 @@ export {
   apiCsAddSku, apiCsUpdateSku, apiCsDeleteSku, apiCsRestockSku, apiCsDestockSku,
   apiMktDestockSku, apiTransferMktToCs,
   apiTransferCsToMkt, apiManageConfig, apiManageCategory, apiAddRemark,
+  apiAddUser, apiUpdateUser, apiSetUserPassword, apiSetUserStatus,
+  apiDeleteUser, apiRevealUserPassword,
 } from './apiMutations';
 export { apiUploadSkuImage, apiDeleteSkuImage, apiSetSkuImage } from './apiMutations';

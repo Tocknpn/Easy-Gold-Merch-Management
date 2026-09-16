@@ -266,8 +266,10 @@ export function TicketForm({
         </div>
       )}
 
-      {/* Toolbar: search + sort + categories */}
-      <div className="card p-4">
+      {/* Toolbar: search + sort + categories — pinned below the app header so it
+          stays visible while the item grid scrolls underneath */}
+      <div className="sticky top-14 z-30 -mx-3 bg-surface/95 px-3 pb-2 pt-2 backdrop-blur-sm sm:-mx-5 sm:px-5">
+        <div className="card p-4 shadow-card-hover">
         <div className="flex flex-col gap-3 lg:flex-row">
           <div className="relative min-w-0 flex-1">
             <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
@@ -290,14 +292,14 @@ export function TicketForm({
             </select>
           </div>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-0.5">
           {categories.map((c) => (
             <button
               key={c}
               type="button"
               onClick={() => setCat(c)}
               className={cn(
-                'rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
+                'shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
                 cat === c
                   ? 'bg-brand-600 text-white shadow-sm'
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
@@ -306,6 +308,7 @@ export function TicketForm({
               {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
             </button>
           ))}
+        </div>
         </div>
       </div>
 
@@ -417,9 +420,9 @@ export function TicketForm({
             </>
           )}
         </div>
-        {/* Cart / checkout */}
-        <aside id="cart-summary" className="scroll-mt-20 lg:sticky lg:top-6 lg:h-fit">
-          <div className="card card-pad">
+        {/* Cart / checkout — pinned on desktop; only the item list scrolls */}
+        <aside id="cart-summary" className="scroll-mt-52 lg:sticky lg:top-[12.5rem] lg:h-fit lg:scroll-mt-[12.5rem]">
+          <div className="card card-pad lg:flex lg:max-h-[calc(100vh-13.5rem)] lg:flex-col lg:overflow-hidden">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2.5">
                 <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
@@ -481,7 +484,8 @@ export function TicketForm({
               </div>
             ) : (
               <>
-                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1">
+                {/* item list — the only part that scrolls (lg) */}
+                <div className="mt-4 max-h-80 space-y-3 overflow-y-auto pr-1 lg:max-h-none lg:min-h-0 lg:flex-1">
                   {cartRows.map((sku) => {
                     const qty = qtyOf(sku.id);
                     return (

@@ -45,6 +45,17 @@ You can log in with any account from the demo chips on the login screen
    - `supabase/migrations/0004_ticket_state_machine.sql` — `update_ticket_status` (stock accounting)
    - `supabase/migrations/0005_sku_image_storage.sql` — creates the public `sku-images` Storage bucket
      + policies (SKU profile photos)
+   - `supabase/migrations/0006_ensure_reads.sql` — re-asserts the RLS read policies + bucket
+   - `supabase/migrations/0007_booking_at_creation.sql` — stock is booked the moment a ticket is created
+   - `supabase/migrations/0008_workflow_hardening.sql` — caller role comes from the JWT, approval caps
+   - `supabase/migrations/0009_user_management.sql` — **user management**
+     (adds `public.users.password`, hides it from normal clients, adds the `manage_user()` /
+     `reveal_user_password()` RPCs that power System Settings → Users)
+
+   > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
+   > whole file into the SQL Editor and press **Run** — even if it was already applied.
+   > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
+   > (0006 re-grants table-level SELECT on `public.users`).
 4. Run **`supabase/seed.sql`** — loads your entire Excel dataset (users, SKUs, tickets, items, transactions, CS warehouse, categories, config).
 5. Enable Realtime on the tables if prompted (tables are subscribed automatically).
 
@@ -63,7 +74,29 @@ Excel passwords and links them:
    ```
 3. Done — everyone logs in with their original email + password (defaults from the Excel).
 
-> 🔒 Admin dashboard is at **Authentication → Users** — your plaintext Excel passwords are now hashed by Supabase Auth.
+> 🔒 Admin dashboard is at **Authentication → Users** — the sign-in itself is hashed by Supabase Auth.
+> After `0009_user_management.sql` the plaintext password is ALSO kept on `public.users.password`
+> so an **Admin can look a user's password up in the app** (System Settings → Users). That column is
+> never returned by a normal query — only the admin-only `reveal_user_password()` RPC can read it.
+
+### 2b. Manage users from the app (Admins)
+
+**System Settings → Users** (Admin role) now does everything without opening Supabase:
+
+| Action | How |
+|---|---|
+| **Add user** | *Add user* button — name, email, role, department, password. Creates the Auth account **and** the profile. |
+| **Edit / update** | Pencil icon — name, username, email, department, role, account status. |
+| **Activate / Inactive** | Power icon — inactive users cannot sign in (blocked server-side) and lose their sessions. |
+| **Set password** | Key icon — writes the new password into `public.users.password` **and** re-hashes it for Auth, then signs the user out everywhere. |
+| **Show / copy password** | Eye / copy icons in the Password column (Admin only). |
+| **Delete** | Trash icon (with confirmation) — removes the profile **and** the Auth account. |
+
+Guards: you cannot delete/deactivate your own account, and the last remaining active Admin is protected.
+Non-admins (Warehouse / Customer Service) still see the list but read-only.
+
+> ℹ️ Already have users from the Excel seed? Run **`npm run seed:auth`** once after applying 0009 to
+> back-fill `public.users.password` from `data/Users.csv`.
 ### 3. Run the app live
 
 ```bash
@@ -151,6 +184,10 @@ supabase/
   migrations/0003_ticket_engine.sql     create_ticket
   migrations/0004_ticket_state_machine.sql
   migrations/0005_sku_image_storage.sql sku-images Storage bucket + policies
+  migrations/0006_ensure_reads.sql      RLS read policies (safe to re-run)
+  migrations/0007_booking_at_creation.sql  stock booked on ticket create
+  migrations/0008_workflow_hardening.sql   JWT role enforcement + approval caps
+  migrations/0009_user_management.sql     users password + manage_user()/reveal_user_password()
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]

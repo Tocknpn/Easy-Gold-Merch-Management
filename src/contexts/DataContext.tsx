@@ -3,7 +3,7 @@ import {
 } from 'react';
 import type {
   AppUser, SKU, CS_SKU, TicketWithItems, StockTransaction, CS_Transaction,
-  TicketAction, SkuRemark, SystemConfig, TicketStatus, TicketType,
+  TicketAction, SkuRemark, SystemConfig, TicketStatus, TicketType, NewUserInput,
 } from '@/lib/types';
 import {
   apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus,
@@ -12,6 +12,8 @@ import {
   apiMktDestockSku, apiTransferMktToCs,
   apiTransferCsToMkt, apiManageConfig, apiManageCategory, apiAddRemark,
   apiUploadSkuImage, apiDeleteSkuImage, apiSetSkuImage,
+  apiAddUser, apiUpdateUser, apiSetUserPassword, apiSetUserStatus,
+  apiDeleteUser, apiRevealUserPassword,
 } from '@/lib/api';
 import { actionableTicketCount } from '@/lib/stockMovement';
 import { isSupabaseConfigured, supabase as sb } from '@/lib/supabase';
@@ -66,6 +68,13 @@ interface DataCtx {
   uploadSkuImage: typeof apiUploadSkuImage;
   deleteSkuImage: typeof apiDeleteSkuImage;
   setSkuImage: typeof apiSetSkuImage;
+  // user management (Admin — System Settings → Users)
+  addUser: (u: NewUserInput) => Promise<string>;
+  updateUser: (id: string, patch: Parameters<typeof apiUpdateUser>[1]) => Promise<void>;
+  setUserPassword: (id: string, password: string) => Promise<void>;
+  setUserStatus: (id: string, status: 'Active' | 'Inactive') => Promise<void>;
+  deleteUser: (id: string) => Promise<void>;
+  revealUserPassword: (id: string) => Promise<string | null>;
 }
 
 const Ctx = createContext<DataCtx | null>(null);
@@ -132,6 +141,13 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
       uploadSkuImage: apiUploadSkuImage,
       deleteSkuImage: apiDeleteSkuImage,
       setSkuImage: apiSetSkuImage,
+      // users — every mutation refreshes the bundle except the password peek
+      addUser: (u: NewUserInput) => run(apiAddUser(u)),
+      updateUser: (id: string, patch: Parameters<typeof apiUpdateUser>[1]) => run(apiUpdateUser(id, patch)),
+      setUserPassword: (id: string, password: string) => run(apiSetUserPassword(id, password)),
+      setUserStatus: (id: string, status: 'Active' | 'Inactive') => run(apiSetUserStatus(id, status)),
+      deleteUser: (id: string) => run(apiDeleteUser(id)),
+      revealUserPassword: (id: string) => apiRevealUserPassword(id),
     };
   }, [refresh]);
 

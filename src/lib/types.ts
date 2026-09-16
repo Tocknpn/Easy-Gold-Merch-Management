@@ -19,7 +19,20 @@ export interface AppUser {
   department: string;
   role: UserRole;
   status: string;
-  password?: string; // demo-only, never shipped from Supabase
+  /** Never shipped with the data bundle — Admins read it on demand through
+   *  the reveal_user_password() RPC (see apiMutations.apiRevealUserPassword). */
+  password?: string;
+  passwordUpdatedAt?: string | null;
+}
+
+/** Payload for creating a user from System Settings → Users → Add user. */
+export interface NewUserInput {
+  email: string;
+  fullName: string;
+  username?: string;
+  department?: string;
+  role: UserRole;
+  password: string;
 }
 
 export interface SKU {

@@ -1,6 +1,6 @@
 // ── In-memory demo engine: SKU / config mutations ────────────────────────
 import { demoDB, nextId } from './demoStore';
-import type { SKU, CS_SKU } from './types';
+import type { SKU, CS_SKU, AppUser, NewUserInput } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
 
@@ -148,6 +148,66 @@ export function demoManageCategory(action: 'add' | 'delete', name: string): void
 
 export function demoAddRemark(skuId: string, remark: string, userName: string, userRole: string): void {
   demoDB.remarks.unshift({ skuId, remark, userName, userRole, createdAt: new Date().toISOString() });
+}
+
+// ─ user management (demo mode mirrors the manage_user() SQL engine) ─────
+export function demoAddUser(u: NewUserInput): string {
+  const email = u.email.trim().toLowerCase();
+  if (!email || !email.includes('@')) throw new Error('A valid email address is required');
+  if (!u.password || u.password.length < 6) throw new Error('Password must be at least 6 characters');
+  if (demoDB.users.some((x) => x.email.toLowerCase() === email))
+    throw new Error('A user with this email already exists');
+
+  const id = nextId('USR-');
+  demoDB.users.push({
+    id, username: u.username || email, email,
+    fullName: u.fullName || email, department: u.department || '',
+    role: u.role, status: 'Active', password: u.password,
+    passwordUpdatedAt: new Date().toISOString(),
+  });
+  return id;
+}
+
+export function demoUpdateUser(id: string, patch: Partial<AppUser>): void {
+  const u = demoDB.users.find((x) => x.id === id);
+  if (!u) throw new Error('User not found');
+  if (patch.email) {
+    const email = patch.email.trim().toLowerCase();
+    if (demoDB.users.some((x) => x.email.toLowerCase() === email && x.id !== id))
+      throw new Error('Another user already uses ' + email);
+    u.email = email;
+    u.username = u.username || email;
+  }
+  if (patch.fullName !== undefined) u.fullName = patch.fullName;
+  if (patch.username !== undefined) u.username = patch.username;
+  if (patch.department !== undefined) u.department = patch.department;
+  if (patch.role !== undefined) u.role = patch.role;
+  if (patch.status !== undefined) u.status = patch.status;
+}
+
+export function demoSetUserPassword(id: string, password: string): void {
+  const u = demoDB.users.find((x) => x.id === id);
+  if (!u) throw new Error('User not found');
+  if (!password || password.length < 6) throw new Error('Password must be at least 6 characters');
+  u.password = password;
+  u.passwordUpdatedAt = new Date().toISOString();
+}
+
+export function demoSetUserStatus(id: string, status: 'Active' | 'Inactive'): void {
+  const u = demoDB.users.find((x) => x.id === id);
+  if (!u) throw new Error('User not found');
+  u.status = status;
+}
+
+export function demoDeleteUser(id: string): void {
+  if (!demoDB.users.some((x) => x.id === id)) throw new Error('User not found');
+  demoDB.users = demoDB.users.filter((x) => x.id !== id);
+}
+
+export function demoRevealUserPassword(id: string): string | null {
+  const u = demoDB.users.find((x) => x.id === id);
+  if (!u) throw new Error('User not found');
+  return u.password ?? null;
 }
 
 // ── SKU photo (demo mode) ─────────────────────────────────────────────────

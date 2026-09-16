@@ -2,7 +2,7 @@
 import { isLive } from './api';
 import { supabase } from './supabase';
 import * as demoData from './demoData';
-import type { SKU, CS_SKU } from './types';
+import type { SKU, CS_SKU, NewUserInput, UserRole } from './types';
 
 const row = (s: Partial<SKU | CS_SKU>) => ({
   ...(s.id ? { id: s.id } : {}),
@@ -232,4 +232,90 @@ export async function apiAddRemark(skuId: string, remark: string, userName: stri
     p_sku_id: skuId, p_remark: remark, p_user_name: userName, p_user_role: userRole,
   });
   if (error) throw new Error(error.message);
+}
+
+// ── User management (Admin) — migration 0009_user_management.sql ─────────
+// The password lives in public.users (visible to Admins) AND is hashed into
+// auth.users (what actually signs the user in). Both are written by the
+// manage_user() RPC, which also verifies the caller really is an Admin.
+
+export async function apiAddUser(u: NewUserInput): Promise<string> {
+  if (!isLive()) return demoData.demoAddUser(u);
+  const { data, error } = await supabase!.rpc('manage_user', {
+    p_action: 'add',
+    p_user: {
+      email: u.email.trim().toLowerCase(),
+      username: u.username?.trim() || u.email.trim().toLowerCase(),
+      full_name: u.fullName.trim(),
+      department: u.department?.trim() || '',
+      role: u.role,
+      password: u.password,
+    },
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+  return (data as any).id;
+}
+
+export async function apiUpdateUser(
+  id: string,
+  patch: { email?: string; fullName?: string; username?: string; department?: string; role?: UserRole; status?: string },
+): Promise<void> {
+  if (!isLive()) {
+    return demoData.demoUpdateUser(id, {
+      email: patch.email, fullName: patch.fullName, username: patch.username,
+      department: patch.department, role: patch.role, status: patch.status,
+    });
+  }
+  const { data, error } = await supabase!.rpc('manage_user', {
+    p_action: 'update',
+    p_user: {
+      id,
+      ...(patch.email !== undefined ? { email: patch.email.trim().toLowerCase() } : {}),
+      ...(patch.username !== undefined ? { username: patch.username } : {}),
+      ...(patch.fullName !== undefined ? { full_name: patch.fullName } : {}),
+      ...(patch.department !== undefined ? { department: patch.department } : {}),
+      ...(patch.role !== undefined ? { role: patch.role } : {}),
+      ...(patch.status !== undefined ? { status: patch.status } : {}),
+    },
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+}
+
+export async function apiSetUserPassword(id: string, password: string): Promise<void> {
+  if (!isLive()) return demoData.demoSetUserPassword(id, password);
+  const { data, error } = await supabase!.rpc('manage_user', {
+    p_action: 'set_password', p_user: { id, password },
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+}
+
+export async function apiSetUserStatus(id: string, status: 'Active' | 'Inactive'): Promise<void> {
+  if (!isLive()) return demoData.demoSetUserStatus(id, status);
+  const { data, error } = await supabase!.rpc('manage_user', {
+    p_action: 'set_status', p_user: { id, status },
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+}
+
+export async function apiDeleteUser(id: string): Promise<void> {
+  if (!isLive()) return demoData.demoDeleteUser(id);
+  const { data, error } = await supabase!.rpc('manage_user', {
+    p_action: 'delete', p_user: { id },
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+}
+
+/** Admin-only: read a user's stored password (RPC checks the JWT role). */
+export async function apiRevealUserPassword(id: string): Promise<string | null> {
+  if (!isLive()) return demoData.demoRevealUserPassword(id);
+  const { data, error } = await supabase!.rpc('reveal_user_password', { p_user_id: id });
+  if (error) throw new Error(error.message);
+  const res = data as any;
+  if (!res?.success) throw new Error(res?.error || 'Could not read the password');
+  return res.has_password ? String(res.password ?? '') : null;
 }
