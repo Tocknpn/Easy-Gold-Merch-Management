@@ -113,6 +113,16 @@ begin
     v_email    := lower(trim(coalesce(p_user->>'email', '')));
     v_password := nullif(p_user->>'password', '');
     v_role     := nullif(trim(coalesce(p_user->>'role', '')), '');
+    -- Canonicalize the role so it is always stored consistently with the
+    -- format the app and update_ticket_status expect (lowercase snake_case).
+    v_role := case lower(btrim(coalesce(v_role, '')))
+      when 'warehouse manager' then 'warehouse'
+      when 'line manager'      then 'line_manager'
+      when 'customer service'  then 'customer_service'
+      when 'staff','warehouse','line_manager','director','admin',
+           'finance','customer_service','hr','pa' then lower(btrim(v_role))
+      else null
+    end;
 
     if v_email = '' or position('@' in v_email) = 0 then
       return jsonb_build_object('success', false, 'error', 'A valid email address is required');
@@ -204,6 +214,17 @@ begin
 
   v_self := (v_id = auth.uid()) or (lower(v_old_email) = lower(auth.email()));
 
+  -- Canonicalize a role provided on update (matches the add branch).
+  v_role := nullif(trim(coalesce(p_user->>'role', '')), '');
+  v_role := case lower(btrim(coalesce(v_role, '')))
+    when 'warehouse manager' then 'warehouse'
+    when 'line manager'      then 'line_manager'
+    when 'customer service'  then 'customer_service'
+    when 'staff','warehouse','line_manager','director','admin',
+         'finance','customer_service','hr','pa' then lower(btrim(v_role))
+    else null
+  end;
+
   if p_action = 'update' then
     if v_self and v_old_role = 'admin'
        and coalesce(nullif(p_user->>'role', ''), v_old_role) <> 'admin' then
@@ -244,7 +265,7 @@ begin
        set username   = coalesce(nullif(p_user->>'username', ''), username),
            full_name  = coalesce(nullif(p_user->>'full_name', ''), full_name),
            department = coalesce(p_user->>'department', department),
-           role       = coalesce(nullif(p_user->>'role', ''), role),
+           role       = coalesce(v_role, role),
            status     = coalesce(nullif(p_user->>'status', ''), status),
            updated_at = now()
      where id = v_id;

@@ -8,37 +8,37 @@ begin;
 
 -- USERS  (id is replaced by the real auth user id when running seed-auth)
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'phonethida.easygold@gmail.com', 'phonethida.easygold@gmail.com', 'Phonethida Mangala', 'MKT', 'Staff', 'Active');
+  values (gen_random_uuid(), 'phonethida.easygold@gmail.com', 'phonethida.easygold@gmail.com', 'Phonethida Mangala', 'MKT', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'lvesaphong96@gmail.com', 'lvesaphong96@gmail.com', 'Souphavanh Vetsaphong', 'MKT', 'Staff', 'Active');
+  values (gen_random_uuid(), 'lvesaphong96@gmail.com', 'lvesaphong96@gmail.com', 'Souphavanh Vetsaphong', 'MKT', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'thavatxay94@gmail.com', 'thavatxay94@gmail.com', 'Thavutxai Inthavongsa', 'MKT', 'Staff', 'Active');
+  values (gen_random_uuid(), 'thavatxay94@gmail.com', 'thavatxay94@gmail.com', 'Thavutxai Inthavongsa', 'MKT', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'Somparthana.bpv@gmail.com', 'somparthana.bpv@gmail.com', 'Sompartthana Bouphavong', 'BTL', 'Warehouse', 'Active');
+  values (gen_random_uuid(), 'Somparthana.bpv@gmail.com', 'somparthana.bpv@gmail.com', 'Sompartthana Bouphavong', 'BTL', 'warehouse', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'sout2017@gmail.com', 'sout2017@gmail.com', 'Soudsada Keovongphet', 'BTL', 'Warehouse', 'Active');
+  values (gen_random_uuid(), 'sout2017@gmail.com', 'sout2017@gmail.com', 'Soudsada Keovongphet', 'BTL', 'warehouse', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'tockppd@gmail.com', 'tockppd@gmail.com', 'Nopphanai Phomphakdee', 'MKT', 'Admin', 'Active');
+  values (gen_random_uuid(), 'tockppd@gmail.com', 'tockppd@gmail.com', 'Nopphanai Phomphakdee', 'MKT', 'admin', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'Jonathan.easygold@gmail.com', 'jonathan.easygold@gmail.com', 'Jonathaan Meadley', 'MKT', 'Staff', 'Active');
+  values (gen_random_uuid(), 'Jonathan.easygold@gmail.com', 'jonathan.easygold@gmail.com', 'Jonathaan Meadley', 'MKT', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'sphengxay@gmail.com', 'sphengxay@gmail.com', 'Souliphonh Phengxay', 'MKT', 'Director', 'Active');
+  values (gen_random_uuid(), 'sphengxay@gmail.com', 'sphengxay@gmail.com', 'Souliphonh Phengxay', 'MKT', 'director', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'souphanithvst@gmail.com', 'souphanithvst@gmail.com', 'Souphanit Vongsengthong', 'MKT', 'Admin', 'Active');
+  values (gen_random_uuid(), 'souphanithvst@gmail.com', 'souphanithvst@gmail.com', 'Souphanit Vongsengthong', 'MKT', 'admin', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'souk07025@gmail.com', 'souk07025@gmail.com', 'Souk', 'Admin', 'Staff', 'Active');
+  values (gen_random_uuid(), 'souk07025@gmail.com', 'souk07025@gmail.com', 'Souk', 'Admin', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'cs@easygold.com', 'cs@easygold.com', 'Customer Service', 'CS', 'Staff', 'Active');
+  values (gen_random_uuid(), 'cs@easygold.com', 'cs@easygold.com', 'Customer Service', 'CS', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
   values (gen_random_uuid(), 'souphavanh.vesaphong@gmail.com', 'souphavanh.vesaphong@gmail.com', 'Linda', 'MKT', 'staff', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'alounys08@gmail.com', 'alounys08@gmail.com', 'Alouny', 'MKT', 'Line Manager', 'Active');
+  values (gen_random_uuid(), 'alounys08@gmail.com', 'alounys08@gmail.com', 'Alouny', 'MKT', 'line_manager', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
   values (gen_random_uuid(), 'bm.keomath@gmail.com', 'bm.keomath@gmail.com', 'Bounmy', 'Finance', 'finance', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'annasorsukun@gmail.com', 'annasorsukun@gmail.com', 'Anna', 'HR', 'HR', 'Active');
+  values (gen_random_uuid(), 'annasorsukun@gmail.com', 'annasorsukun@gmail.com', 'Anna', 'HR', 'hr', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
-  values (gen_random_uuid(), 'malisa.pam1999@gmail.com', 'malisa.pam1999@gmail.com', 'Nuni', 'PA', 'PA', 'Active');
+  values (gen_random_uuid(), 'malisa.pam1999@gmail.com', 'malisa.pam1999@gmail.com', 'Nuni', 'PA', 'pa', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)
   values (gen_random_uuid(), 'soulinta2001@gmail.com', 'soulinta2001@gmail.com', 'Soulinta', 'Customer Service', 'customer_service', 'Active');
 insert into public.users (id, username, email, full_name, department, role, status)

@@ -201,6 +201,20 @@ begin
   end if;
   v_actor := coalesce(v_caller_name, v_actor);
 
+  -- ── normalize the caller role (mirror of frontend roleFromRaw) ──
+  -- users.role historically stored title-case/spaced labels
+  -- ('Warehouse', 'Line Manager', 'Director', ...) while the checks
+  -- below compare against stable lowercase values. Canonicalize so a
+  -- Warehouse review / Line Manager approve / Director finalize works
+  -- regardless of the stored spelling.
+  v_caller_role := lower(btrim(v_caller_role));
+  v_caller_role := case
+    when v_caller_role in ('warehouse', 'warehouse manager') then 'warehouse'
+    when v_caller_role in ('line manager', 'line_manager')   then 'line_manager'
+    when v_caller_role = 'customer service'                  then 'customer_service'
+    else v_caller_role
+  end;
+
   -- ── role authorization per transition ──────────────────────────
   v_role_ok :=
     (p_status = 'reviewed'    and v_caller_role in ('warehouse','admin')) or
