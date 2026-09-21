@@ -131,7 +131,7 @@ begin
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
     loop
       v_qty := coalesce((select (e->>'qty_approved')::numeric
-                          from jsonb_array_elements(coalesce(p_meta->>'items', '[]'::jsonb)) e
+                          from jsonb_array_elements(coalesce(p_meta->'items', '[]'::jsonb)) e
                          where e->>'sku_id' = v_item.sku_id), nullif(v_item.qty_approved, 0), v_item.qty_requested);
       v_qty := least(v_qty, v_item.qty_requested);   -- cap at requested
 
@@ -260,10 +260,10 @@ if v_qty is null or v_qty <= 0 then
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
     loop
       v_ret   := coalesce((select (e->>'qty_returned')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                            from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
                            where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested, 0);
       v_broken := coalesce((select (e->>'qty_broken')::numeric
-                             from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                             from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
                             where e->>'sku_id' = v_item.sku_id), 0);
       v_ret := least(v_ret, coalesce(v_item.qty_approved, v_item.qty_requested, 0));  -- cap at approved
       if v_ret <= 0 then continue; end if;

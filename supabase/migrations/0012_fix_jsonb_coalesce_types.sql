@@ -1,150 +1,34 @@
 -- ============================================================
--- Easy Gold Merch — Ticket stock lifecycle fixes
--- Part 10 (run AFTER 0008_workflow_hardening.sql)
+-- Easy Gold Merch - 0012_fix_jsonb_coalesce_types.sql
+-- Part 12 (run AFTER 0011_normalize_roles.sql)
 --
--- Repairs the broken/legacy stock accounting so every transition
--- is correct, independent of which earlier version of these
--- functions is currently installed on the live database:
+-- Fixes the warehouse "Review & Book Stock" crash:
 --
---   1) update_ticket_status is re-created as a FLAT (non-nested)
---      state machine. 0007 accidentally nested the finalized /
---      rejected / recalled / returned effect blocks inside the
---      PENDING→REVIEWED branch, so on the live DB they only ran
---      when the transition was 'reviewed' — reject/recall never
---      returned stock and cs_transfer never credited the CS WH.
---   2) Every coalesce is type-safe (explicit casts on
---      p_meta->>'...'), so the old "COALESCE types text and
---      jsonb cannot be matched" error on Review & Book Stock is
---      gone. Caller role still comes from the signed-in JWT
---      (mirrors 0008 hardening).
---   3) Creator recall is now allowed from 'pending' too, so a
---      submitter can pull back a not-yet-reviewed ticket.
---   4) On FINALIZED the MKT booking transaction changes from
---      'Booked' → 'Deducted' (the requested Book→Deduct step).
---   5) manage_sku gains a 'destock' branch so MKT destock and
---      MKT→CS transfer no longer fail with "Unknown action:
---      destock".
+--     ERROR: COALESCE types text and jsonb cannot be matched   (SQLSTATE 42804)
 --
--- Every function uses `create or replace` → safe to re-run.
+-- Root cause (present in 0004 / 0007 / 0008 / 0010):
+--
+--     jsonb_array_elements(coalesce(p_meta->>'items', '[]'::jsonb))
+--
+--   p_meta->>'items' uses the ->> operator and therefore returns text,
+--   while '[]'::jsonb is jsonb. COALESCE must resolve both arguments to
+--   ONE common type using implicit casts only, and PostgreSQL has no
+--   implicit text <-> jsonb cast, so planning the statement fails.
+--   It was only ever hit on review (the statement lives inside the
+--   pending -> reviewed effect block) and only with at least one ticket
+--   item — which is why create_ticket succeeded and approval blew up.
+--   The same pattern on p_meta->>'returns' broke FINALIZED -> RETURNED.
+--
+-- Fix: normalise the two JSON arrays once, type-safely, into jsonb
+-- locals (v_items / v_returns). This also survives a non-array value
+-- (JSON string / object / null), which would otherwise make
+-- jsonb_array_elements raise "cannot extract elements from a scalar".
+--
+-- update_ticket_status is re-asserted in full (identical behaviour to
+-- 0010 apart from the two normalised arrays), so this file is safe to
+-- re-run and can be pasted straight into the Supabase SQL Editor.
 -- ============================================================
 
--- ------------------------------------------------------------------
--- create_ticket — reserves (books) stock the moment a ticket is
--- submitted. Re-asserted unchanged so this file is a coherent,
--- complete definition of the booking lifecycle.
--- ------------------------------------------------------------------
-create or replace function public.create_ticket(
-  p_created_by text,
-  p_created_by_name text,
-  p_department text,
-  p_delivery_date date,
-  p_remark text,
-  p_type text default 'request',
-  p_return_date date default null,
-  p_items jsonb default '[]'::jsonb
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_ticket_id text := public.next_id('TKT-');
-  v_item      jsonb;
-  v_count     int := 0;
-  v_sku_id    text;
-  v_sku_name  text;
-  v_qty       numeric;
-  v_available numeric;
-  v_unbooked  numeric;
-begin
-  if jsonb_array_length(coalesce(p_items, '[]'::jsonb)) = 0 then
-    return jsonb_build_object('success', false, 'error', 'Ticket must have at least one item');
-  end if;
-
-  -- ── availability guard ─────────────────────────────────────────
-  for v_sku_id in
-    select distinct e->>'sku_id' as sid
-      from jsonb_array_elements(p_items) e
-     where coalesce((e->>'qty_requested')::numeric, 0) > 0
-     order by sid
-  loop
-    perform 1 from public.skus where id = v_sku_id for update;
-    if not found then
-      return jsonb_build_object('success', false, 'error', 'Unknown item: ' || v_sku_id);
-    end if;
-
-    select s.current_stock into v_available from public.skus s where s.id = v_sku_id;
-
-    -- Pending tickets submitted BEFORE booking-at-creation went live
-    -- have not deducted anything yet — count them against availability.
-    select coalesce(sum(ti.qty_requested), 0) into v_unbooked
-      from public.ticket_items ti
-      join public.tickets t on t.id = ti.ticket_id
-     where ti.sku_id = v_sku_id
-       and t.status = 'pending'
-       and not exists (
-         select 1 from public.stock_transactions st
-          where st.ticket_id = t.id and st.sku_id = ti.sku_id
-            and st.type = 'deduction' and st.status = 'Booked'
-       );
-
-    select coalesce(sum((e->>'qty_requested')::numeric), 0) into v_qty
-      from jsonb_array_elements(p_items) e
-     where e->>'sku_id' = v_sku_id
-       and coalesce((e->>'qty_requested')::numeric, 0) > 0;
-
-    if v_qty > v_available - v_unbooked then
-      select s.name into v_sku_name from public.skus s where s.id = v_sku_id;
-      return jsonb_build_object(
-        'success', false,
-        'error', 'Insufficient stock for "' || coalesce(v_sku_name, v_sku_id) || '" — available: '
-                 || (v_available - v_unbooked) || ', requested: ' || v_qty
-                 || '. Someone may have just booked it — please refresh and try again.'
-      );
-    end if;
-  end loop;
--- ── create the ticket ──────────────────────────────────────────
-  insert into public.tickets (id, created_by, created_by_name, department, delivery_date,
-                              remark, status, type, return_date)
-  values (v_ticket_id, p_created_by, p_created_by_name, p_department, p_delivery_date,
-          coalesce(p_remark, ''), 'pending', p_type, p_return_date);
-
-  for v_item in select * from jsonb_array_elements(p_items)
-  loop
-    if coalesce((v_item->>'qty_requested')::numeric, 0) <= 0 then
-      continue;
-    end if;
-    v_count := v_count + 1;
-    insert into public.ticket_items (ticket_id, sku_id, sku_name, qty_requested, unit)
-    values (v_ticket_id, v_item->>'sku_id', v_item->>'sku_name',
-            (v_item->>'qty_requested')::numeric, coalesce(v_item->>'unit', 'pcs'));
-
-    -- ── BOOK the requested qty right away (accrual) ──────────────
-    update public.skus
-       set current_stock = current_stock - (v_item->>'qty_requested')::numeric
-     where id = v_item->>'sku_id';
-
-    insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
-                                           action_by, status, comment)
-    values (v_ticket_id, v_item->>'sku_id', v_item->>'sku_name',
-            (v_item->>'qty_requested')::numeric, 'deduction', current_date,
-            p_created_by_name, 'Booked', 'Stock booked on ticket submission');
-  end loop;
-
-  if v_count = 0 then
-    delete from public.tickets where id = v_ticket_id;
-    return jsonb_build_object('success', false, 'error', 'No items with a quantity greater than 0');
-  end if;
-
-  insert into public.ticket_actions (ticket_id, action, status, action_by, role, comment)
-  values (v_ticket_id, 'Created', 'pending', p_created_by_name,
-          (select role from public.users u where u.email = p_created_by or u.id::text = p_created_by),
-          'Ticket submitted');
-
-  return jsonb_build_object('success', true, 'id', v_ticket_id);
-end;
-$$;
 -- ------------------------------------------------------------------
 -- update_ticket_status — booking-aware, FLAT state machine.
 --   p_meta: jsonb {
@@ -154,7 +38,7 @@ $$;
 --     returns:[{ sku_id, qty_returned, qty_broken }], -- borrow return
 --     force_finalize: true             -- admin emergency finalize
 --   }
--- All coalesce() calls use explicit casts — never text + jsonb.
+-- p_meta JSON arrays (items / returns) are normalised once into v_items / v_returns.
 -- ------------------------------------------------------------------
 create or replace function public.update_ticket_status(
   p_ticket_id text,
@@ -170,6 +54,12 @@ declare
   v_ticket record;
   v_actor text := coalesce(p_meta->>'actor_name', 'System');
   v_comment text := coalesce(p_meta->>'comment', '');
+  -- p_meta JSON arrays arrive as text; coalescing text with '[]'::jsonb
+  -- raises SQLSTATE 42804, so normalise them type-safely up front.
+  v_items   jsonb := case when jsonb_typeof(p_meta->'items')   = 'array'
+                          then p_meta->'items'   else '[]'::jsonb end;
+  v_returns jsonb := case when jsonb_typeof(p_meta->'returns') = 'array'
+                          then p_meta->'returns' else '[]'::jsonb end;
   v_item record;
   v_qty numeric;
   v_ret numeric;
@@ -261,7 +151,7 @@ begin
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
     loop
       v_qty := coalesce((select (e->>'qty_approved')::numeric
-                          from jsonb_array_elements(coalesce(p_meta->'items', '[]'::jsonb)) e
+                          from jsonb_array_elements(v_items) e
                          where e->>'sku_id' = v_item.sku_id), nullif(v_item.qty_approved, 0), v_item.qty_requested);
       v_qty := least(v_qty, v_item.qty_requested);   -- cap at requested
 
@@ -408,10 +298,10 @@ begin
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
     loop
       v_ret   := coalesce((select (e->>'qty_returned')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
+                            from jsonb_array_elements(v_returns) e
                            where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested, 0);
       v_broken := coalesce((select (e->>'qty_broken')::numeric
-                             from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
+                             from jsonb_array_elements(v_returns) e
                             where e->>'sku_id' = v_item.sku_id), 0);
       v_ret := least(v_ret, coalesce(v_item.qty_approved, v_item.qty_requested, 0));  -- cap at approved
       if v_ret <= 0 then continue; end if;
@@ -458,119 +348,8 @@ begin
                             'message', 'Ticket ' || p_ticket_id || ' → ' || v_status_label);
 end;
 $$;
--- ------------------------------------------------------------------
--- manage_sku — add the missing 'destock' branch so MKT direct
--- destock and MKT→CS transfer work. Mirrors manage_cs_sku's destock.
--- p_sku.ticket_id is optional (defaults to 'DIRECT_DESTOCK');
--- the MKT→CS transfer passes 'MKT_TRANSFER' for proper reporting.
--- ------------------------------------------------------------------
-create or replace function public.manage_sku(
-  p_action text,        -- 'add' | 'update' | 'delete' | 'restock' | 'destock'
-  p_sku jsonb,
-  p_remark text default null,
-  p_action_by text default null
-)
-returns jsonb
-language plpgsql
-security definer
-set search_path = public
-as $$
-declare
-  v_id text;
-  v_qty numeric;
-  v_row record;
-  v_tx_id text;
-begin
-  if p_action = 'add' then
-    v_id := coalesce(p_sku->>'id', public.next_id('sku-'));
-    insert into public.skus (id, name, category, unit, opening_balance, current_stock, total_inflow,
-                             image_url, low_stock_threshold, cost_per_unit)
-    values (v_id,
-            p_sku->>'name',
-            p_sku->>'category',
-            coalesce(p_sku->>'unit', 'pcs'),
-            coalesce((p_sku->>'opening_balance')::numeric, 0),
-            coalesce((p_sku->>'current_stock')::numeric, coalesce((p_sku->>'opening_balance')::numeric, 0)),
-            coalesce((p_sku->>'opening_balance')::numeric, 0),
-            p_sku->>'image_url',
-            coalesce((p_sku->>'low_stock_threshold')::numeric, 0),
-            coalesce((p_sku->>'cost_per_unit')::numeric, 0));
-    if coalesce((p_sku->>'opening_balance')::numeric, 0) > 0 then
-      insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
-                                             action_by, status, comment)
-      values ('OPENING', v_id, p_sku->>'name', (p_sku->>'opening_balance')::numeric, 'addition',
-              current_date, p_action_by, 'Opening', 'Opening balance on SKU creation');
-    end if;
-    return jsonb_build_object('success', true, 'id', v_id, 'message', 'SKU added');
-elsif p_action = 'restock' then
-    v_id := p_sku->>'id';
-    v_qty := (p_sku->>'qty')::numeric;
-    if v_qty is null or v_qty <= 0 then
-      return jsonb_build_object('success', false, 'error', 'Restock quantity must be greater than 0');
-    end if;
-    select * into v_row from public.skus where id = v_id;
-    if not found then
-      return jsonb_build_object('success', false, 'error', 'SKU not found');
-    end if;
-    update public.skus
-       set current_stock = current_stock + v_qty,
-           total_inflow  = total_inflow  + v_qty
-     where id = v_id;
-    insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
-                                           action_by, status, comment)
-    values ('RESTOCK', v_id, v_row.name, v_qty, 'addition', current_date, p_action_by,
-            'Restock', coalesce(p_remark, 'Manual restock'));
-    return jsonb_build_object('success', true, 'message', 'Restocked +' || v_qty);
 
-  elsif p_action = 'destock' then
-    v_id := p_sku->>'id';
-    v_qty := (p_sku->>'qty')::numeric;
-    if v_qty is null or v_qty <= 0 then
-      return jsonb_build_object('success', false, 'error', 'Destock quantity must be greater than 0');
-    end if;
-    select * into v_row from public.skus where id = v_id;
-    if not found then
-      return jsonb_build_object('success', false, 'error', 'SKU not found');
-    end if;
-    update public.skus
-       set current_stock = greatest(current_stock - v_qty, 0)
-     where id = v_id;
-    v_tx_id := coalesce(p_sku->>'ticket_id', 'DIRECT_DESTOCK');
-    insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
-                                           action_by, status, comment)
-    values (v_tx_id, v_id, v_row.name, v_qty, 'deduction', current_date, p_action_by,
-            'Destock', coalesce(p_remark, 'Direct destock'));
-    return jsonb_build_object('success', true, 'message', 'Destocked -' || v_qty);
-elsif p_action = 'update' then
-    update public.skus
-       set name = coalesce(p_sku->>'name', name),
-           category = coalesce(p_sku->>'category', category),
-           unit = coalesce(p_sku->>'unit', unit),
-           opening_balance = coalesce((p_sku->>'opening_balance')::numeric, opening_balance),
-           current_stock = coalesce((p_sku->>'current_stock')::numeric, current_stock),
-           total_inflow = coalesce((p_sku->>'total_inflow')::numeric, total_inflow),
-           image_url = coalesce(p_sku->>'image_url', image_url),
-           low_stock_threshold = coalesce((p_sku->>'low_stock_threshold')::numeric, low_stock_threshold),
-           cost_per_unit = coalesce((p_sku->>'cost_per_unit')::numeric, cost_per_unit)
-     where id = p_sku->>'id';
-    if not found then
-      return jsonb_build_object('success', false, 'error', 'SKU not found');
-    end if;
-    return jsonb_build_object('success', true, 'message', 'SKU updated');
-
-  elsif p_action = 'delete' then
-    delete from public.skus where id = p_sku->>'id';
-    return jsonb_build_object('success', true, 'message', 'SKU deleted');
-  end if;
-  return jsonb_build_object('success', false, 'error', 'Unknown action: ' || p_action);
-end;
-$$;
-
--- ── Restrict write RPCs to authenticated sessions only (re-asserted) ─────
-revoke execute on function public.create_ticket from public;
+-- Restrict this write RPC to authenticated sessions only (re-asserted)
 revoke execute on function public.update_ticket_status from public;
-revoke execute on function public.manage_sku from public;
 
-grant execute on function public.create_ticket to authenticated;
 grant execute on function public.update_ticket_status to authenticated;
-grant execute on function public.manage_sku to authenticated;

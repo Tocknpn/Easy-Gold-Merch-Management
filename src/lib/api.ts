@@ -204,7 +204,10 @@ export async function apiUpdateTicketStatus(
       actor_role: meta.actorRole,
       comment: meta.comment || '',
       actual_delivery_date: meta.actualDeliveryDate || null,
-      items: meta.items || [],
+      // The engine reads e->>'sku_id' / e->>'qty_approved', so items must be
+      // snake_case like `returns` below — sending camelCase silently made the
+      // warehouse's adjusted approved quantities fall back to qty_requested.
+      items: (meta.items || []).map((i) => ({ sku_id: i.skuId, qty_approved: i.qtyApproved })),
       returns: (meta.returns || []).map((r) => ({ sku_id: r.skuId, qty_returned: r.qtyReturned, qty_broken: r.qtyBroken })),
       force_finalize: meta.forceFinalize || false,
     },

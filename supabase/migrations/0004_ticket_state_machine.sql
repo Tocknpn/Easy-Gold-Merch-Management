@@ -74,7 +74,7 @@ begin
     loop
       -- approved qty may have been adjusted by the warehouse at review
       v_qty := coalesce((select (e->>'qty_approved')::numeric
-                          from jsonb_array_elements(coalesce(p_meta->>'items', '[]'::jsonb)) e
+                          from jsonb_array_elements(coalesce(p_meta->'items', '[]'::jsonb)) e
                          where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested);
       if v_qty <= 0 then
         update public.ticket_items set qty_approved = 0
@@ -157,10 +157,10 @@ begin
         from public.ticket_items ti where ti.ticket_id = p_ticket_id
     loop
       v_ret   := coalesce((select (e->>'qty_returned')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                            from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
                            where e->>'sku_id' = v_item.sku_id), v_item.qty_approved, v_item.qty_requested, 0);
       v_broken := coalesce((select (e->>'qty_broken')::numeric
-                            from jsonb_array_elements(coalesce(p_meta->>'returns', '[]'::jsonb)) e
+                            from jsonb_array_elements(coalesce(p_meta->'returns', '[]'::jsonb)) e
                            where e->>'sku_id' = v_item.sku_id), 0);
       if v_ret <= 0 then continue; end if;
       update public.skus set current_stock = current_stock + v_ret

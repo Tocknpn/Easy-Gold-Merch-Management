@@ -51,11 +51,19 @@ You can log in with any account from the demo chips on the login screen
    - `supabase/migrations/0009_user_management.sql` — **user management**
      (adds `public.users.password`, hides it from normal clients, adds the `manage_user()` /
      `reveal_user_password()` RPCs that power System Settings → Users)
+   - `supabase/migrations/0010_fix_ticket_stock_lifecycle.sql` — flat (non-nested) ticket state
+     machine: Book → Deduct on finalize, cs_transfer restock, reject/recall stock return
+   - `supabase/migrations/0011_normalize_roles.sql` — canonicalises `public.users.role`
+     (`Warehouse` → `warehouse`, …) so real approvers pass the engine's role checks
+   - `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` — fixes the
+     **"COALESCE types text and jsonb cannot be matched"** crash on warehouse *Review & Book Stock*
 
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
    > (0006 re-grants table-level SELECT on `public.users`).
+   > After re-running any of the earlier files, finish with `0010` → `0011` → `0012` so the ticket
+   > engine always ends up on the current (booking-aware, type-safe) definition.
 4. Run **`supabase/seed.sql`** — loads your entire Excel dataset (users, SKUs, tickets, items, transactions, CS warehouse, categories, config).
 5. Enable Realtime on the tables if prompted (tables are subscribed automatically).
 
@@ -188,6 +196,9 @@ supabase/
   migrations/0007_booking_at_creation.sql  stock booked on ticket create
   migrations/0008_workflow_hardening.sql   JWT role enforcement + approval caps
   migrations/0009_user_management.sql     users password + manage_user()/reveal_user_password()
+  migrations/0010_fix_ticket_stock_lifecycle.sql  flat state machine + Book→Deduct
+  migrations/0011_normalize_roles.sql     users.role canonicalisation
+  migrations/0012_fix_jsonb_coalesce_types.sql    jsonb COALESCE type fix (Review & Book Stock)
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]
