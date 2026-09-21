@@ -184,9 +184,14 @@ export function demoUpdateTicketStatus(
     }
   }
 
-  // REJECTED / RECALLED: return booked stock (addition)
+  // REJECTED / RECALLED: release the booking. CHANGED (0013): the booking is
+  // cancelled and the stock restored, but NO reversal `addition` row is
+  // written any more — that phantom row was counted as Stock In for a ticket
+  // that never moved stock, which made the Stock In / Out reports look wrong.
+  // The cancelled booking keeps the audit trail and is ignored by the reports.
   if ((status === 'rejected' || status === 'recalled') && ['pending', 'reviewed', 'lm_approved'].includes(old)) {
     for (const it of demoDB.items[t.id] || []) {
+      const note = status === 'rejected' ? 'ticket rejected' : 'ticket recalled';
       let qty: number;
       if (old === 'pending') {
         // rejected/recalled before review → release the booking made at submission
@@ -194,21 +199,31 @@ export function demoUpdateTicketStatus(
           (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
         );
         qty = booking ? booking.qty : 0;
-        if (booking) booking.status = 'Booking Cancelled';
+        if (booking) {
+          booking.status = 'Booking Cancelled';
+          booking.comment = `Booking released - ${note}`;
+        }
       } else {
+        // reviewed/lm_approved → qty is already deducted; cancel the booking
         qty = it.qtyApproved ?? it.qtyRequested;
+        const rows = demoDB.transactions.filter(
+          (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
+        );
+        // Fallback: ledger rows written by an older engine (other status labels)
+        const fallback = rows.length
+          ? rows
+          : demoDB.transactions.filter(
+              (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction'
+                && !['Booking Cancelled', 'Deducted'].includes(String(tx.status || '')),
+            );
+        for (const tx of fallback) {
+          tx.status = 'Booking Cancelled';
+          tx.comment = `Booking cancelled - ${note}`;
+        }
       }
       if (qty <= 0) continue;
       const sku = demoDB.skus.find((s) => s.id === it.skuId);
       if (sku) sku.currentStock += qty;
-      demoDB.transactions.unshift({
-        ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'addition',
-        date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor,
-        status: status === 'rejected'
-          ? (old === 'pending' ? 'Rejected - Booking Released' : 'Rejected - Stock Returned')
-          : (old === 'pending' ? 'Recalled - Booking Released' : 'Recalled - Stock Returned'),
-        comment: meta.comment || '',
-      });
     }
   }
 
@@ -235,16 +250,27 @@ export function demoUpdateTicketStatus(
 
 
 
+  const nowIso = new Date().toISOString();
   t.status = status;
   t.returnedProcessed = status === 'returned';
-  t.lastActionAt = new Date().toISOString();
+  t.lastActionAt = nowIso;
   t.lastActionBy = actor;
   t.lastActionStatus = status;
   t.lastActionComment = meta.comment || '';
-  if (status === 'reviewed') t.whComment = meta.comment || t.whComment;
-  if (status === 'lm_approved') t.lmComment = meta.comment || t.lmComment;
-  if (status === 'finalized') t.directorComment = meta.comment || t.directorComment;
+  // Per-level comments + WHEN that level commented (shown in My Ticket)
+  if (status === 'reviewed') {
+    t.whComment = meta.comment || t.whComment;
+    if (meta.comment) t.whCommentAt = nowIso;
+  }
+  if (status === 'lm_approved') {
+    t.lmComment = meta.comment || t.lmComment;
+    if (meta.comment) t.lmCommentAt = nowIso;
+  }
+  if (status === 'finalized') {
+    t.directorComment = meta.comment || t.directorComment;
+    if (meta.comment && callerRole === 'director') t.directorCommentAt = nowIso;
+  }
   if (meta.actualDeliveryDate) t.actualDeliveryDate = meta.actualDeliveryDate;
   if (status === 'returned') t.actualReturnDate = todayStr();
-  demoDB.actions.unshift({ ticketId: t.id, action: status, status, actionAt: new Date().toISOString(), actionBy: actor, role: meta.actorRole, comment: meta.comment || '' });
+  demoDB.actions.unshift({ ticketId: t.id, action: status, status, actionAt: nowIso, actionBy: actor, role: meta.actorRole, comment: meta.comment || '' });
 }

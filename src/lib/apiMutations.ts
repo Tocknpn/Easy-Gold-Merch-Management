@@ -26,11 +26,26 @@ export async function apiAddSku(sku: Partial<SKU>): Promise<string> {
   return (data as any).id;
 }
 
-export async function apiUpdateSku(id: string, updates: Partial<SKU>): Promise<void> {
-  if (!isLive()) return demoData.demoUpdateSku(id, updates);
+/**
+ * Result of a SKU update. `openingDelta` is the baseline delta the database
+ * engine applied; it comes back `null` when the connected database is still
+ * running the pre-0013 `manage_sku` (no baseline handling) so the UI can tell
+ * the user to apply migration 0013 instead of silently saving an
+ * unreconciled opening balance.
+ */
+export interface SkuUpdateResult { openingDelta: number | null }
+
+const openingDeltaOf = (d: any): number | null => {
+  const v = (d as any)?.opening_delta;
+  return v === undefined || v === null ? null : Number(v);
+};
+
+export async function apiUpdateSku(id: string, updates: Partial<SKU>): Promise<SkuUpdateResult> {
+  if (!isLive()) return { openingDelta: demoData.demoUpdateSku(id, updates) };
   const { data, error } = await supabase!.rpc('manage_sku', { p_action: 'update', p_sku: { id, ...row(updates) } });
   if (error) throw new Error(error.message);
   ok(data);
+  return { openingDelta: openingDeltaOf(data) };
 }
 
 export async function apiDeleteSku(id: string): Promise<void> {
@@ -58,11 +73,12 @@ export async function apiCsAddSku(sku: Partial<CS_SKU>): Promise<string> {
   return (data as any).id;
 }
 
-export async function apiCsUpdateSku(id: string, updates: Partial<CS_SKU>): Promise<void> {
-  if (!isLive()) return demoData.demoCsUpdateSku(id, updates);
+export async function apiCsUpdateSku(id: string, updates: Partial<CS_SKU>): Promise<SkuUpdateResult> {
+  if (!isLive()) return { openingDelta: demoData.demoCsUpdateSku(id, updates) };
   const { data, error } = await supabase!.rpc('manage_cs_sku', { p_action: 'update', p_sku: { id, ...row(updates) } });
   if (error) throw new Error(error.message);
   ok(data);
+  return { openingDelta: openingDeltaOf(data) };
 }
 
 export async function apiCsDeleteSku(id: string): Promise<void> {

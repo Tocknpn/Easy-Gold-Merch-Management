@@ -711,7 +711,7 @@ const emptyForm = (wh: Wh): SkuForm => ({
 
 function SkuTab() {
   const { user } = useAuth();
-  const { skus, csSkus, categories, addSku, updateSku, deleteSku, csAddSku, csUpdateSku, csDeleteSku, restockSku, csRestockSku, mktDestockSku, csDestockSku, uploadSkuImage, deleteSkuImage, setSkuImage } = useData();
+  const { skus, csSkus, categories, addSku, updateSku, deleteSku, csAddSku, csUpdateSku, csDeleteSku, uploadSkuImage, deleteSkuImage, setSkuImage, addRemark } = useData();
   const isCsLocked = user?.role === 'customer_service';
   const [wh, setWh] = useState<Wh>(isCsLocked ? 'cs' : 'mkt');
   const [q, setQ] = useState('');
@@ -802,47 +802,58 @@ function SkuTab() {
         newImageUrl = await uploadSkuImage(form.photoFile);
       }
       const by = user?.fullName || 'system';
-      const targetStock = Number(form.currentStock) || 0;
-      const original = form.isNew
-        ? undefined
-        : list.find((s) => s.id === form.id);
-      const diff = original ? targetStock - original.currentStock : 0;
-      // For edits we do NOT send currentStock to updateSku — the balance delta is
-      // applied exactly once through restock/destock so the movement is audited.
+      const original = form.isNew ? undefined : list.find((s) => s.id === form.id);
+      const openNext = Math.max(0, Number(form.openingBalance) || 0);
+      const openDelta = original ? openNext - (original.openingBalance || 0) : 0;
+      const nameChanged = !!original && original.name !== form.name.trim();
       const finalImageUrl = form.photoFile ? newImageUrl : (form.imageUrl ?? null);
       const imageChanged = !form.isNew && finalImageUrl !== prevUrl;
       const payload: Record<string, any> = {
         name: form.name.trim(), category: form.category.trim() || 'General', unit: form.unit.trim() || 'pcs',
-        openingBalance: Number(form.openingBalance) || 0,
         lowStockThreshold: Number(form.lowStockThreshold) || 0,
         costPerUnit: Number(form.costPerUnit) || 0,
         status: form.status,
       };
       if (form.isNew) {
-        payload.currentStock = targetStock || undefined;
+        payload.openingBalance = openNext;
+        payload.currentStock = Number(form.currentStock) || openNext || undefined;
         payload.imageUrl = finalImageUrl; // new SKU → store the photo URL (or null)
         if (form.wh === 'mkt') await addSku(payload);
         else await csAddSku(payload);
         toast(`SKU “${payload.name}” created (${form.wh === 'mkt' ? 'MKT' : 'CS'} warehouse)`);
       } else {
+        // Opening balance — ALWAYS editable, and a plain EDIT: the engine moves
+        // opening_balance / current_stock / total_inflow by the same delta and
+        // keeps the OPENING ledger row in sync, so nothing is ever recorded as
+        // a Stock In / Stock Out movement. Only send it when it changed.
+        if (openDelta !== 0) payload.openingBalance = openNext;
         // manage_sku keeps the old image on null (coalesce), so only send the
         // URL when we actually set/replace one; clearing goes via setSkuImage.
         if (imageChanged && finalImageUrl !== null) payload.imageUrl = finalImageUrl;
-        if (form.wh === 'mkt') await updateSku(form.id!, payload);
-        else await csUpdateSku(form.id!, payload);
+        const res = form.wh === 'mkt' ? await updateSku(form.id!, payload) : await csUpdateSku(form.id!, payload);
         if (imageChanged && finalImageUrl === null) await setSkuImage(form.id!, null, form.wh);
-        if (diff !== 0) {
-          // AUDIT: balance changed in SKU Setup → log a real stock movement
-          const note = `Balance corrected via SKU Setup (${original!.currentStock} → ${targetStock})`;
-          if (diff > 0) {
-            if (form.wh === 'mkt') await restockSku(form.id!, diff, by, note);
-            else await csRestockSku(form.id!, diff, by, note);
-          } else {
-            if (form.wh === 'mkt') await mktDestockSku(form.id!, -diff, by, note);
-            else await csDestockSku(form.id!, -diff, by, note);
-          }
+        // Audit trail for a rename / baseline change (sku_remarks log)
+        if (nameChanged || openDelta !== 0) {
+          const notes: string[] = [];
+          if (nameChanged) notes.push(`Renamed “${original!.name}” → “${payload.name}”`);
+          if (openDelta !== 0) notes.push(`Opening balance ${original!.openingBalance} → ${openNext} (baseline edit)`);
+          try { await addRemark(form.id!, notes.join(' · '), by, user?.role || ''); } catch { /* non-fatal */ }
         }
-        toast(`SKU “${payload.name}” updated${diff !== 0 ? ` (balance ${diff > 0 ? '+' : ''}${diff} logged in movements)` : ''}`);
+        // The 0013 engine reports the baseline delta it applied. A `null` result
+        // means the database is still running the old manage_sku/manage_cs_sku —
+        // the opening balance was stored without moving stock, so say so loudly.
+        if (openDelta !== 0 && res?.openingDelta === null) {
+          toast(
+            `“${payload.name}” saved, but the database is still running the older SKU engine — ` +
+            'run supabase/migrations/0013_sku_edit_restock_reporting.sql so the opening-balance change updates stock and reports.',
+            'error',
+          );
+        } else {
+          toast(
+            `SKU “${payload.name}” updated` +
+            (openDelta !== 0 ? ` — opening balance ${openDelta > 0 ? '+' : ''}${openDelta} (no stock movement)` : ''),
+          );
+        }
       }
       // 2) Clean up the previously stored photo once the new one is saved.
       if (imageChanged && prevUrl && prevUrl !== finalImageUrl) {
@@ -885,6 +896,14 @@ function SkuTab() {
       setBusy(false);
     }
   };
+
+  // Edit-mode preview: the opening balance is a baseline EDIT, so the current
+  // stock follows it by the same delta — no Stock In / Stock Out row is written.
+  const editOriginal = form && !form.isNew ? list.find((s) => s.id === form.id) : undefined;
+  const editOpenDelta = editOriginal
+    ? Math.max(0, Number(form?.openingBalance) || 0) - (editOriginal.openingBalance || 0)
+    : 0;
+  const editStockNext = editOriginal ? Math.max(0, editOriginal.currentStock + editOpenDelta) : 0;
 
   return (
     <div className="space-y-4">
@@ -997,15 +1016,26 @@ function SkuTab() {
               <label className="label">Unit</label>
               <input className="input" value={form.unit} onChange={(e) => setForm({ ...form, unit: e.target.value })} placeholder="pcs / box…" />
             </div>
+            <div>
+              <label className="label">Opening balance</label>
+              <input className="input" type="number" min={0} value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} />
+            </div>
             {form.isNew ? (
-              <div>
-                <label className="label">Opening balance</label>
-                <input className="input" type="number" min={0} value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} />
-              </div>
-            ) : (
               <div>
                 <label className="label">Current stock</label>
                 <input className="input" type="number" min={0} value={form.currentStock} onChange={(e) => setForm({ ...form, currentStock: e.target.value })} />
+              </div>
+            ) : (
+              <div>
+                <label className="label">Current stock (auto)</label>
+                <div className="input flex items-center justify-between bg-slate-50 text-slate-500">
+                  <span className="tabular-nums">{fmt(editOriginal?.currentStock ?? 0)} {form.unit || 'pcs'}</span>
+                  {editOpenDelta !== 0 && (
+                    <b className="tabular-nums text-brand-700">
+                      → {fmt(editStockNext)} ({editOpenDelta > 0 ? '+' : ''}{fmt(editOpenDelta)})
+                    </b>
+                  )}
+                </div>
               </div>
             )}
             <div>
@@ -1024,6 +1054,14 @@ function SkuTab() {
               </select>
             </div>
           </div>
+          {!form.isNew && (
+            <p className="mt-3 rounded-xl bg-brand-50/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-brand-100">
+              <b className="text-brand-700">Opening balance</b> is the report baseline: editing it corrects
+              Opening / Current / Total value and Usage % without creating a Stock In / Stock Out movement.
+              Record real refills and issues from <b>Manage Stock → Stock In / Out</b> (or{' '}
+              <b>Adjust Balance</b> for a physical count). Renaming an item updates every ticket and ledger row.
+            </p>
+          )}
           <div className="mt-4 flex justify-end gap-2">
             <button className="btn btn-outline btn-sm" onClick={() => setForm(null)}>Cancel</button>
             <button className="btn btn-primary btn-sm" disabled={busy} onClick={save}>

@@ -65,7 +65,7 @@ const afterReview2 = demoDB.skus.find((s) => s.id === sku.id)!.currentStock;
 demoUpdateTicketStatus(t2, 'rejected', { actorName: 'WH', actorRole: 'warehouse', comment: 'nope' });
 const afterReject = demoDB.skus.find((s) => s.id === sku.id)!.currentStock;
 check('reject returns the 5', afterReject === afterReview2 + 5);
-check('reject tx status', demoDB.transactions.some((tx) => tx.ticketId === t2 && tx.type === 'addition' && /Rejected/i.test(tx.status || '')));
+check('reject tx status', demoDB.transactions.some((tx) => tx.ticketId === t2 && tx.status === 'Booking Cancelled') && !demoDB.transactions.some((tx) => tx.ticketId === t2 && tx.type === 'addition'));
 
 console.log('-- CS transfer auto-restock --');
 // pick an MKT-only SKU with available stock so we test auto-creation in CS
@@ -135,6 +135,7 @@ demoUpdateTicketStatus(tb2, 'reviewed', { actorName: 'WH', actorRole: 'warehouse
 check('review true-up releases only 4', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore - 8);
 demoUpdateTicketStatus(tb2, 'rejected', { actorName: 'WH', actorRole: 'warehouse', comment: 'cancel' });
 check('reject after review returns the 8', demoDB.skus.find((s) => s.id === bSku.id)!.currentStock === bBefore);
+check('reject cancels the booking instead of writing a stock-in', demoDB.transactions.some((tx) => tx.ticketId === tb2 && tx.status === 'Booking Cancelled') && !demoDB.transactions.some((tx) => tx.ticketId === tb2 && tx.type === 'addition'));
 
 console.log('-- SKU + CS operations --');
 const newSkuId = demoAddSku({ name: 'Smoke Item', category: 'Merch', unit: 'pcs', openingBalance: 10, costPerUnit: 100 });

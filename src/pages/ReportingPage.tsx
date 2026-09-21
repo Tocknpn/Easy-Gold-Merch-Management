@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
-import { getStockMovement } from '@/lib/stockMovement';
+import { getStockMovement, reportableTransactions } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
@@ -74,13 +74,19 @@ export function ReportingPage() {
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
 
-const merged = useMemo(() => {
-    if (wh === 'mkt') return { list: skus as (SKU | CS_SKU)[], tx: transactions as StockTransaction[], label: 'MKT Warehouse' };
-    if (wh === 'cs') return { list: csSkus, tx: csTransactions as StockTransaction[], label: 'CS Warehouse' };
+  const merged = useMemo(() => {
+    // Reportable ledger: cancelled bookings and everything belonging to a
+    // rejected / recalled ticket are excluded (they netted out to zero).
+    if (wh === 'mkt') return { list: skus as (SKU | CS_SKU)[], tx: reportableTransactions(transactions as StockTransaction[], tickets), label: 'MKT Warehouse' };
+    if (wh === 'cs') return { list: csSkus, tx: reportableTransactions(csTransactions as StockTransaction[], tickets), label: 'CS Warehouse' };
     const map = new Map<string, SKU | CS_SKU>();
     for (const s of [...skus, ...csSkus]) if (!map.has(s.id)) map.set(s.id, s);
-    return { list: [...map.values()], tx: [...transactions, ...csTransactions] as StockTransaction[], label: 'MKT and CS' };
-  }, [wh, skus, csSkus, transactions, csTransactions]);
+    return {
+      list: [...map.values()],
+      tx: reportableTransactions([...transactions, ...csTransactions] as StockTransaction[], tickets),
+      label: 'MKT and CS',
+    };
+  }, [wh, skus, csSkus, transactions, csTransactions, tickets]);
 
   const cpuOf = (id?: string | null, name?: string | null) =>
     merged.list.find((s) => s.id === id || (name && s.name === name))?.costPerUnit || 0;

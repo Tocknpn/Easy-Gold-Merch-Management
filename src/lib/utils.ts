@@ -33,6 +33,20 @@ export function lastActionWhen(t?: string | null): string {
   }
 }
 
+/** Full date + time label — used for approval comments ("who commented when"). */
+export function whenDateTime(t?: string | null): string {
+  if (!t) return '—';
+  try {
+    const d = new Date(t);
+    if (Number.isNaN(d.getTime())) return t;
+    return d.toLocaleString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric', hour: '2-digit', minute: '2-digit',
+    });
+  } catch {
+    return t;
+  }
+}
+
 export function monthKey(d: Date): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
 }

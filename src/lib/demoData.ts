@@ -1,8 +1,47 @@
 // ── In-memory demo engine: SKU / config mutations ────────────────────────
 import { demoDB, nextId } from './demoStore';
-import type { SKU, CS_SKU, AppUser, NewUserInput } from './types';
+import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
+
+// ── rename cascade (mirrors manage_sku/manage_cs_sku in the SQL engine) ───
+// A renamed SKU keeps ONE name everywhere: ticket items, both ledgers and
+// the sibling warehouse catalogue all follow the new name.
+function cascadeSkuName(skuId: string, newName: string): void {
+  for (const tid of Object.keys(demoDB.items))
+    for (const it of demoDB.items[tid]) if (it.skuId === skuId) it.skuName = newName;
+  for (const tx of demoDB.transactions) if (tx.skuId === skuId) tx.skuName = newName;
+  for (const tx of demoDB.csTransactions) if (tx.skuId === skuId) tx.skuName = newName;
+  const cs = demoDB.csSkus.find((s) => s.id === skuId);
+  if (cs) cs.name = newName;
+}
+
+// ── opening-balance baseline edit (never a Stock In / Stock Out row) ─────
+// The opening balance is the report baseline: it lives in the SKU record and
+// in the OPENING ledger row (excluded from Stock In by the reports). Editing
+// it moves current_stock / total_inflow by the same delta and keeps the
+// OPENING row in sync — no addition/deduction row is ever written.
+function syncOpeningTx(
+  ledger: StockTransaction[], skuId: string, name: string, opening: number, actionBy?: string,
+): void {
+  const i = ledger.findIndex((t) => t.ticketId === 'OPENING' && t.skuId === skuId);
+  if (opening <= 0) {
+    if (i >= 0) ledger.splice(i, 1);
+    return;
+  }
+  if (i >= 0) {
+    ledger[i] = {
+      ...ledger[i], qty: opening, skuName: name, type: 'addition', status: 'Opening',
+      comment: 'Opening balance (updated via SKU Setup)',
+    };
+    return;
+  }
+  ledger.unshift({
+    ticketId: 'OPENING', skuId, skuName: name, qty: opening, type: 'addition', date: todayStr(),
+    actionAt: new Date().toISOString(), actionBy: actionBy || '', status: 'Opening',
+    comment: 'Opening balance (updated via SKU Setup)',
+  });
+}
 
 export function demoAddSku(sku: Partial<SKU>): string {
   const id = sku.id || nextId('sku-');
@@ -19,10 +58,28 @@ export function demoAddSku(sku: Partial<SKU>): string {
   return id;
 }
 
-export function demoUpdateSku(id: string, updates: Partial<SKU>): void {
+export function demoUpdateSku(id: string, updates: Partial<SKU>): number {
   const s = demoDB.skus.find((x) => x.id === id);
   if (!s) throw new Error('SKU not found');
-  Object.assign(s, updates);
+  const oldName = s.name;
+  const patch: Partial<SKU> = { ...updates };
+  let delta = 0;
+
+  // Opening balance = baseline edit (plain EDIT, never Stock In / Stock Out)
+  if (patch.openingBalance !== undefined) {
+    const next = Math.max(0, castNumber(patch.openingBalance));
+    delta = next - castNumber(s.openingBalance);
+    if (delta !== 0) {
+      s.currentStock = Math.max(0, s.currentStock + delta);
+      s.totalInflow = Math.max(0, s.totalInflow + delta);
+    }
+    patch.openingBalance = next;
+    syncOpeningTx(demoDB.transactions, id, patch.name || s.name, next);
+  }
+
+  Object.assign(s, patch);
+  if (patch.name && patch.name !== oldName) cascadeSkuName(id, patch.name);
+  return delta;
 }
 
 export function demoDeleteSku(id: string): void {
@@ -53,10 +110,37 @@ export function demoCsAddSku(sku: Partial<CS_SKU>): string {
   return id;
 }
 
-export function demoCsUpdateSku(id: string, updates: Partial<CS_SKU>): void {
+export function demoCsUpdateSku(id: string, updates: Partial<CS_SKU>): number {
   const s = demoDB.csSkus.find((x) => x.id === id);
   if (!s) throw new Error('CS SKU not found');
-  Object.assign(s, updates);
+  const oldName = s.name;
+  const patch: Partial<CS_SKU> = { ...updates };
+  let delta = 0;
+
+  // Opening balance = baseline edit (plain EDIT, never Stock In / Stock Out)
+  if (patch.openingBalance !== undefined) {
+    const next = Math.max(0, castNumber(patch.openingBalance));
+    delta = next - castNumber(s.openingBalance);
+    if (delta !== 0) {
+      s.currentStock = Math.max(0, s.currentStock + delta);
+      s.totalInflow = Math.max(0, s.totalInflow + delta);
+    }
+    patch.openingBalance = next;
+    syncOpeningTx(demoDB.csTransactions, id, patch.name || s.name, next);
+  }
+
+  Object.assign(s, patch);
+
+  // Rename cascade: CS ledger first, then the MKT side when the id is shared
+  if (patch.name && patch.name !== oldName) {
+    for (const tx of demoDB.csTransactions) if (tx.skuId === id) tx.skuName = patch.name;
+    const mkt = demoDB.skus.find((x) => x.id === id);
+    if (mkt) {
+      mkt.name = patch.name;
+      cascadeSkuName(id, patch.name);
+    }
+  }
+  return delta;
 }
 
 export function demoCsDeleteSku(id: string): void {

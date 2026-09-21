@@ -11,17 +11,19 @@ import { Modal, Spinner, ErrorBanner, EmptyState, Pagination, toast } from '@/co
 import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { TicketDetail } from '@/components/TicketDetail';
 import { fmt, money, cn } from '@/lib/utils';
+import { isCancelledStatus } from '@/lib/stockMovement';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
 
 type Scope = 'mine' | 'all' | 'moves';
 
 const STATUS_CHIPS = ['all', 'pending', 'reviewed', 'lm_approved', 'finalized', 'to-return', 'returned', 'rejected', 'recalled'] as const;
 
-const CAT_ORDER = ['issue', 'returned', 'in', 'out', 'loss', 'transfer', 'opening'] as const;
+const CAT_ORDER = ['issue', 'returned', 'in', 'out', 'loss', 'transfer', 'opening', 'cancelled'] as const;
 type CatKey = (typeof CAT_ORDER)[number];
 const CAT_LABEL: Record<CatKey, string> = {
   issue: 'Ticket issue', returned: 'Ticket return', in: 'Stock in', out: 'Stock out',
   loss: 'Loss / Broken', transfer: 'Transfer', opening: 'Opening',
+  cancelled: 'Cancelled / Rejected',
 };
 const CAT_STYLE: Record<CatKey, string> = {
   issue: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
@@ -31,6 +33,7 @@ const CAT_STYLE: Record<CatKey, string> = {
   loss: 'bg-rose-50 text-rose-700 ring-rose-600/20',
   transfer: 'bg-amber-50 text-amber-700 ring-amber-600/20',
   opening: 'bg-violet-50 text-violet-700 ring-violet-600/20',
+  cancelled: 'bg-slate-200 text-slate-500 ring-slate-400/20',
 };
 
 /* ── Compact-row visuals: leading type/status icon tile + initials avatar ── */
@@ -65,10 +68,14 @@ function Initial({ name, size = 'md' }: { name?: string | null; size?: 'sm' | 'm
   );
 }
 
-function catOf(tx: StockTransaction): CatKey {
+function catOf(tx: StockTransaction, deadTickets?: Set<string>): CatKey {
   const ref = tx.ticketId || '';
   const st = (tx.status || '').toLowerCase();
   const comment = (tx.comment || '').toLowerCase();
+  // Cancelled bookings (reject / recall / nothing approved) and legacy
+  // reversal rows of rejected/recalled tickets are audit-only — they must
+  // never be read as a real Stock In / Stock Out.
+  if (isCancelledStatus(tx.status) || (ref && deadTickets?.has(ref))) return 'cancelled';
   if (st === 'opening') return 'opening';
   if (ref.startsWith('TKT-')) return tx.type === 'deduction' ? 'issue' : 'returned';
   if (st.includes('loss') || st.includes('broken')) return 'loss';
@@ -187,7 +194,7 @@ export function TicketTrackingPage() {
 
 function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
   const { user } = useAuth();
-  const { tickets, skus, updateTicketStatus } = useData();
+  const { tickets, skus, updateTicketStatus, actions } = useData();
   const [open, setOpen] = useState<TicketWithItems | null>(null);
   const [status, setStatus] = useState<string>('all');
   const [type, setType] = useState('all');
@@ -414,7 +421,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
 
 {open && (
         <Modal open onClose={() => setOpen(null)} title={`${open.id} · ${open.type.toUpperCase()}`} wide>
-          <TicketDetail ticket={open} skus={skus} />
+          <TicketDetail ticket={open} skus={skus} actions={actions} />
           {isPendingReturn(open) && (
             <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
               <Undo2 className="mr-1.5 inline h-4 w-4" />
@@ -487,7 +494,7 @@ interface MoveRow {
 }
 
 function MovementsTab() {
-  const { transactions, csTransactions, skus, csSkus } = useData();
+  const { transactions, csTransactions, skus, csSkus, tickets } = useData();
   const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>('all');
   const [cat, setCat] = useState<'all' | CatKey>('all');
   const [from, setFrom] = useState('');
@@ -503,8 +510,12 @@ function MovementsTab() {
     const costByName = new Map<string, number>();
     [...skus, ...csSkus].forEach((s) => costByName.set((s.name || '').toLowerCase(), s.costPerUnit || 0));
 
+    const deadTickets = new Set(
+      tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id),
+    );
+
     const mk = (tx: StockTransaction, w: 'MKT' | 'CS'): MoveRow => ({
-      tx, wh: w, cat: catOf(tx),
+      tx, wh: w, cat: catOf(tx, deadTickets),
       at: tx.actionAt || (tx.date ? `${tx.date}T00:00:00` : ''),
       cost: costById.get(tx.skuId || '') ?? costByName.get((tx.skuName || '').toLowerCase()) ?? 0,
     });
@@ -524,12 +535,12 @@ function MovementsTab() {
           (r.tx.comment || '').toLowerCase().includes(term),
       );
     return out.sort((a, b) => b.at.localeCompare(a.at));
-  }, [transactions, csTransactions, skus, csSkus, wh, cat, from, to, q]);
+  }, [transactions, csTransactions, skus, csSkus, tickets, wh, cat, from, to, q]);
 
   const sums = useMemo(
     () => ({
-      in: rows.filter((r) => r.tx.type === 'addition' && r.cat !== 'returned' && r.cat !== 'transfer').reduce((a, r) => a + (r.tx.qty || 0), 0),
-      out: rows.filter((r) => r.tx.type === 'deduction' && r.cat !== 'loss').reduce((a, r) => a + (r.tx.qty || 0), 0),
+      in: rows.filter((r) => r.tx.type === 'addition' && !['returned', 'transfer', 'cancelled'].includes(r.cat)).reduce((a, r) => a + (r.tx.qty || 0), 0),
+      out: rows.filter((r) => r.tx.type === 'deduction' && !['loss', 'cancelled'].includes(r.cat)).reduce((a, r) => a + (r.tx.qty || 0), 0),
       loss: rows.filter((r) => r.cat === 'loss').reduce((a, r) => a + (r.tx.qty || 0), 0),
       transfer: rows.filter((r) => r.cat === 'transfer').reduce((a, r) => a + (r.tx.qty || 0), 0),
     }),

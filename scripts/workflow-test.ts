@@ -8,11 +8,11 @@ import { demoDB, demoLogin, demoTicketsWithItems } from '../src/lib/demoStore';
 import { demoCreateTicket, demoUpdateTicketStatus } from '../src/lib/demoMutations';
 import {
   demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku,
-  demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt,
+  demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
 } from '../src/lib/demoData';
 import {
   getStockMovement, getMonthRows, actionableTicketCount,
-  activeBorrows, overdueBorrows,
+  activeBorrows, overdueBorrows, reportableTransactions,
 } from '../src/lib/stockMovement';
 import { todayStr } from '../src/lib/utils';
 
@@ -139,7 +139,7 @@ check('director cannot recall (only WH/admin/creator)', throws(() => demoUpdateT
 demoUpdateTicketStatus(tR, 'finalized', { actorName: dir.fullName, actorRole: dir.role });
 check('director CAN finalize', demoTicketsWithItems().find((t) => t.id === tR)!.status === 'finalized');
 
-console.log('\n── 3) Reject at each stage returns booked stock');
+console.log('\n── 3) Reject at each stage releases the booking (no phantom stock-in)');
 const sku3 = addSku({ name: 'WF Reject', category: 'MKT', unit: 'pcs', openingBalance: 60 });
 const t3a = demoCreateTicket({
   createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
@@ -148,7 +148,13 @@ const t3a = demoCreateTicket({
 const b3a = skuStock(sku3);
 demoUpdateTicketStatus(t3a, 'rejected', { actorRole: 'warehouse', comment: 'no' });
 check('reject(pending) releases booking +5', skuStock(sku3) === b3a + 5);
-check('reject tx status Booking Released', demoDB.transactions.some((tx) => tx.ticketId === t3a && tx.type === 'addition' && tx.status === 'Rejected - Booking Released'));
+check('reject cancels the booking row', demoDB.transactions.some((tx) => tx.ticketId === t3a && tx.type === 'deduction' && tx.status === 'Booking Cancelled'));
+check('reject writes NO reversal stock-in row', !demoDB.transactions.some((tx) => tx.ticketId === t3a && tx.type === 'addition'));
+check('rejected ticket reports zero stock in/out', (() => {
+  const dead = demoTicketsWithItems();
+  const tx = reportableTransactions(demoDB.transactions, dead).filter((x) => x.ticketId === t3a);
+  return tx.length === 0;
+})());
 const t3b = demoCreateTicket({
   createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
   items: [{ skuId: sku3, skuName: 'WF Reject', qtyRequested: 10, unit: 'pcs' }],
@@ -157,7 +163,8 @@ demoUpdateTicketStatus(t3b, 'reviewed', { actorRole: 'warehouse', items: [{ skuI
 const b3b = skuStock(sku3);
 demoUpdateTicketStatus(t3b, 'rejected', { actorRole: 'line_manager', comment: 'LM override' });
 check('reject(reviewed) returns approved 6', skuStock(sku3) === b3b + 6);
-check('reject tx status Stock Returned', demoDB.transactions.some((tx) => tx.ticketId === t3b && tx.type === 'addition' && tx.status === 'Rejected - Stock Returned'));
+check('reject(reviewed) cancels the confirmed booking', demoDB.transactions.some((tx) => tx.ticketId === t3b && tx.status === 'Booking Cancelled'));
+check('reject(reviewed) writes NO reversal stock-in row', !demoDB.transactions.some((tx) => tx.ticketId === t3b && tx.type === 'addition'));
 const t3c = demoCreateTicket({
   createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
   items: [{ skuId: sku3, skuName: 'WF Reject', qtyRequested: 7, unit: 'pcs' }],
@@ -178,7 +185,8 @@ demoUpdateTicketStatus(t4wh, 'reviewed', { actorRole: 'warehouse', items: [{ sku
 const b4 = skuStock(sku4);
 demoUpdateTicketStatus(t4wh, 'recalled', { actorRole: 'warehouse', comment: 'reorder needed' });
 check('warehouse recall(reviewed) returns stock', skuStock(sku4) === b4 + 6);
-check('recall tx status Recalled - Stock Returned', demoDB.transactions.some((tx) => tx.ticketId === t4wh && tx.type === 'addition' && tx.status === 'Recalled - Stock Returned'));
+check('recall cancels the booking row', demoDB.transactions.some((tx) => tx.ticketId === t4wh && tx.status === 'Booking Cancelled'));
+check('recall writes NO reversal stock-in row', !demoDB.transactions.some((tx) => tx.ticketId === t4wh && tx.type === 'addition'));
 check('ticket now recalled', demoTicketsWithItems().find((t) => t.id === t4wh)!.status === 'recalled');
 check('recalled ticket leaves every approval queue', !acQueue('warehouse').some((t) => t.id === t4wh) && !acQueue('line_manager').some((t) => t.id === t4wh) && !acQueue('director').some((t) => t.id === t4wh) && !acQueue('admin').some((t) => t.id === t4wh));
 const t4cr = demoCreateTicket({
@@ -190,6 +198,7 @@ demoUpdateTicketStatus(t4cr, 'lm_approved', { actorRole: 'line_manager' });
 const b4c = skuStock(sku4);
 demoUpdateTicketStatus(t4cr, 'recalled', { actorName: staff.fullName, actorRole: 'staff', comment: 'wrong qty' });
 check('creator recall(lm_approved) returns stock', skuStock(sku4) === b4c + 3);
+check('recall comment is timestamped for My Ticket', !!demoTicketsWithItems().find((t) => t.id === t4wh)!.lastActionAt);
 
 console.log('\n── 5) Borrow lifecycle: booking → finalize → active/overdue → return');
 const sku5 = addSku({ name: 'WF Borrow', category: 'MKT', unit: 'pcs', openingBalance: 80 });
@@ -300,6 +309,61 @@ check('over-approval capped to requested (approved 12 → 5, NO extra deduction)
 check('qty_approved recorded = 5 (not 12)', demoDB.items[tA].find((i) => i.skuId === skuA)!.qtyApproved === 5);
 demoUpdateTicketStatus(tA, 'rejected', { actorName: wh.fullName, actorRole: wh.role, comment: 'x' });
 check('reject after capped review returns the 5 → back to opening 30', skuStock(skuA) === bA + 5);
+
+console.log('\n── 11) SKU Setup edit: opening balance is a plain edit (no stock in/out)');
+const skuE = addSku({ name: 'WF Opening Edit', category: 'MKT', unit: 'pcs', openingBalance: 50, costPerUnit: 10 });
+const eOpenBefore = demoDB.skus.find((s) => s.id === skuE)!.openingBalance;
+const eStockBefore = skuStock(skuE);
+const eInflowBefore = demoDB.skus.find((s) => s.id === skuE)!.totalInflow;
+const eTxBefore = demoDB.transactions.length;
+// raise the opening balance 50 → 70
+demoUpdateSku(skuE, { openingBalance: 70 });
+const skuEAfter = demoDB.skus.find((s) => s.id === skuE)!;
+check('opening edit: opening_balance updated', skuEAfter.openingBalance === eOpenBefore + 20);
+check('opening edit: current stock follows by the same delta', skuStock(skuE) === eStockBefore + 20);
+check('opening edit: total inflow follows by the same delta', skuEAfter.totalInflow === eInflowBefore + 20);
+check('opening edit: NO stock movement row written', demoDB.transactions.length === eTxBefore);
+const eMv = getStockMovement(skuEAfter, demoDB.transactions);
+check('opening edit: report stock in/out stay 0', eMv.stockIn === 0 && eMv.stockOut === 0);
+check('opening edit: report opening/current follow the baseline', eMv.opening === skuEAfter.openingBalance + 20 - 20 && eMv.closing === skuEAfter.currentStock);
+const eOpeningTx = demoDB.transactions.find((t) => t.ticketId === 'OPENING' && t.skuId === skuE);
+check('opening edit: OPENING ledger row kept in sync', !!eOpeningTx && eOpeningTx.qty === 70);
+// lower it again 70 → 55 (still treated as a plain edit)
+demoUpdateSku(skuE, { openingBalance: 55 });
+check('opening edit down: current stock −15', skuStock(skuE) === eStockBefore + 20 - 15);
+check('opening edit down: still no movement row', demoDB.transactions.length === eTxBefore);
+// zero removes the OPENING baseline row (and it never counts as stock out)
+demoUpdateSku(skuE, { openingBalance: 0 });
+check('opening 0 removes the OPENING row', !demoDB.transactions.some((t) => t.ticketId === 'OPENING' && t.skuId === skuE));
+
+console.log('\n── 12) Rename cascades to tickets + both ledgers');
+const skuN = addSku({ name: 'WF Old Name', category: 'MKT', unit: 'pcs', openingBalance: 20 });
+const tN = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: skuN, skuName: 'WF Old Name', qtyRequested: 3, unit: 'pcs' }],
+});
+demoUpdateTicketStatus(tN, 'reviewed', { actorRole: 'warehouse' });
+demoUpdateSku(skuN, { name: 'WF New Name' });
+check('rename: sku row renamed', demoDB.skus.find((s) => s.id === skuN)!.name === 'WF New Name');
+check('rename: ticket item renamed', (demoDB.items[tN] || []).every((i) => i.skuName === 'WF New Name'));
+check('rename: ledger rows renamed', demoDB.transactions.filter((tx) => tx.skuId === skuN).every((tx) => tx.skuName === 'WF New Name'));
+check('rename: cs ledger rows renamed', demoDB.csTransactions.filter((tx) => tx.skuId === skuN).every((tx) => tx.skuName === 'WF New Name'));
+
+console.log('\n── 13) Approval comments carry a timestamp (My Ticket view)');
+const skuC = addSku({ name: 'WF Comment Time', category: 'MKT', unit: 'pcs', openingBalance: 12 });
+const tC = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: skuC, skuName: 'WF Comment Time', qtyRequested: 2, unit: 'pcs' }],
+});
+demoUpdateTicketStatus(tC, 'reviewed', { actorName: wh.fullName, actorRole: wh.role, comment: 'booked — 2 pcs' });
+demoUpdateTicketStatus(tC, 'lm_approved', { actorName: lm.fullName, actorRole: lm.role, comment: 'ok from LM' });
+demoUpdateTicketStatus(tC, 'finalized', { actorName: dir.fullName, actorRole: dir.role, comment: 'final go' });
+const tCDone = demoTicketsWithItems().find((t) => t.id === tC)!;
+check('comment(stamp): warehouse comment + time', tCDone.whComment === 'booked — 2 pcs' && !!tCDone.whCommentAt);
+check('comment(stamp): line manager comment + time', tCDone.lmComment === 'ok from LM' && !!tCDone.lmCommentAt);
+check('comment(stamp): director comment + time', tCDone.directorComment === 'final go' && !!tCDone.directorCommentAt);
+check('comment(stamp): timestamps are ordered WH ≤ LM ≤ Director',
+  String(tCDone.whCommentAt) <= String(tCDone.lmCommentAt) && String(tCDone.lmCommentAt) <= String(tCDone.directorCommentAt));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

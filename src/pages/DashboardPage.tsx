@@ -5,7 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import { StatCard, Spinner, ErrorBanner, EmptyState, Segmented } from '@/components/ui/primitives';
 import { OutBadge, LowBadge, CsOnlyBadge, MktOnlyBadge } from '@/components/StatusBadge';
 import { fmt, money, safeImageUrl } from '@/lib/utils';
-import { getStockMovement, activeBorrows, overdueBorrows } from '@/lib/stockMovement';
+import { getStockMovement, activeBorrows, overdueBorrows, reportableTransactions } from '@/lib/stockMovement';
 import type { SKU, StockTransaction } from '@/lib/types';
 import { SkuDetailModal } from '@/components/SkuDetailModal';
 
@@ -21,10 +21,15 @@ export function DashboardPage() {
   const [detail, setDetail] = useState<{ sku: SKU; wh: 'mkt' | 'cs' } | null>(null);
   const canToggle = ['admin', 'director', 'customer_service', 'warehouse', 'line_manager'].includes(user?.role || '');
 
+  // Reporting view of both ledgers: cancelled bookings and reject/recall
+  // reversals never show as Stock In / Stock Out (see migration 0013).
+  const mktTx = useMemo(() => reportableTransactions(transactions, tickets), [transactions, tickets]);
+  const csTx = useMemo(() => reportableTransactions(csTransactions, tickets), [csTransactions, tickets]);
+
   const visible = useMemo<RowItem[]>(() => {
-    if (scope === 'mkt') return skus.map((s) => ({ sku: s, wh: 'mkt' as const, tx: transactions }));
-    if (scope === 'cs') return csSkus.map((s) => ({ sku: s, wh: 'cs' as const, tx: csTransactions }));
-    const rows: RowItem[] = skus.map((s) => ({ sku: s, wh: 'mkt', tx: transactions }));
+    if (scope === 'mkt') return skus.map((s) => ({ sku: s, wh: 'mkt' as const, tx: mktTx }));
+    if (scope === 'cs') return csSkus.map((s) => ({ sku: s, wh: 'cs' as const, tx: csTx }));
+    const rows: RowItem[] = skus.map((s) => ({ sku: s, wh: 'mkt', tx: mktTx }));
     const seen = new Set(skus.map((s) => s.id));
     for (const s of csSkus) {
       const match = rows.find((r) => r.sku.id === s.id || r.sku.name.toLowerCase() === s.name.toLowerCase());
@@ -32,16 +37,16 @@ export function DashboardPage() {
         match.sku = { ...match.sku, currentStock: match.sku.currentStock + s.currentStock, totalInflow: match.sku.totalInflow + s.totalInflow };
         seen.add(match.sku.id);
       } else if (!seen.has(s.id)) {
-        rows.push({ sku: s, wh: 'cs', tx: csTransactions });
+        rows.push({ sku: s, wh: 'cs', tx: csTx });
         seen.add(s.id);
       }
     }
     return rows;
-  }, [scope, skus, csSkus, transactions, csTransactions]);
+  }, [scope, skus, csSkus, mktTx, csTx]);
 
   const stats = useMemo(() => {
     const low = visible.filter((r) => r.sku.currentStock <= r.sku.lowStockThreshold);
-    const totalOut = [...transactions, ...csTransactions].filter((t) => t.type === 'deduction').reduce((a, t) => a + Number(t.qty || 0), 0);
+    const totalOut = [...mktTx, ...csTx].filter((t) => t.type === 'deduction').reduce((a, t) => a + Number(t.qty || 0), 0);
     const borrows = activeBorrows(tickets);
     // Total unique SKUs (deduplicated by ID)
     const uniqueIds = new Set<string>();
@@ -54,7 +59,7 @@ export function DashboardPage() {
       borrows: borrows.length,
       overdue: overdueBorrows(tickets).length,
     };
-  }, [visible, transactions, csTransactions, tickets, skus, csSkus]);
+  }, [visible, mktTx, csTx, tickets, skus, csSkus]);
 
   if (loading) return <Spinner label="Loading dashboard…" />;
   if (error) return <ErrorBanner msg={error} retry={refresh} />;
@@ -110,8 +115,8 @@ export function DashboardPage() {
               {visible.length === 0 && (
                 <tr><td colSpan={10}><EmptyState icon={<Archive className="h-6 w-6" />} title="No stock in this view" /></td></tr>
               )}
-              {visible.map(({ sku, wh }) => {
-                const mv = getStockMovement(sku, wh === 'cs' ? csTransactions : transactions);
+              {visible.map(({ sku, wh, tx }) => {
+                const mv = getStockMovement(sku, tx);
                 const out = sku.currentStock <= 0;
                 const low = sku.currentStock <= sku.lowStockThreshold;
                 return (

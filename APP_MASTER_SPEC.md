@@ -293,8 +293,8 @@ Statuses: `pending → reviewed → lm_approved → finalized`; plus `rejected`,
 | `pending → reviewed` | Warehouse reviews | Writes WH_Comment; sets `Actual_Delivery_Date`; **confirms the booking**: `Current_Stock` true-up by `qtyApproved − bookedQty` (never deducts twice); booking tx qty updated to approved qty; legacy tickets without a booking tx deduct here as before; approving 0 releases the booking; email → `line_manager` |
 | `reviewed → lm_approved` | Line Manager approves | Writes LM_Comment; email → `director` |
 | `lm_approved → finalized` | Director finalizes | email → requester. **If `Type = cs_transfer`** → `autoRestockCsWarehouse(items, ticketId)` |
-| `reviewed`/`lm_approved`/`pending` → `rejected` | any approver rejects | **restock**: from reviewed/lm_approved `addition` tx `Status='Rejected - Stock Returned'`, `Current_Stock += qty`; from pending the submission booking is released (`addition` tx `Status='Rejected - Booking Released'`, booking tx → `Booking Cancelled`); email → requester |
-| `reviewed`/`lm_approved` → `recalled` | admin/WH recall | **restock**: `addition` tx `Status='Recalled - Stock Returned'`, `Current_Stock += qty`; email → requester |
+| `reviewed`/`lm_approved`/`pending` → `rejected` | any approver rejects | **release the booking**: the booking `deduction` tx is set to `Status='Booking Cancelled'` and `Current_Stock += qty`. Since migration `0013` **no reversal `addition` tx is written** and Reporting ignores cancelled / rejected movements, so a rejected ticket never appears as a phantom Stock In + Stock Out; email → requester |
+| `reviewed`/`lm_approved` → `recalled` | admin/WH/creator recall | same as reject but with `Status/comment '… - ticket recalled'`: booking cancelled + `Current_Stock += qty`, no Stock In row; email → requester |
 | `finalized → returned` (borrow) | Warehouse “Return Completed” | For each returned item: `qtyReturned ?? qtyApproved ?? qtyRequested` added back (`addition` tx `Status='Returned'`), optional `qtyBroken` recorded in the tx; `Current_Stock += qtyRet`. Comment suffixes `(N broken/lost)`. email → requester |
 | any → `returned`/`finalized` | — | sets Return_Date / type / actual dates as provided |
 
@@ -500,6 +500,21 @@ Action Center count = warehouse: pending OR (finalized borrow unreturned); line_
 Month-End Report row layout: **Opening Qty/Value | Stock In Qty/Value | Stock Out Qty/Value | Closing Qty/Value**
 (Value = Qty × Cost per unit; each warehouse keeps its own cost). Same logic runs for CS data when the CS
 warehouse is selected.
+
+> **MIMS-2026 rebuild additions (migration `0013`)** — the reporting view of the ledger also drops
+> movements that never actually happened:
+> * rows whose `status` is `Booking Cancelled` / `Cancelled` / `Reversed` (reject, recall, or nothing
+>   approved at review), and
+> * every movement belonging to a ticket whose final status is `rejected` / `recalled` (the booking was
+>   released and the stock returned, so the ticket nets out to zero and must not show a phantom
+>   Stock In + Stock Out).
+>
+> `Opening balance` edits in Manage Stock → SKU Setup are a **baseline edit** (`opening_balance`,
+> `current_stock` and `total_inflow` move by the same delta, the `OPENING` row is kept in sync), so all
+> of the formulas above stay consistent without inventing a Stock In / Stock Out movement.
+> Renaming a SKU rewrites `ticket_items.sku_name`, `stock_transactions.sku_name`,
+> `cs_transactions.sku_name` and `cs_skus.name`, and `tickets` stores `wh_comment_at` /
+> `lm_comment_at` / `director_comment_at` so the My Ticket dialog can show when each level commented.
 
 ---
 

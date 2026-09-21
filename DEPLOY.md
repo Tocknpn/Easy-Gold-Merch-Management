@@ -92,6 +92,7 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 10 | `supabase/migrations/0010_fix_ticket_stock_lifecycle.sql` | flat ticket state machine: Book → Deduct on finalize, cs_transfer restock, reject/recall returns stock |
    | 11 | `supabase/migrations/0011_normalize_roles.sql` | canonicalises `users.role` so real approvers pass the engine's role checks |
    | 12 | `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` | fixes **"COALESCE types text and jsonb cannot be matched"** on warehouse *Review & Book Stock* |
+| 13 | `supabase/migrations/0013_sku_edit_restock_reporting.sql` | SKU `status`, Opening-balance edits without phantom Stock In/Out, SKU rename cascade to tickets + ledgers, clean Reject/Recall accounting, per-level comment timestamps |
 
    Each should show **"Success. No rows returned"** (or similar). All of them are safe to re-run
    (paste + **Run** again any time). If you re-run `0006`, re-run `0009` after it.
@@ -296,6 +297,8 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 | **Edits don't save / revert after refresh** | Same root cause: the deployed build is in **DEMO mode** (no keys baked in). Fix below. |
 | "relation does not exist" / "function does not exist" | A migration didn't run or ran out of order → re-run `0001` → `0012` in order |
 | Warehouse **Review & Book Stock** fails with **"COALESCE types text and jsonb cannot be matched"** | Run `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` (re-asserts `update_ticket_status` with type-safe jsonb handling) |
+| SKU edit: renaming a SKU or editing its **Opening balance** doesn't update tickets / reports, or a rejected ticket shows a phantom Stock In | Run `supabase/migrations/0013_sku_edit_restock_reporting.sql` (rename cascade, baseline-edit opening balance, clean reject/recall accounting) |
+| SKU **Activate / Deactivate** (or the Status field) has no effect, and the "time not recorded" label shows on approval comments | Run `supabase/migrations/0013_sku_edit_restock_reporting.sql` (adds `skus.status` + `wh/lm/director_comment_at`) |
 | Users tab: "Only an Admin can manage users" / "function public.manage_user does not exist" | Run `supabase/migrations/0009_user_management.sql` |
 | Password column shows **— not set —** for old users | Run `0009_user_management.sql`, then `npm run seed:auth` (back-fills from `data/Users.csv`) |
 | Photos won't upload | Run `0005_sku_image_storage.sql` (creates the `sku-images` bucket) |

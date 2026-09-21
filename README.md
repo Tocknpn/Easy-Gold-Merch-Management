@@ -57,13 +57,19 @@ You can log in with any account from the demo chips on the login screen
      (`Warehouse` → `warehouse`, …) so real approvers pass the engine's role checks
    - `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` — fixes the
      **"COALESCE types text and jsonb cannot be matched"** crash on warehouse *Review & Book Stock*
+   - `supabase/migrations/0013_sku_edit_restock_reporting.sql` — **workflow polish**:
+     SKU `status` column (activate/deactivate now really persists), `Opening balance` is a plain
+     baseline edit (no phantom Stock In/Out row), a SKU rename rewrites `ticket_items` /
+     `stock_transactions` / `cs_transactions` / `cs_skus`, Reject/Recall only cancels the booking
+     (cleaner Stock In/Out reporting) and per-approval-level comment timestamps
+     (`wh_comment_at` / `lm_comment_at` / `director_comment_at`)
 
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
    > (0006 re-grants table-level SELECT on `public.users`).
-   > After re-running any of the earlier files, finish with `0010` → `0011` → `0012` so the ticket
-   > engine always ends up on the current (booking-aware, type-safe) definition.
+   > After re-running any of the earlier files, finish with `0010` → `0011` → `0012` → `0013` so the
+   > ticket engine and the SKU RPCs always end up on the current definitions.
 4. Run **`supabase/seed.sql`** — loads your entire Excel dataset (users, SKUs, tickets, items, transactions, CS warehouse, categories, config).
 5. Enable Realtime on the tables if prompted (tables are subscribed automatically).
 
@@ -157,12 +163,27 @@ npx wrangler pages deploy dist --project-name easy-gold-merch
 - `pending → reviewed` books stock (deduction transaction, `Current_Stock` floor 0, approved-qty override)
 - `reviewed → lm_approved → finalized`
 - **Finalize a `cs_transfer` → CS warehouse auto-restocks** (`cs_skus` + `cs_transactions`)
-- Reject / Recall return booked stock (addition transactions)
+- Reject / Recall **cancel the booking** (row status `Booking Cancelled`) and return the stock —
+  no reversal Stock In row is written, and Reporting ignores cancelled / rejected / recalled
+  movements, so a rejected ticket never shows a phantom Stock In + Stock Out
 - Borrow `finalized → returned` records returned + broken quantities
-- Every transition writes a `ticket_actions` audit trail and stamps `last_action_*`
+- Every transition writes a `ticket_actions` audit trail and stamps `last_action_*` (plus
+  `wh_comment_at` / `lm_comment_at` / `director_comment_at` so My Ticket can show **when** each
+  approval level commented)
 
 RLS is enabled — authenticated users can read; all writes go through security-definer RPC functions.
 All open tabs update within ~1s via Supabase Realtime, so Action Center badges and stock numbers stay in sync.
+
+### Editing an SKU (Manage Stock → SKU Setup)
+
+| Field | Behaviour |
+|---|---|
+| **Name** | Always editable. Saving a change rewrites the name on every ticket item and ledger row (`ticket_items`, `stock_transactions`, `cs_transactions`, `cs_skus`) so all reports and views stay consistent. |
+| **Cost per unit** | Always editable — Total value / Usage % recompute instantly (current stock × cost). |
+| **Opening balance** | Always editable and a **plain baseline edit**: the engine applies the delta to `opening_balance`, `current_stock` and `total_inflow` and keeps the `OPENING` ledger row in sync. It never creates a Stock In / Stock Out movement, so Opening / Closing / Stock In / Stock Out stay aligned. |
+| **Current stock** | Read-only in this dialog (shown with a “will become …” preview). Real movements are recorded from **Stock In / Out** (refill & issue) or **Adjust Balance** (physical count, loss/broken, found). |
+| **Status** | Active / Inactive — inactive SKUs are hidden from Request & Borrow. |
+| Restock | Single channel: **Manage Stock → Stock In / Out** (the Dashboard SKU dialog is read-only). |
 
 ### SKU profile photos
 
@@ -199,6 +220,8 @@ supabase/
   migrations/0010_fix_ticket_stock_lifecycle.sql  flat state machine + Book→Deduct
   migrations/0011_normalize_roles.sql     users.role canonicalisation
   migrations/0012_fix_jsonb_coalesce_types.sql    jsonb COALESCE type fix (Review & Book Stock)
+  migrations/0013_sku_edit_restock_reporting.sql  SKU status + opening-balance edit + rename
+                                                  cascade + clean reject/recall + comment stamps
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]

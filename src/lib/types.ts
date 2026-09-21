@@ -72,6 +72,10 @@ export interface Ticket {
   whComment?: string | null;
   lmComment?: string | null;
   directorComment?: string | null;
+  /** When each approval level wrote its comment (My Ticket shows these). */
+  whCommentAt?: string | null;
+  lmCommentAt?: string | null;
+  directorCommentAt?: string | null;
   lastActionAt?: string | null;
   lastActionBy?: string | null;
   lastActionStatus?: string | null;

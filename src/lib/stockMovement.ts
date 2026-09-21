@@ -12,6 +12,45 @@ export interface StockMovement {
   lossQty: number;
 }
 
+/**
+ * Ledger statuses that mean "this movement was undone and must not be
+ * counted as a real Stock In / Stock Out". A rejected or recalled ticket
+ * cancels its booking instead of writing a reversal row (see migration
+ * 0013), and the cancelled row keeps the audit trail only.
+ */
+export const CANCELLED_STATUSES = ['booking cancelled', 'cancelled', 'reversed'];
+
+export function isCancelledStatus(status?: string | null): boolean {
+  return CANCELLED_STATUSES.includes(String(status || '').toLowerCase());
+}
+
+/** Is this ledger row a real Stock In / Stock Out movement? */
+export function isCountedMovement(tx: StockTransaction): boolean {
+  return !isCancelledStatus(tx.status);
+}
+
+/**
+ * Reporting view of the ledger: drop rows that must not appear in
+ * Stock In / Stock Out totals —
+ *   * cancelled bookings (reject / recall / nothing approved at review), and
+ *   * every movement that belongs to a ticket which ended up
+ *     rejected / recalled (the ticket netted out to zero: the booking was
+ *     released and the stock returned, so counting either side would show a
+ *     phantom Stock Out *and* a phantom Stock In).
+ * Ticket Tracking → Stock Movements still shows the full ledger for audit.
+ */
+export function reportableTransactions(
+  transactions: StockTransaction[],
+  tickets: Ticket[],
+): StockTransaction[] {
+  const deadTickets = new Set(
+    tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id),
+  );
+  return transactions.filter(
+    (tx) => isCountedMovement(tx) && !(tx.ticketId && deadTickets.has(tx.ticketId)),
+  );
+}
+
 export function getStockMovement(
   sku: SKU,
   transactions: StockTransaction[],
@@ -23,6 +62,8 @@ export function getStockMovement(
   let lossQty = 0;
   for (const tx of transactions) {
     if (tx.skuId !== sku.id) continue;
+    // Cancelled bookings (reject / recall / nothing approved) never happened
+    if (!isCountedMovement(tx)) continue;
     if (from && tx.date && tx.date < from) continue;
     if (to && tx.date && tx.date > to) continue;
     if (tx.type === 'addition') {

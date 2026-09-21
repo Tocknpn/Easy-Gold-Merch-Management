@@ -1,17 +1,14 @@
-import { useMemo, useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useMemo } from 'react';
 import { useData } from '@/contexts/DataContext';
-import { Modal, Badge, toast } from '@/components/ui/primitives';
+import { Modal, Badge } from '@/components/ui/primitives';
 import { fmt, money, safeImageUrl } from '@/lib/utils';
+import { isCancelledStatus } from '@/lib/stockMovement';
 import type { SKU } from '@/lib/types';
 
 export function SkuDetailModal({ sku, warehouse, onClose }: {
   sku: SKU; warehouse: 'mkt' | 'cs'; onClose: () => void;
 }) {
-  const { user } = useAuth();
-  const { transactions, csTransactions, restockSku, csRestockSku, csDestockSku } = useData();
-  const [qty, setQty] = useState('');
-  const [note, setNote] = useState('');
+  const { transactions, csTransactions } = useData();
 
   const tx = warehouse === 'cs' ? csTransactions : transactions;
   const history = useMemo(() => tx.filter((t) => t.skuId === sku.id).slice(0, 12), [tx, sku.id]);
@@ -19,25 +16,6 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
   const out = sku.currentStock <= 0;
   const totalValue = sku.currentStock * sku.costPerUnit;
   const usage = sku.totalInflow > 0 ? Math.max(0, ((sku.totalInflow - sku.currentStock) / sku.totalInflow) * 100) : 0;
-  const isRated = ['admin', 'warehouse', 'customer_service'].includes(user?.role || '');
-
-  const doRestock = async () => {
-    const n = Number(qty);
-    if (!(n > 0)) { toast('Enter a quantity greater than 0', 'error'); return; }
-    try {
-      if (warehouse === 'cs') await csRestockSku(sku.id, n, user?.fullName, note || undefined);
-      else await restockSku(sku.id, n, user?.fullName, note || undefined);
-      toast(`${sku.name} restocked +${n}`); setQty(''); setNote('');
-    } catch (e: any) { toast(e?.message || 'Restock failed', 'error'); }
-  };
-  const doDestock = async () => {
-    const n = Number(qty);
-    if (!(n > 0)) { toast('Enter a quantity greater than 0', 'error'); return; }
-    try {
-      await csDestockSku(sku.id, n, user?.fullName, note || undefined);
-      toast(`${sku.name} destocked -${n}`); setQty(''); setNote('');
-    } catch (e: any) { toast(e?.message || 'Destock failed', 'error'); }
-  };
 
   return (
     <Modal open onClose={onClose} title={sku.name} wide>
@@ -66,22 +44,13 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
             </div>
           </div>
         </div>
-{isRated && (
-          <div className="flex flex-wrap items-end gap-3 rounded-xl bg-slate-50 p-4">
-            <div>
-              <label className="label">Quantity</label>
-              <input className="input w-28" type="number" min={1} value={qty} onChange={(e) => setQty(e.target.value)} placeholder="0" />
-            </div>
-            <div>
-              <label className="label">Note (optional)</label>
-              <input className="input w-52" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. new batch" />
-            </div>
-            <div className="flex gap-2">
-              <button className="btn btn-success btn-sm" onClick={doRestock}>+ Restock</button>
-              {warehouse === 'cs' && <button className="btn btn-danger btn-sm" onClick={doDestock}>− Destock</button>}
-            </div>
-          </div>
-        )}
+        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-4 text-xs text-slate-500 ring-1 ring-slate-200">
+          <span className="font-semibold text-slate-600">Read-only view.</span>
+          <span>
+            Restock / issue this item from <b>Manage Stock → Stock In / Out</b>
+            {warehouse === 'cs' ? ' (CS warehouse)' : ' (MKT warehouse)'} — that keeps one single audited stock channel.
+          </span>
+        </div>
 
         <div>
           <p className="label">Recent transactions</p>
@@ -104,9 +73,13 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                   <tr key={t.id}>
                     <td className="px-3.5 py-2 text-slate-600">{(t.date || '').slice(0, 10)}</td>
                     <td className="px-3.5 py-2">
-                      <span className={t.type === 'addition' ? 'font-medium text-emerald-600' : 'font-medium text-rose-500'}>
-                        {t.type === 'addition' ? 'Stock in' : 'Stock out'}
-                      </span>
+                      {isCancelledStatus(t.status) ? (
+                        <span className="font-medium text-slate-400" title={t.status || undefined}>Cancelled</span>
+                      ) : (
+                        <span className={t.type === 'addition' ? 'font-medium text-emerald-600' : 'font-medium text-rose-500'}>
+                          {t.type === 'addition' ? 'Stock in' : 'Stock out'}
+                        </span>
+                      )}
                     </td>
                     <td className="px-3.5 py-2 text-right font-semibold">{fmt(t.qty)}</td>
                     <td className="px-3.5 py-2 text-slate-600">{t.status || t.ticketId || '—'}</td>
