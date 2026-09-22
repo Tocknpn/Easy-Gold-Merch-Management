@@ -1,6 +1,11 @@
+import type { ReactNode } from 'react';
+import {
+  ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Clock, FileText,
+  Flag, Package, Tag, Truck, Undo2, User, UserRound, Workflow, XCircle,
+} from 'lucide-react';
 import type { TicketWithItems, SKU, TicketAction } from '@/lib/types';
-import { ROLE_LABELS, STATUS_LABELS, type TicketStatus } from '@/lib/types';
-import { fmt, money, lastActionWhen, whenDateTime } from '@/lib/utils';
+import { ROLE_LABELS, STATUS_LABELS, type TicketStatus, type TicketType } from '@/lib/types';
+import { fmt, money, lastActionWhen, whenDateTime, safeImageUrl, cn } from '@/lib/utils';
 import { ApprovalPipeline, pipelineSteps } from './ApprovalPipeline';
 import { StatusBadge, TypeBadge } from './StatusBadge';
 import { Badge } from './ui/primitives';
@@ -8,7 +13,8 @@ import { Badge } from './ui/primitives';
 export function TicketDetail({ ticket, skus, actions = [] }: {
   ticket: TicketWithItems; skus: SKU[]; actions?: TicketAction[];
 }) {
-  const costOf = (skuId: string) => skus.find((s) => s.id === skuId)?.costPerUnit || 0;
+  const skuOf = (skuId: string) => skus.find((s) => s.id === skuId);
+  const costOf = (skuId: string) => skuOf(skuId)?.costPerUnit || 0;
   const total = ticket.items.reduce(
     (sum, it) => sum + (it.qtyApproved ?? it.qtyRequested) * costOf(it.skuId),
     0,
@@ -31,14 +37,27 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
   const steps = pipelineSteps(ticket.type);
   return (
     <div className="space-y-4">
-      <div className="flex flex-wrap items-center gap-2">
-        <StatusBadge status={ticket.status} />
-        <TypeBadge type={ticket.type} />
-        <Badge className="bg-slate-100 text-slate-600">{ticket.department || '—'}</Badge>
+      {/* Status chips + created-on stamp — mirrors the reference modal header */}
+      <div className="flex flex-wrap items-center gap-2 border-b border-slate-100 pb-4">
+        <StatusBadge status={ticket.status} icon={STATUS_ICON[ticket.status] ?? <CheckCircle2 className="h-3 w-3" />} />
+        <TypeBadge type={ticket.type} icon={TYPE_ICON[ticket.type]} />
+        <Badge className="bg-slate-100 text-slate-600">
+          <Tag className="h-3 w-3" />
+          {ticket.department || '—'}
+        </Badge>
+        {ticket.createdAt && (
+          <span className="ml-auto inline-flex items-center gap-1.5 text-xs font-medium text-slate-500">
+            <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
+            Created on {whenDateTime(ticket.createdAt)}
+          </span>
+        )}
       </div>
 
-      <section className="rounded-xl border border-slate-200 bg-white p-4">
-        <h3 className="mb-3 text-[13px] font-bold text-brand-700">Approval Pipeline</h3>
+      <section className="rounded-xl border border-brand-100 bg-brand-50 p-4">
+        <h3 className="mb-3 flex items-center gap-1.5 text-[13px] font-bold text-brand-700">
+          <Workflow className="h-4 w-4" />
+          Approval Pipeline
+        </h3>
         <ApprovalPipeline
           status={ticket.status}
           steps={steps}
@@ -47,56 +66,115 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
         />
       </section>
 
-      <div className="grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
-        <InfoItem label="Created by" value={`${ticket.createdByName} (${ticket.createdBy})`} />
-        <InfoItem label="Delivery date" value={ticket.deliveryDate || '—'} />
-        {ticket.type === 'borrow' && <InfoItem label="Return date" value={ticket.returnDate || '—'} />}
-        <InfoItem label="Created" value={lastActionWhen(ticket.createdAt)} />
-        {ticket.actualDeliveryDate && <InfoItem label="Delivered on" value={ticket.actualDeliveryDate} />}
-        {ticket.actualReturnDate && <InfoItem label="Returned on" value={ticket.actualReturnDate} />}
-        <InfoItem label="Last action" value={lastActionWhen(ticket.lastActionAt)} />
-        <InfoItem label="By" value={ticket.lastActionBy || '—'} />
-      </div>
+      {/* Detail card — icon-led cells + the "Ref" bar for the creator's remark */}
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-4 p-4 sm:grid-cols-3">
+          <DetailCell icon={<User className="h-3.5 w-3.5" />} label="Created by">
+            <p className="truncate text-sm font-semibold text-slate-900">{ticket.createdByName}</p>
+            <p className="truncate text-xs text-slate-500">{ticket.createdBy}</p>
+          </DetailCell>
+          <DetailCell icon={<CalendarDays className="h-3.5 w-3.5" />} label="Delivery date">
+            <p className="text-sm text-slate-800">{ticket.deliveryDate || '—'}</p>
+          </DetailCell>
+          {ticket.type === 'borrow' && (
+            <DetailCell icon={<CalendarClock className="h-3.5 w-3.5" />} label="Return date">
+              <p className="text-sm text-slate-800">{ticket.returnDate || '—'}</p>
+            </DetailCell>
+          )}
+          <DetailCell icon={<CalendarClock className="h-3.5 w-3.5" />} label="Created">
+            <p className="text-sm text-slate-800">{lastActionWhen(ticket.createdAt)}</p>
+          </DetailCell>
+          {ticket.actualDeliveryDate && (
+            <DetailCell icon={<Truck className="h-3.5 w-3.5" />} label="Delivered on">
+              <p className="text-sm text-slate-800">{ticket.actualDeliveryDate}</p>
+            </DetailCell>
+          )}
+          {ticket.actualReturnDate && (
+            <DetailCell icon={<Undo2 className="h-3.5 w-3.5" />} label="Returned on">
+              <p className="text-sm text-slate-800">{ticket.actualReturnDate}</p>
+            </DetailCell>
+          )}
+          <DetailCell icon={<Clock className="h-3.5 w-3.5" />} label="Last action">
+            <p className="text-sm text-slate-800">{lastActionWhen(ticket.lastActionAt)}</p>
+          </DetailCell>
+          <DetailCell icon={<Building2 className="h-3.5 w-3.5" />} label="By">
+            <p className="truncate text-sm text-slate-800">{ticket.lastActionBy || '—'}</p>
+          </DetailCell>
+        </div>
+        {ticket.remark && (
+          <div className="flex items-start gap-2 border-t border-brand-100/80 bg-brand-50 px-4 py-2.5 text-xs text-slate-600">
+            <Flag className="mt-0.5 h-3.5 w-3.5 shrink-0 text-brand-600" />
+            <p className="min-w-0 break-words">
+              <span className="font-semibold text-brand-700">Ref:</span> {ticket.remark}
+            </p>
+          </div>
+        )}
+      </section>
 
-      {ticket.remark && <p className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-xs text-slate-600">📝 {ticket.remark}</p>}
-
-      <div>
-        <p className="label">Items</p>
-        <div className="overflow-hidden rounded-xl border border-slate-200">
+      {/* Items — card header with count, SKU image/category per row */}
+      <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <h3 className="flex items-center gap-2 border-b border-slate-100 px-4 py-3 text-[13px] font-bold text-slate-800">
+          <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+            <FileText className="h-4 w-4" />
+          </span>
+          Items ({ticket.items.length})
+        </h3>
+        <div className="overflow-x-auto">
           <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-left text-xs text-slate-500">
+            <thead className="bg-slate-50/70 text-left text-xs text-slate-500">
               <tr>
-                <th className="px-3.5 py-2">Item</th>
-                <th className="px-3.5 py-2 text-right">Req</th>
-                <th className="px-3.5 py-2 text-right">Appr</th>
-                <th className="px-3.5 py-2 text-right">Cost</th>
-                <th className="px-3.5 py-2 text-right">Value</th>
+                <th className="px-4 py-2 font-semibold">Item</th>
+                <th className="px-3.5 py-2 text-right font-semibold">Req</th>
+                <th className="px-3.5 py-2 text-right font-semibold">Apr</th>
+                <th className="px-3.5 py-2 text-right font-semibold">Cost</th>
+                <th className="px-4 py-2 text-right font-semibold">Value</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {ticket.items.map((it) => (
-                <tr key={it.skuId}>
-                  <td className="px-3.5 py-2.5 font-medium">{it.skuName}</td>
-                  <td className="px-3.5 py-2.5 text-right">{fmt(it.qtyRequested)} {it.unit}</td>
-                  <td className="px-3.5 py-2.5 text-right">
-                    {it.qtyApproved !== null && it.qtyApproved !== undefined ? fmt(it.qtyApproved) : '—'}
-                  </td>
-                  <td className="px-3.5 py-2.5 text-right">{money(costOf(it.skuId))}</td>
-                  <td className="px-3.5 py-2.5 text-right font-medium">
-                    {money((it.qtyApproved ?? it.qtyRequested) * costOf(it.skuId))}
-                  </td>
-                </tr>
-              ))}
+              {ticket.items.map((it) => {
+                const sku = skuOf(it.skuId);
+                const img = safeImageUrl(sku?.imageUrl);
+                return (
+                  <tr key={it.skuId}>
+                    <td className="px-4 py-2.5">
+                      <div className="flex items-center gap-2.5">
+                        {img ? (
+                          <img
+                            src={img} alt="" loading="lazy"
+                            className="h-9 w-9 shrink-0 rounded-lg object-cover ring-1 ring-slate-200"
+                          />
+                        ) : (
+                          <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400 ring-1 ring-slate-200">
+                            <Package className="h-4 w-4" />
+                          </span>
+                        )}
+                        <div className="min-w-0">
+                          <p className="truncate font-medium text-slate-800">{it.skuName}</p>
+                          {sku?.category && <p className="truncate text-[11px] text-slate-400">{sku.category}</p>}
+                        </div>
+                      </div>
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right">{fmt(it.qtyRequested)} {it.unit}</td>
+                    <td className="px-3.5 py-2.5 text-right">
+                      {it.qtyApproved !== null && it.qtyApproved !== undefined ? fmt(it.qtyApproved) : '—'}
+                    </td>
+                    <td className="px-3.5 py-2.5 text-right">{money(costOf(it.skuId))}</td>
+                    <td className="px-4 py-2.5 text-right font-medium">
+                      {money((it.qtyApproved ?? it.qtyRequested) * costOf(it.skuId))}
+                    </td>
+                  </tr>
+                );
+              })}
             </tbody>
             <tfoot className="bg-slate-50 font-semibold">
               <tr>
-                <td className="px-3.5 py-2.5" colSpan={4}>Estimated total</td>
-                <td className="px-3.5 py-2.5 text-right">{money(total)}</td>
+                <td className="px-4 py-2.5" colSpan={4}>Estimated total</td>
+                <td className="px-4 py-2.5 text-right">{money(total)}</td>
               </tr>
             </tfoot>
           </table>
         </div>
-      </div>
+      </section>
 
       {legacyComments.length > 0 && (
         <div className="grid gap-2 text-xs text-slate-600">
@@ -110,37 +188,97 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
       )}
 
       {trail.length > 0 && (
-        <div>
-          <p className="label">Approval trail — who acted / commented, and when</p>
-          <ol className="space-y-1.5">
+        <section>
+          <h3 className="mb-3 flex items-center gap-1.5 text-[13px] font-bold text-slate-800">
+            <UserRound className="h-4 w-4 text-brand-600" />
+            Approval Trail — Who Acted / Commented, and When
+          </h3>
+          <ol>
             {trail.map((a, i) => {
               const label = STATUS_LABELS[(a.status || '') as TicketStatus] || a.action || a.status || 'Action';
               const role = a.role ? ROLE_LABELS[String(a.role).toLowerCase()] || a.role : '';
+              const name = a.actionBy || 'System';
               return (
-                <li
-                  key={a.id ?? `${a.actionAt}-${i}`}
-                  className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 rounded-lg bg-slate-50 px-3 py-2 text-xs"
-                >
-                  <span className="font-semibold text-slate-700">{a.actionBy || 'System'}</span>
-                  {role && <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">{role}</span>}
-                  <span className="text-slate-400">· {label}</span>
-                  <span className="ml-auto text-[10px] tabular-nums text-slate-400">{whenDateTime(a.actionAt)}</span>
-                  {a.comment && <p className="w-full text-slate-600">{a.comment}</p>}
+                <li key={a.id ?? `${a.actionAt}-${i}`} className="relative flex gap-3 pb-3 last:pb-0">
+                  {i < trail.length - 1 && (
+                    <span aria-hidden className="absolute left-[13px] top-9 h-full w-px bg-slate-200" />
+                  )}
+                  <span className={cn('flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-[10px] font-bold text-white', avatarTone(name))}>
+                    {initialsOf(name)}
+                  </span>
+                  <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-0.5">
+                    <span className="text-[13px] font-semibold text-slate-800">{name}</span>
+                    {role && (
+                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
+                        {role}
+                      </span>
+                    )}
+                    <Badge className={TRAIL_TONES[a.status || ''] || 'bg-slate-100 text-slate-600 ring-slate-400/20'}>{label}</Badge>
+                    <span className="min-w-0 flex-1 break-words text-xs text-slate-500">{a.comment || '-'}</span>
+                    <span className="text-[10px] tabular-nums text-slate-400">{whenDateTime(a.actionAt)}</span>
+                  </div>
                 </li>
               );
             })}
           </ol>
-        </div>
+        </section>
       )}
     </div>
   );
 }
 
-function InfoItem({ label, value }: { label: string; value: string }) {
+/* ── Visual helpers for the detail modal ────────────────────────────────── */
+
+/** Icon inside the top status chip — ✓, except waiting / cancelled states. */
+const STATUS_ICON: Partial<Record<TicketStatus, ReactNode>> = {
+  pending: <Clock className="h-3 w-3" />,
+  rejected: <XCircle className="h-3 w-3" />,
+  recalled: <XCircle className="h-3 w-3" />,
+};
+
+const TYPE_ICON: Record<TicketType, ReactNode> = {
+  request: <FileText className="h-3 w-3" />,
+  borrow: <Undo2 className="h-3 w-3" />,
+  cs_transfer: <ArrowRightLeft className="h-3 w-3" />,
+};
+
+/** Trail badge palette per the reference: approved levels green, review blue. */
+const TRAIL_TONES: Record<string, string> = {
+  pending: 'bg-amber-50 text-amber-700 ring-amber-600/20',
+  reviewed: 'bg-sky-50 text-sky-700 ring-sky-600/20',
+  lm_approved: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  finalized: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+  rejected: 'bg-rose-50 text-rose-700 ring-rose-600/20',
+  recalled: 'bg-slate-100 text-slate-600 ring-slate-500/20',
+  returned: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+};
+
+/** Deterministic avatar color per person name. */
+const AVATAR_TONES = [
+  'bg-brand-600', 'bg-sky-600', 'bg-violet-600', 'bg-emerald-600',
+  'bg-cyan-600', 'bg-indigo-600', 'bg-rose-500', 'bg-amber-500',
+];
+const avatarTone = (name: string): string => {
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  return AVATAR_TONES[h % AVATAR_TONES.length] ?? 'bg-slate-400';
+};
+
+const initialsOf = (name: string): string => {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length === 0) return 'SY';
+  if (parts.length === 1) return parts[0]!.slice(0, 2).toUpperCase();
+  return (parts[0]![0]! + parts[1]![0]!).toUpperCase();
+};
+
+function DetailCell({ icon, label, children }: { icon: ReactNode; label: string; children: ReactNode }) {
   return (
     <div>
-      <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
-      <p className="mt-0.5 text-slate-800">{value}</p>
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold text-slate-400">
+        <span className="text-slate-300">{icon}</span>
+        {label}
+      </p>
+      <div className="mt-1">{children}</div>
     </div>
   );
 }

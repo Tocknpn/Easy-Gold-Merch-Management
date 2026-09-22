@@ -1,5 +1,5 @@
 import { format } from 'date-fns';
-import { CheckCircle2, XCircle } from 'lucide-react';
+import { CheckCircle2, User, XCircle } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { TicketAction, TicketStatus, TicketType } from '@/lib/types';
 
@@ -26,10 +26,17 @@ export const STOPPED = -2;
 
 const norm = (s?: string | null) => String(s || '').trim().toLowerCase().replace(/\s+/g, '_');
 
-const fmtDateTime = (iso?: string | null): string => {
+/** Step timestamps show the date and the time on separate lines (detail modal ref). */
+const fmtDate = (iso?: string | null): string => {
   if (!iso) return '—';
   const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : format(d, 'MMM d, yyyy h:mm a');
+  return isNaN(d.getTime()) ? iso : format(d, 'MMM d, yyyy');
+};
+
+const fmtTime = (iso?: string | null): string => {
+  if (!iso) return '';
+  const d = new Date(iso);
+  return isNaN(d.getTime()) ? '' : format(d, 'h:mm a');
 };
 
 /** Which pipeline step an actor's role points at (-1 when unknown). */
@@ -141,7 +148,7 @@ export function ApprovalPipeline({
                   !blocked && !done && !current && 'border border-slate-200 bg-white text-slate-400',
                 )}
               >
-                {blocked ? <XCircle className="h-4 w-4" /> : done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
+                {blocked ? <XCircle className="h-4 w-4" /> : done ? <CheckCircle2 className="h-4 w-4" /> : current ? <User className="h-4 w-4" /> : i + 1}
               </div>
               <p
                 className={cn(
@@ -154,7 +161,12 @@ export function ApprovalPipeline({
                 {blocked ? stopLabel : s.label}
               </p>
               <p className="text-[10px] leading-tight text-slate-400">{s.who}</p>
-              {times[i] && <p className="mt-0.5 text-[9px] leading-tight text-slate-400">{fmtDateTime(times[i])}</p>}
+              {times[i] && (
+                <div className="mt-0.5 text-[9px] leading-tight text-slate-400">
+                  <p>{fmtDate(times[i])}</p>
+                  {fmtTime(times[i]) && <p>{fmtTime(times[i])}</p>}
+                </div>
+              )}
             </div>
           );
         })}

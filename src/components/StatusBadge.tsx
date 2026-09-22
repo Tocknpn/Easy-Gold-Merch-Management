@@ -2,15 +2,16 @@ import { Badge } from './ui/primitives';
 import { STATUS_LABELS, STATUS_COLORS, TYPE_LABELS, type TicketStatus, type TicketType } from '@/lib/types';
 import { cn } from '@/lib/utils';
 
-export function StatusBadge({ status }: { status: TicketStatus }) {
+export function StatusBadge({ status, icon }: { status: TicketStatus; icon?: React.ReactNode }) {
   return (
     <Badge className={cn('capitalize', STATUS_COLORS[status] || 'bg-slate-100 text-slate-600')}>
+      {icon}
       {STATUS_LABELS[status] || status}
     </Badge>
   );
 }
 
-export function TypeBadge({ type }: { type: TicketType }) {
+export function TypeBadge({ type, icon }: { type: TicketType; icon?: React.ReactNode }) {
   const tones: Record<TicketType, string> = {
     request: 'bg-sky-50 text-sky-700 ring-sky-600/20',
     borrow: 'bg-violet-50 text-violet-700 ring-violet-600/20',
@@ -18,6 +19,7 @@ export function TypeBadge({ type }: { type: TicketType }) {
   };
   return (
     <Badge className={tones[type]}>
+      {icon}
       {TYPE_LABELS[type] || type}
     </Badge>
   );

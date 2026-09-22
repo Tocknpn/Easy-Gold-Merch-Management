@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ListChecks, ArrowRightLeft, Clock3, CircleCheck, XCircle, Undo2, Loader2,
-  Package, FileX2, MoreHorizontal,
+  Package, FileX2, MoreHorizontal, FileText,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -14,6 +14,7 @@ import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
 import { fmt, money, cn } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
+import { TYPE_LABELS } from '@/lib/types';
 
 type Scope = 'mine' | 'all' | 'moves';
 
@@ -421,7 +422,19 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
       </div>
 
 {open && (
-        <Modal open onClose={() => setOpen(null)} title={`${open.id} · ${open.type.toUpperCase()}`} wide>
+        <Modal
+          open
+          onClose={() => setOpen(null)}
+          title={
+            <span className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+                <FileText className="h-5 w-5" />
+              </span>
+              <span>{open.id} · {TYPE_LABELS[open.type]}</span>
+            </span>
+          }
+          wide
+        >
           <TicketDetail ticket={open} skus={skus} actions={actions} />
           {isPendingReturn(open) && (
             <div className="mt-3 rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
