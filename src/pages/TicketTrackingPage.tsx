@@ -3,7 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ListChecks, ArrowRightLeft, Clock3, CircleCheck, XCircle, Undo2, Loader2,
-  Package, FileX2, MoreHorizontal, FileText,
+  Package, FileX2, MoreHorizontal, FileText, PencilLine, Lock,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -11,6 +11,7 @@ import { Modal, Spinner, ErrorBanner, EmptyState, Pagination, toast } from '@/co
 import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { TicketDetail } from '@/components/TicketDetail';
 import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
+import { EditMovementModal } from '@/components/EditMovementModal';
 import { fmt, money, cn } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
@@ -522,6 +523,7 @@ interface MoveRow {
 }
 
 function MovementsTab() {
+  const { user } = useAuth();
   const { transactions, csTransactions, skus, csSkus, tickets } = useData();
   const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>('all');
   const [cat, setCat] = useState<'all' | CatKey>('all');
@@ -530,6 +532,7 @@ function MovementsTab() {
   const [q, setQ] = useState('');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
+  const [editing, setEditing] = useState<MoveRow | null>(null);
 
   const rows = useMemo<MoveRow[]>(() => {
     const costById = new Map<string, number>();
@@ -590,12 +593,28 @@ function MovementsTab() {
   const exportCsv = () =>
     downloadCsv(
       `stock-movements-${new Date().toISOString().slice(0, 10)}.csv`,
-      ['When', 'WH', 'Item', 'Direction', 'Qty', 'Broken', 'Value', 'Category', 'Reference', 'By', 'Note'],
+      ['When', 'WH', 'Item', 'Direction', 'Qty', 'Broken', 'Value', 'Category', 'Reference', 'By', 'Edited By', 'Note'],
       rows.map((r) => [
         r.at.slice(0, 16), r.wh, String(r.tx.skuName ?? ''), r.tx.type === 'addition' ? 'IN' : 'OUT', r.tx.qty,
-        r.tx.qtyBroken || 0, r.tx.qty * r.cost, CAT_LABEL[r.cat], String(r.tx.ticketId ?? ''), String(r.tx.actionBy ?? ''), String(r.tx.comment ?? ''),
+        r.tx.qtyBroken || 0, r.tx.qty * r.cost, CAT_LABEL[r.cat], String(r.tx.ticketId ?? ''), String(r.tx.actionBy ?? ''),
+        String(r.tx.editedBy ?? ''), String(r.tx.comment ?? ''),
       ]),
     );
+
+  // ── Editable stock movements (migration 0015) ────────────────────────────
+  // admin → both warehouses; warehouse → MKT rows; customer_service → CS rows.
+  // OPENING rows follow the SKU opening balance (Manage Stock → SKU Setup) and
+  // cancelled bookings are audit-only, so those are never editable here.
+  const mayEdit = ['admin', 'warehouse', 'customer_service'].includes(user?.role || '');
+  const canEdit = (r: MoveRow) =>
+    mayEdit &&
+    r.tx.ticketId !== 'OPENING' &&
+    !isCancelledStatus(r.tx.status) &&
+    (user?.role === 'admin' ||
+      (user?.role === 'warehouse' && r.wh === 'MKT') ||
+      (user?.role === 'customer_service' && r.wh === 'CS'));
+  const skuOf = (r: MoveRow) =>
+    (r.wh === 'MKT' ? skus : csSkus).find((s) => s.id === r.tx.skuId) || null;
 
   const th = 'whitespace-nowrap px-2.5 py-2.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500';
   const td = 'px-2.5 py-3';
@@ -655,7 +674,8 @@ function MovementsTab() {
                   <th className={th}>Category</th>
                   <th className={th}>Reference</th>
                   <th className={th}>By</th>
-                  <th className={`${th} pr-4`}>Note</th>
+                  <th className={th}>Note</th>
+                  {mayEdit && <th className={`${th} pr-4`}>Edit</th>}
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
@@ -687,10 +707,44 @@ function MovementsTab() {
                     </td>
                     <td className={`${td} max-w-[170px]`}>
                       <p className="truncate text-xs text-slate-500" title={r.tx.actionBy || ''}>{r.tx.actionBy || '—'}</p>
+                      {r.tx.editedBy && (
+                        <span
+                          className="mt-0.5 inline-flex items-center gap-0.5 rounded-full bg-amber-50 px-1.5 py-0.5 text-[9px] font-bold text-amber-700 ring-1 ring-amber-200"
+                          title={`Edited by ${r.tx.editedBy} · ${(r.tx.editedAt || '').slice(0, 16).replace('T', ' ')}`}
+                        >
+                          <PencilLine className="h-2.5 w-2.5" /> edited
+                        </span>
+                      )}
                     </td>
-                    <td className={`${td} max-w-[220px] pr-4`}>
+                    <td className={`${td} max-w-[220px]`}>
                       <p className="truncate text-xs text-slate-400" title={r.tx.comment || ''}>{r.tx.comment || '—'}</p>
                     </td>
+                    {mayEdit && (
+                      <td className={`${td} pr-4 text-right`}>
+                        {canEdit(r) ? (
+                          <button
+                            className="inline-flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 ring-1 ring-slate-200 transition hover:bg-brand-50 hover:text-brand-600 hover:ring-brand-200"
+                            title="Edit this movement — fix the amount / details (stock is re-synced)"
+                            onClick={() => setEditing(r)}
+                          >
+                            <PencilLine className="h-3.5 w-3.5" />
+                          </button>
+                        ) : (
+                          <span
+                            className="inline-flex h-7 w-7 items-center justify-center text-slate-300"
+                            title={
+                              r.tx.ticketId === 'OPENING'
+                                ? 'Opening rows are edited via Manage Stock → SKU Setup'
+                                : isCancelledStatus(r.tx.status)
+                                  ? 'Cancelled bookings are audit-only'
+                                  : 'Your role cannot edit this row'
+                            }
+                          >
+                            <Lock className="h-3 w-3" />
+                          </span>
+                        )}
+                      </td>
+                    )}
                   </tr>
                 ))}
               </tbody>
@@ -708,6 +762,15 @@ function MovementsTab() {
           />
         )}
       </div>
+
+      {editing && (
+        <EditMovementModal
+          tx={editing.tx}
+          wh={editing.wh}
+          sku={skuOf(editing)}
+          onClose={() => setEditing(null)}
+        />
+      )}
     </div>
   );
 }

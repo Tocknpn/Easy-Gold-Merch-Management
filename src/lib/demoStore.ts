@@ -57,6 +57,15 @@ export const demoDB: DemoDB = {
   remarks: (raw.remarks || []).map((r: any) => ({ ...r })),
 };
 
+// ── Ledger row ids ────────────────────────────────────────────────────────
+// Live rows carry the DB identity (bigint) id; the Stock Movements editor
+// (migration 0015) targets ONE row by id in both modes, so seeded demo rows
+// get ids at load time and every demo mutation assigns the next one.
+let _txSeq = 0;
+export const nextLedgerId = (): number => ++_txSeq;
+for (const t of demoDB.transactions) if (t.id == null) t.id = nextLedgerId();
+for (const t of demoDB.csTransactions) if (t.id == null) t.id = nextLedgerId();
+
 // Millisecond keys collide when two ids are created in the same ms (two rapid
 // ticket submissions, a burst of SKU adds, …) — append a per-ms sequence so
 // demo ids are unique too (live uses the same ms scheme; see finding §B).

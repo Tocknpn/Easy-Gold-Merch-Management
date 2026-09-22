@@ -7,8 +7,8 @@
 import { demoDB, demoLogin, demoTicketsWithItems } from '../src/lib/demoStore';
 import { demoCreateTicket, demoUpdateTicketStatus } from '../src/lib/demoMutations';
 import {
-  demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku,
-  demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
+  demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku, demoCsRestockSku,
+  demoEditStockMovement, demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
 } from '../src/lib/demoData';
 import {
   getStockMovement, getMonthRows, actionableTicketCount,
@@ -387,6 +387,86 @@ check('comment(stamp): line manager comment + time', tCDone.lmComment === 'ok fr
 check('comment(stamp): director comment + time', tCDone.directorComment === 'final go' && !!tCDone.directorCommentAt);
 check('comment(stamp): timestamps are ordered WH ≤ LM ≤ Director',
   String(tCDone.whCommentAt) <= String(tCDone.lmCommentAt) && String(tCDone.lmCommentAt) <= String(tCDone.directorCommentAt));
+
+console.log('\n── 14) Stock movement edits — fix wrong amounts at the source (0015)');
+
+// 14a) wrong restock amount corrected: 50 → 30 (stock + inflow follow −20)
+const skuM = addSku({ name: 'WF Edit Restock', openingBalance: 100, costPerUnit: 10 });
+demoRestockSku(skuM, 50, 'Wh Person', 'wrong refill');
+const restockTx = demoDB.transactions.find((t) => t.ticketId === 'RESTOCK' && t.skuId === skuM)!;
+check('edit setup: stock = 150 after the wrong refill', skuStock(skuM) === 150);
+demoEditStockMovement('mkt', restockTx.id!, { qty: 30 }, 'delivery note says 30', adm.fullName, adm.role);
+check('restock edit: ledger row corrected to 30', restockTx.qty === 30);
+check('restock edit: current stock follows −20 (130)', skuStock(skuM) === 130);
+check('restock edit: total inflow follows −20 (130)', demoDB.skus.find((s) => s.id === skuM)!.totalInflow === 130);
+const mvM = getStockMovement(demoDB.skus.find((s) => s.id === skuM)!, demoDB.transactions, todayStr(), todayStr());
+check('restock edit: report Stock In shows the corrected 30', mvM.stockIn === 30);
+check('restock edit: report closing = current (130)', mvM.closing === 130);
+check('restock edit: stamped with editor + reason',
+  (restockTx.editedBy || '') === adm.fullName && (restockTx.comment || '').includes('delivery note says 30'));
+
+// 14b) deduction qty corrected on a booked ticket row: 10 → 4 (stock back +6)
+const skuD = addSku({ name: 'WF Edit Deduct', openingBalance: 40 });
+const tD = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: skuD, skuName: 'WF Edit Deduct', qtyRequested: 10, unit: 'pcs' }],
+});
+check('deduct edit setup: booking took 10 (stock 30)', skuStock(skuD) === 30);
+const bookedTx = demoDB.transactions.find((t) => t.ticketId === tD && t.skuId === skuD && t.type === 'deduction')!;
+demoEditStockMovement('mkt', bookedTx.id!, { qty: 4 }, 'only 4 actually taken', adm.fullName, adm.role);
+check('deduct edit: ledger row corrected to 4', bookedTx.qty === 4);
+check('deduct edit: stock back +6 (36)', skuStock(skuD) === 36);
+
+// 14c) broken-qty-only edit changes loss reporting, not stock
+const skuL = addSku({ name: 'WF Edit Broken', openingBalance: 20 });
+demoMktDestockSku(skuL, 5, 'Wh Person', 'damaged units', 2);
+const lossTx = demoDB.transactions.find((t) => t.skuId === skuL && (t.status || '') === 'Loss/Broken')!;
+const stockBeforeBroken = skuStock(skuL);
+demoEditStockMovement('mkt', lossTx.id!, { qtyBroken: 5 }, '3 more found broken on the shelf', adm.fullName, adm.role);
+check('broken edit: qty untouched (5) and stock untouched', lossTx.qty === 5 && skuStock(skuL) === stockBeforeBroken);
+check('broken edit: broken qty now 5', lossTx.qtyBroken === 5);
+const mvL = getStockMovement(demoDB.skus.find((s) => s.id === skuL)!, demoDB.transactions, todayStr(), todayStr());
+check('broken edit: report lossQty = 5', mvL.lossQty === 5);
+
+// 14d) date edit moves the row into another report period
+const skuT = addSku({ name: 'WF Edit Date', openingBalance: 10 });
+demoRestockSku(skuT, 7, 'Wh Person');
+const dateTx = demoDB.transactions.find((t) => t.ticketId === 'RESTOCK' && t.skuId === skuT)!;
+demoEditStockMovement('mkt', dateTx.id!, { date: '2000-01-15' }, 'recorded in the wrong month', adm.fullName, adm.role);
+check('date edit: row moved to the new date', dateTx.date === '2000-01-15');
+const mvT = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, todayStr(), todayStr());
+check('date edit: today report no longer counts it', mvT.stockIn === 0);
+const mvTOld = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, '2000-01-01', '2000-01-31');
+check('date edit: the corrected month shows it', mvTOld.stockIn === 7);
+
+// 14e) CS warehouse rows — customer_service edits their own, others cannot
+const csSku = addCsSku({ name: 'WF Edit CS', openingBalance: 60 });
+demoCsRestockSku(csSku, 12, 'CS Person');
+const csTx = demoDB.csTransactions.find((t) => t.ticketId === 'RESTOCK' && t.skuId === csSku)!;
+check('cs gate: warehouse cannot edit CS rows', throws(() => demoEditStockMovement('cs', csTx.id!, { qty: 5 }, 'x', wh.fullName, wh.role), /not authorized/i));
+check('cs gate: staff cannot edit CS rows', throws(() => demoEditStockMovement('cs', csTx.id!, { qty: 5 }, 'x', staff.fullName, staff.role), /not authorized/i));
+demoEditStockMovement('cs', csTx.id!, { qty: 9 }, 'CS refill miscounted', cs.fullName, cs.role);
+check('cs edit: row corrected to 9', csTx.qty === 9);
+check('cs edit: CS stock follows −3 (69)', csStock(csSku) === 69);
+
+// 14f) guards: OPENING rows, cancelled bookings, negative qty, missing reason, unknown row, role gates
+const openTx = demoDB.transactions.find((t) => t.ticketId === 'OPENING' && t.skuId === skuM)!;
+check('opening row edit refused', throws(() => demoEditStockMovement('mkt', openTx.id!, { qty: 1 }, 'x', adm.fullName, adm.role), /opening rows/i));
+const skuRj = addSku({ name: 'WF Edit Cancelled', openingBalance: 30 });
+const tRj = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: skuRj, skuName: 'WF Edit Cancelled', qtyRequested: 5, unit: 'pcs' }],
+});
+demoUpdateTicketStatus(tRj, 'rejected', { actorName: wh.fullName, actorRole: wh.role, comment: 'no' });
+const cancelledTx = demoDB.transactions.find((t) => t.ticketId === tRj && (t.status || '') === 'Booking Cancelled')!;
+check('cancelled booking edit refused', throws(() => demoEditStockMovement('mkt', cancelledTx.id!, { qty: 1 }, 'x', adm.fullName, adm.role), /audit-only/i));
+check('negative qty refused', throws(() => demoEditStockMovement('mkt', restockTx.id!, { qty: -3 }, 'x', adm.fullName, adm.role), /quantity must be 0 or greater/i));
+check('missing reason refused', throws(() => demoEditStockMovement('mkt', restockTx.id!, { qty: 31 }, '   ', adm.fullName, adm.role), /reason is required/i));
+check('unknown row id refused', throws(() => demoEditStockMovement('mkt', 987654321, { qty: 31 }, 'x', adm.fullName, adm.role), /not found/i));
+check('mkt gate: customer_service cannot edit MKT rows', throws(() => demoEditStockMovement('mkt', restockTx.id!, { qty: 31 }, 'x', cs.fullName, cs.role), /not authorized/i));
+check('ledger ids are unique after all the edits',
+  new Set(demoDB.transactions.map((t) => t.id)).size === demoDB.transactions.length &&
+  new Set(demoDB.csTransactions.map((t) => t.id)).size === demoDB.csTransactions.length);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

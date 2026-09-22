@@ -1,5 +1,5 @@
 // ── In-memory demo engine: mutations (mirrors the SQL engine) ────────────
-import { demoDB, nextId } from './demoStore';
+import { demoDB, nextId, nextLedgerId } from './demoStore';
 import type { SKU, CS_SKU, TicketStatus, TicketType } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
@@ -55,6 +55,7 @@ export function demoCreateTicket(p: {
     if (!sku) continue;
     sku.currentStock -= i.qtyRequested;
     demoDB.transactions.unshift({
+      id: nextLedgerId(),
       ticketId: id, skuId: i.skuId, skuName: i.skuName, qty: i.qtyRequested, type: 'deduction',
       date: todayStr(), actionAt: new Date().toISOString(), actionBy: p.createdByName,
       status: 'Booked', comment: 'Stock booked on ticket submission',
@@ -253,6 +254,7 @@ export function demoUpdateTicketStatus(
       const sku = demoDB.skus.find((s) => s.id === it.skuId);
       if (sku) sku.currentStock += ret;
       demoDB.transactions.unshift({
+        id: nextLedgerId(),
         ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty: ret, qtyBroken: broken, type: 'addition',
         date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Returned',
         comment: (meta.comment || '') + (broken > 0 ? ` (${broken} broken/lost)` : ''),

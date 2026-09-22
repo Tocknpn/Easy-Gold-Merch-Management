@@ -98,6 +98,20 @@ export interface StockTransaction {
   actionBy?: string | null;
   status?: string | null;
   comment?: string | null;
+  /** Set when a privileged user corrected this row
+   *  (migration 0015_edit_stock_movement / demoEditStockMovement). */
+  editedBy?: string | null;
+  editedAt?: string | null;
+}
+
+/** Fields a privileged user may correct on an existing stock movement row
+ *  (Ticket Tracking → Stock Movements → Edit). `type` and `status` are never
+ *  editable — a wrong-direction fix goes through Manage Stock → Stock In/Out. */
+export interface MovementEditPatch {
+  qty?: number;
+  qtyBroken?: number;
+  date?: string;
+  actionBy?: string;
 }
 
 export interface TicketAction {

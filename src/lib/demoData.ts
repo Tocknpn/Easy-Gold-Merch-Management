@@ -1,6 +1,6 @@
 // ── In-memory demo engine: SKU / config mutations ────────────────────────
-import { demoDB, nextId } from './demoStore';
-import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction } from './types';
+import { demoDB, nextId, nextLedgerId } from './demoStore';
+import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction, MovementEditPatch } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
 
@@ -54,7 +54,7 @@ export function demoAddSku(sku: Partial<SKU>): string {
     createdAt: todayStr(), status: sku.status || 'active',
   });
   if (opening > 0)
-    demoDB.transactions.unshift({ ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionBy: '', status: 'Opening', comment: 'Opening balance on SKU creation' });
+    demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionBy: '', status: 'Opening', comment: 'Opening balance on SKU creation' });
   return id;
 }
 
@@ -92,7 +92,7 @@ export function demoRestockSku(id: string, qty: number, actionBy?: string, comme
   if (!(qty > 0)) throw new Error('Restock quantity must be greater than 0');
   s.currentStock += qty;
   s.totalInflow += qty;
-  demoDB.transactions.unshift({ ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Restock', comment: comment || 'Manual restock' });
+  demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Restock', comment: comment || 'Manual restock' });
 }
 
 export function demoCsAddSku(sku: Partial<CS_SKU>): string {
@@ -106,7 +106,7 @@ export function demoCsAddSku(sku: Partial<CS_SKU>): string {
     createdAt: todayStr(), status: sku.status || 'active',
   });
   if (opening > 0)
-    demoDB.csTransactions.unshift({ ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy: '', comment: 'Opening balance on SKU creation' });
+    demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy: '', comment: 'Opening balance on SKU creation' });
   return id;
 }
 
@@ -152,7 +152,7 @@ export function demoCsRestockSku(id: string, qty: number, actionBy?: string, com
   if (!s) throw new Error('CS SKU not found');
   if (!(qty > 0)) throw new Error('Restock quantity must be greater than 0');
   s.currentStock += qty; s.totalInflow += qty;
-  demoDB.csTransactions.unshift({ ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: comment || 'Manual restock' });
+  demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: comment || 'Manual restock' });
 }
 
 export function demoCsDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0): void {
@@ -161,6 +161,7 @@ export function demoCsDestockSku(id: string, qty: number, actionBy?: string, com
   if (!(qty > 0)) throw new Error('Destock quantity must be greater than 0');
   s.currentStock = Math.max(0, s.currentStock - qty);
   demoDB.csTransactions.unshift({
+    id: nextLedgerId(),
     ticketId: 'DIRECT_DESTOCK', skuId: id, skuName: s.name, qty, qtyBroken: broken || undefined, type: 'deduction',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
     status: broken > 0 ? 'Loss/Broken' : 'Destock', comment: comment || 'Direct destock',
@@ -175,6 +176,7 @@ export function demoMktDestockSku(id: string, qty: number, actionBy?: string, co
   if (qty > s.currentStock) throw new Error(`Only ${s.currentStock} ${s.unit} in stock`);
   s.currentStock -= qty;
   demoDB.transactions.unshift({
+    id: nextLedgerId(),
     ticketId: 'DIRECT_DESTOCK', skuId: id, skuName: s.name, qty, qtyBroken: broken || undefined, type: 'deduction',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
     status: broken > 0 ? 'Loss/Broken' : 'Destock', comment: comment || 'Direct destock',
@@ -198,11 +200,13 @@ export function demoTransferMktToCs(skuId: string, qty: number, actionBy: string
     });
   }
   demoDB.transactions.unshift({
+    id: nextLedgerId(),
     ticketId: 'MKT_TRANSFER', skuId, skuName: mkt.name, qty, type: 'deduction',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
     status: 'Transferred to CS', comment: comment || 'Transferred to CS warehouse',
   });
   demoDB.csTransactions.unshift({
+    id: nextLedgerId(),
     ticketId: 'MKT_TRANSFER_IN', skuId, skuName: mkt.name, qty, type: 'addition',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
     comment: 'Auto-transferred from MKT WH' + (comment ? ' — ' + comment : ''),
@@ -217,8 +221,81 @@ export function demoTransferCsToMkt(skuId: string, qty: number, actionBy: string
   if (mkt) mkt.currentStock += qty;
   else demoDB.skus.push({ ...cs, currentStock: qty, totalInflow: qty });
   cs.currentStock -= qty;
-  demoDB.transactions.unshift({ ticketId: 'CS_TRANSFER', skuId, skuName: cs.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Returned to MKT', comment: 'Transferred from CS warehouse' });
-  demoDB.csTransactions.unshift({ ticketId: 'CS_TRANSFER_OUT', skuId, skuName: cs.name, qty, type: 'deduction', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: 'Transferred back to MKT warehouse' });
+  demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'CS_TRANSFER', skuId, skuName: cs.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Returned to MKT', comment: 'Transferred from CS warehouse' });
+  demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'CS_TRANSFER_OUT', skuId, skuName: cs.name, qty, type: 'deduction', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: 'Transferred back to MKT warehouse' });
+}
+
+// ── Edit an existing stock movement row (mirrors edit_stock_movement in
+//    migration 0015) ────────────────────────────────────────────────────────
+// Fixes a wrong refill / issue amount AT THE SOURCE instead of writing a
+// compensating Stock In / Stock Out row. The SKU baseline follows the delta
+// (current_stock always; total_inflow for additions) so the backend numbers
+// and every report stay correct. The edit is stamped with the editor's name,
+// role, timestamp and reason — the row keeps its original action_by.
+// Authorization mirrors the SQL: admin = both warehouses, warehouse = MKT,
+// customer_service = CS. OPENING rows and cancelled bookings are refused.
+export function demoEditStockMovement(
+  warehouse: 'mkt' | 'cs',
+  txId: number,
+  patch: MovementEditPatch,
+  reason: string,
+  editorName?: string,
+  editorRole?: string,
+): void {
+  const role = String(editorRole || '').toLowerCase();
+  const allowed =
+    role === 'admin' ||
+    (role === 'warehouse' && warehouse === 'mkt') ||
+    (role === 'customer_service' && warehouse === 'cs');
+  if (!allowed)
+    throw new Error(`Not authorized: ${role || 'unknown'} cannot edit ${warehouse.toUpperCase()} stock movements`);
+  if (!reason || !reason.trim()) throw new Error('An edit reason is required');
+
+  const ledger = warehouse === 'mkt' ? demoDB.transactions : demoDB.csTransactions;
+  const tx = ledger.find((t) => t.id === txId);
+  if (!tx) throw new Error('Stock movement row not found');
+  if (tx.ticketId === 'OPENING')
+    throw new Error('Opening rows follow the SKU opening balance — edit it in Manage Stock → SKU Setup');
+  if (['booking cancelled', 'cancelled', 'reversed'].includes((tx.status || '').toLowerCase()))
+    throw new Error('Cancelled bookings are audit-only and cannot be edited');
+
+  const oldQty = castNumber(tx.qty);
+  let newQty = oldQty;
+  if (patch.qty !== undefined) {
+    newQty = castNumber(patch.qty);
+    if (!(newQty >= 0)) throw new Error('Quantity must be 0 or greater');
+  }
+  if (patch.date !== undefined && patch.date && !/^\d{4}-\d{2}-\d{2}$/.test(patch.date))
+    throw new Error('Date must be in YYYY-MM-DD format');
+
+  // ── re-sync the SKU baseline by the delta (the core fix) ──
+  const delta = newQty - oldQty;
+  const db = warehouse === 'mkt' ? demoDB.skus : demoDB.csSkus;
+  const sku = db.find((s) => s.id === tx.skuId);
+  if (sku && delta !== 0) {
+    if (tx.type === 'addition') {
+      sku.currentStock = Math.max(0, sku.currentStock + delta);
+      sku.totalInflow = Math.max(0, sku.totalInflow + delta);
+    } else {
+      sku.currentStock = Math.max(0, sku.currentStock - delta);
+    }
+  }
+
+  // ── apply the patch (type / status never change) ──
+  tx.qty = newQty;
+  if (warehouse === 'mkt' && patch.qtyBroken !== undefined)
+    tx.qtyBroken = Math.max(0, castNumber(patch.qtyBroken)) || undefined;
+  if (patch.date !== undefined && patch.date) tx.date = patch.date;
+  if (patch.actionBy !== undefined && patch.actionBy.trim()) tx.actionBy = patch.actionBy.trim();
+
+  // ── audit stamp: who, when, why (and the qty move when it changed) ──
+  const stamp =
+    `Edited by ${editorName || 'unknown'} (${role}) on ${new Date().toISOString().slice(0, 16).replace('T', ' ')}` +
+    ` — ${reason.trim()}` +
+    (delta !== 0 ? ` · qty ${oldQty} → ${newQty}` : '');
+  tx.comment = tx.comment ? `${tx.comment} | ${stamp}` : stamp;
+  tx.editedBy = editorName || 'unknown';
+  tx.editedAt = new Date().toISOString();
 }
 
 export function demoManageConfig(key: string, value: string): void {

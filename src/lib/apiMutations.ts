@@ -2,7 +2,7 @@
 import { isLive } from './api';
 import { supabase } from './supabase';
 import * as demoData from './demoData';
-import type { SKU, CS_SKU, NewUserInput, UserRole } from './types';
+import type { SKU, CS_SKU, NewUserInput, UserRole, MovementEditPatch } from './types';
 
 const row = (s: Partial<SKU | CS_SKU>) => ({
   ...(s.id ? { id: s.id } : {}),
@@ -59,6 +59,38 @@ export async function apiRestockSku(id: string, qty: number, actionBy?: string, 
   if (!isLive()) return demoData.demoRestockSku(id, qty, actionBy, comment);
   const { data, error } = await supabase!.rpc('manage_sku', {
     p_action: 'restock', p_sku: { id, qty }, p_remark: comment || null, p_action_by: actionBy || null,
+  });
+  if (error) throw new Error(error.message);
+  ok(data);
+}
+
+// ── Edit an existing stock movement row (migration 0015) ─────────────────
+// Fixes a wrong refill / issue amount AT THE SOURCE: the ledger row is edited
+// and the SKU baseline is re-synced by the same delta, so Stock In / Stock Out
+// reporting shows the right numbers without compensating entries.
+// Authorization is enforced by the RPC from the JWT (admin = both warehouses,
+// warehouse = MKT rows, customer_service = CS rows); the editor identity is
+// passed only for the demo engine, which has no server session.
+export async function apiEditStockMovement(
+  warehouse: 'mkt' | 'cs',
+  txId: number,
+  patch: MovementEditPatch,
+  reason: string,
+  editor?: { name?: string | null; role?: string | null },
+): Promise<void> {
+  if (!isLive()) {
+    return demoData.demoEditStockMovement(warehouse, txId, patch, reason, editor?.name || '', editor?.role || '');
+  }
+  const p: Record<string, unknown> = {};
+  if (patch.qty !== undefined) p.qty = patch.qty;
+  if (patch.qtyBroken !== undefined) p.qty_broken = patch.qtyBroken;
+  if (patch.date !== undefined) p.date = patch.date;
+  if (patch.actionBy !== undefined) p.action_by = patch.actionBy;
+  const { data, error } = await supabase!.rpc('edit_stock_movement', {
+    p_warehouse: warehouse,
+    p_tx_id: txId,
+    p_patch: p,
+    p_reason: reason,
   });
   if (error) throw new Error(error.message);
   ok(data);

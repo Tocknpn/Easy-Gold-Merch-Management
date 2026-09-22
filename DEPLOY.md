@@ -301,6 +301,8 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 | SKU **Activate / Deactivate** (or the Status field) has no effect, and the "time not recorded" label shows on approval comments | Run `supabase/migrations/0013_sku_edit_restock_reporting.sql` (adds `skus.status` + `wh/lm/director_comment_at`) |
 | Warehouse approval qty **keeps reverting to the requested amount** (15 → 20 doesn't stick, LM/finalize still see 15) | Run `supabase/migrations/0014_approved_qty_propagation.sql` (approved-qty propagation, `engine_version=0014`). The UI is built so over-approval stays disabled until this migration is applied |
 | Users tab: "Only an Admin can manage users" / "function public.manage_user does not exist" | Run `supabase/migrations/0009_user_management.sql` |
+ | Stock Movements: no **pencil** edit button, or saving fails with "function public.edit_stock_movement does not exist" / "Not authorized" | Run `supabase/migrations/0015_edit_stock_movement.sql` (editable stock movements — Admin: both warehouses, Warehouse: MKT rows, Customer Service: CS rows) |
+
 | Password column shows **— not set —** for old users | Run `0009_user_management.sql`, then `npm run seed:auth` (back-fills from `data/Users.csv`) |
 | Photos won't upload | Run `0005_sku_image_storage.sql` (creates the `sku-images` bucket) |
 | Lao shows as `???` in Excel | Re-export with `npm run csv:export` (files now carry a UTF-8 **BOM**) |

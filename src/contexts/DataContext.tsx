@@ -7,7 +7,7 @@ import type {
 } from '@/lib/types';
 import {
   apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus,
-  apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku,
+  apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku, apiEditStockMovement,
   apiCsAddSku, apiCsUpdateSku, apiCsDeleteSku, apiCsRestockSku, apiCsDestockSku,
   apiMktDestockSku, apiTransferMktToCs,
   apiTransferCsToMkt, apiManageConfig, apiManageCategory, apiAddRemark,
@@ -54,6 +54,7 @@ interface DataCtx {
   updateSku: typeof apiUpdateSku;
   deleteSku: typeof apiDeleteSku;
   restockSku: typeof apiRestockSku;
+  editStockMovement: typeof apiEditStockMovement;
   csAddSku: typeof apiCsAddSku;
   csUpdateSku: typeof apiCsUpdateSku;
   csDeleteSku: typeof apiCsDeleteSku;
@@ -124,6 +125,8 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
       updateSku: (id: string, u: Partial<SKU>) => run(apiUpdateSku(id, u)),
       deleteSku: (id: string) => run(apiDeleteSku(id)),
       restockSku: (id: string, qty: number, by?: string, cmt?: string) => run(apiRestockSku(id, qty, by, cmt)),
+      editStockMovement: (wh: 'mkt' | 'cs', txId: number, patch: Parameters<typeof apiEditStockMovement>[2], reason: string, editor?: { name?: string | null; role?: string | null }) =>
+        run(apiEditStockMovement(wh, txId, patch, reason, editor)),
       csAddSku: (sku: Partial<CS_SKU>) => run(apiCsAddSku(sku)),
       csUpdateSku: (id: string, u: Partial<CS_SKU>) => run(apiCsUpdateSku(id, u)),
       csDeleteSku: (id: string) => run(apiCsDeleteSku(id)),

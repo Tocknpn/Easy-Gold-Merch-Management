@@ -203,9 +203,15 @@ flowchart LR
 `Ticket_ID, SKU_ID, SKU_Name, Qty_Requested, Qty_Approved, Unit`
 
 ### 4.5 `StockTransactions`
-`ID, Ticket_ID, SKU_ID, SKU_Name, Qty, Qty_Broken, Type, Date, Action_At, Action_By, Status, Comment`
-- `Type`: `addition` (stock in) or `deduction` (stock out).
+`ID, Ticket_ID, SKU_ID, SKU_Name, Qty, Qty_Broken, Type, Date, Action_At, Action_By, Status, Comment, Edited_By, Edited_At`
+- `Type`: `addition` (stock in) or `deduction` (stock out). **Never edited** — a wrong-direction fix goes through Manage Stock → Stock In/Out.
 - `Ticket_ID` sentinels: `OPENING` (opening balance recorded as a transaction when a SKU is added), `RESTOCK` (manual restock), `DIRECT_DESTOCK` (CS direct destock).
+- `Edited_By` / `Edited_At` (migration 0015): set when a privileged user corrects the row via
+  `edit_stock_movement` (Ticket Tracking → Stock Movements → Edit). Admin edits both warehouses,
+  Warehouse edits MKT rows, Customer Service edits CS rows. The edit re-syncs the SKU baseline
+  (`current_stock`, `total_inflow` for additions) by the qty delta, and the `Comment` gains a stamp
+  `Edited by <name> (<role>) on <ts> — <reason>[ · qty old → new]`. OPENING rows follow the SKU opening
+  balance (edit it in SKU Setup) and cancelled bookings are audit-only — both are refused by the RPC.
 
 ### 4.6 `TicketActions` (audit trail)
 `Action_ID, Ticket_ID, Action, Status, Action_At, Action_By, Comment, Role`

@@ -133,6 +133,7 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     csTransactions: (csTxRes.data as any[]).map((t: any) => ({
       id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: t.sku_name, qty: castNumber(t.qty),
       type: t.type, date: t.date, actionAt: t.action_at, actionBy: t.action_by, comment: t.comment,
+      editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
     })),
     actions: (actionsRes.data as any[]).map((a: any) => ({
       id: a.id, ticketId: a.ticket_id, action: a.action, status: a.status,
@@ -159,6 +160,7 @@ const mapTx = (rows: any[]): StockTransaction[] =>
     id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: t.sku_name, qty: castNumber(t.qty),
     qtyBroken: castNumber(t.qty_broken), type: t.type, date: t.date, actionAt: t.action_at,
     actionBy: t.action_by, status: t.status, comment: t.comment,
+    editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
   }));
 // ── mutations ────────────────────────────────────────────────────────────
 export async function apiCreateTicket(p: {
@@ -220,7 +222,7 @@ export async function apiUpdateTicketStatus(
 }
 // ── re-exports of the mutation API (single import point for callers) ────
 export {
-  apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku,
+  apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku, apiEditStockMovement,
   apiCsAddSku, apiCsUpdateSku, apiCsDeleteSku, apiCsRestockSku, apiCsDestockSku,
   apiMktDestockSku, apiTransferMktToCs,
   apiTransferCsToMkt, apiManageConfig, apiManageCategory, apiAddRemark,

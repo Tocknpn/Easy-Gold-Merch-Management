@@ -68,6 +68,14 @@ You can log in with any account from the demo chips on the login screen
      allowed up to available stock (`Current_Stock` + already booked), no more silently capping at the
      request; sets `system_config.engine_version = '0014'` (the UI only allows over-approval once set)
 
+   - `supabase/migrations/0015_edit_stock_movement.sql` — **editable stock movements** (Ticket Tracking →
+     Stock Movements → pencil icon): Admin (both warehouses), Warehouse (MKT rows) and Customer Service
+     (CS rows) can correct a wrong refill / issue amount **at the source** — the SKU `current_stock` /
+     `total_inflow` re-sync by the same delta so Finance numbers stay right without compensating
+     Stock Out entries. Every edit is stamped with the editor's real name (JWT), role, timestamp and a
+     mandatory reason (`edited_by` / `edited_at` columns + note on the row); OPENING rows and cancelled
+     bookings stay audit-only
+
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
