@@ -105,27 +105,36 @@ export function demoUpdateTicketStatus(
 
   const actor = meta.actorName || 'System';
 
-  // REVIEWED: confirm the booking made at submission (true-up to approved qty)
-  if (status === 'reviewed') {
+  // APPROVAL STEPS (reviewed / lm_approved / finalized) all decide the approved
+  // quantity — "last value wins". The ceiling is what is actually AVAILABLE:
+  // current stock + what this ticket already booked (the booking is already
+  // deducted from current_stock). Approving MORE than the request is allowed —
+  // the engine true-ups the booking by the difference at each step.
+  const qtyNotes: string[] = [];
+  const applyItems = () => {
     for (const it of demoDB.items[t.id] || []) {
       const mt = meta.items?.find((m) => m.skuId === it.skuId);
-      // NULL-safe: a stale 0 on pending rows means "not approved yet".
-      // Cap qty_approved at qty_requested — the warehouse can never approve
-      // (and book) MORE than was requested (mirrors the SQL cap).
-      const qty = mt && mt.qtyApproved !== undefined
-        ? Math.min(Math.max(0, mt.qtyApproved), it.qtyRequested)
-        : (it.qtyApproved || it.qtyRequested);
       const booking = demoDB.transactions.find(
         (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
       );
       const bookedQty = booking ? booking.qty : 0;
+      const sku = demoDB.skus.find((s) => s.id === it.skuId);
+      const available = (sku ? sku.currentStock : 0) + bookedQty;
+
+      // Payload wins. Otherwise, at the first step a stale 0 means "not decided
+      // yet" → fall back to the requested qty; at later steps keep the approved.
+      const raw = mt && mt.qtyApproved !== undefined
+        ? Math.max(0, mt.qtyApproved)
+        : status === 'reviewed'
+          ? (it.qtyApproved || it.qtyRequested)
+          : (it.qtyApproved ?? it.qtyRequested ?? 0);
+      const qty = Math.min(Math.floor(raw), available);
 
       if (qty <= 0) {
         // nothing approved → release whatever was booked
         it.qtyApproved = 0;
         if (booking) {
-          const sku0 = demoDB.skus.find((s) => s.id === it.skuId);
-          if (sku0) sku0.currentStock += bookedQty;
+          if (sku) sku.currentStock += bookedQty;
           booking.status = 'Booking Cancelled';
           booking.comment = 'Booking released - nothing approved at review';
         }
@@ -133,13 +142,13 @@ export function demoUpdateTicketStatus(
       }
 
       it.qtyApproved = qty;
-      const sku = demoDB.skus.find((s) => s.id === it.skuId);
       if (booking) {
         // booking exists: true-up only the difference (never deduct twice)
         if (qty !== bookedQty) {
           if (sku) sku.currentStock = Math.max(0, sku.currentStock - (qty - bookedQty));
           booking.qty = qty;
           booking.comment = 'Stock booked - confirmed at review';
+          qtyNotes.push(`${it.skuName}: ${bookedQty} → ${qty}`);
         }
       } else if (sku) {
         // legacy ticket submitted before booking-at-creation: deduct now
@@ -148,9 +157,12 @@ export function demoUpdateTicketStatus(
           ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'deduction',
           date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
         });
+        qtyNotes.push(`${it.skuName}: ${bookedQty} → ${qty}`);
       }
     }
-  }
+  };
+
+  if (['reviewed', 'lm_approved', 'finalized'].includes(status)) applyItems();
 
   // FINALIZED + cs_transfer → auto-restock CS warehouse
   if (status === 'finalized' && t.type === 'cs_transfer' && old !== 'finalized') {
@@ -251,26 +263,32 @@ export function demoUpdateTicketStatus(
 
 
   const nowIso = new Date().toISOString();
+  const baseComment = meta.comment || '';
+  // When an approver changes a quantity, say so in the trail so the final
+  // number is explained ("any approver until finalize — last value wins").
+  const effectiveComment = qtyNotes.length
+    ? `${baseComment}${baseComment ? ' · ' : ''}approved qty: ${qtyNotes.join('; ')}`
+    : baseComment;
   t.status = status;
   t.returnedProcessed = status === 'returned';
   t.lastActionAt = nowIso;
   t.lastActionBy = actor;
   t.lastActionStatus = status;
-  t.lastActionComment = meta.comment || '';
+  t.lastActionComment = effectiveComment;
   // Per-level comments + WHEN that level commented (shown in My Ticket)
   if (status === 'reviewed') {
-    t.whComment = meta.comment || t.whComment;
-    if (meta.comment) t.whCommentAt = nowIso;
+    t.whComment = effectiveComment || t.whComment;
+    if (effectiveComment) t.whCommentAt = nowIso;
   }
   if (status === 'lm_approved') {
-    t.lmComment = meta.comment || t.lmComment;
-    if (meta.comment) t.lmCommentAt = nowIso;
+    t.lmComment = effectiveComment || t.lmComment;
+    if (effectiveComment) t.lmCommentAt = nowIso;
   }
   if (status === 'finalized') {
-    t.directorComment = meta.comment || t.directorComment;
-    if (meta.comment && callerRole === 'director') t.directorCommentAt = nowIso;
+    t.directorComment = effectiveComment || t.directorComment;
+    if (effectiveComment && callerRole === 'director') t.directorCommentAt = nowIso;
   }
   if (meta.actualDeliveryDate) t.actualDeliveryDate = meta.actualDeliveryDate;
   if (status === 'returned') t.actualReturnDate = todayStr();
-  demoDB.actions.unshift({ ticketId: t.id, action: status, status, actionAt: nowIso, actionBy: actor, role: meta.actorRole, comment: meta.comment || '' });
+  demoDB.actions.unshift({ ticketId: t.id, action: status, status, actionAt: nowIso, actionBy: actor, role: meta.actorRole, comment: effectiveComment });
 }

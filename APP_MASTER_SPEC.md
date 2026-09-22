@@ -298,6 +298,12 @@ Statuses: `pending → reviewed → lm_approved → finalized`; plus `rejected`,
 | `finalized → returned` (borrow) | Warehouse “Return Completed” | For each returned item: `qtyReturned ?? qtyApproved ?? qtyRequested` added back (`addition` tx `Status='Returned'`), optional `qtyBroken` recorded in the tx; `Current_Stock += qtyRet`. Comment suffixes `(N broken/lost)`. email → requester |
 | any → `returned`/`finalized` | — | sets Return_Date / type / actual dates as provided |
 
+**Approved-qty propagation (migration `0014`).** The warehouse, Line Manager *and* Director may set the
+approved quantity — **last value wins** and it is what the engine books / deducts at finalize. Over-approval
+beyond the request is allowed up to **available stock** (`Current_Stock` + what the ticket already booked);
+`0` still releases the booking. A changed qty is echoed in the trail as `approved qty: X -> Y`. This
+formalises the legacy Excel behaviour (e.g. rows like `requested 10 → approved 20`) the old engine allowed.
+
 **Admin bypass (config driven).** If `bypass_threshold > 0` and `bypass_level != 'none'`, then when ticket total
 (`Σ qtyApproved|qtyRequested × costPerUnit`) is **below the threshold**:
 - `reviewed` + `bypass_level='wh_only'` → jump straight to `finalized`.

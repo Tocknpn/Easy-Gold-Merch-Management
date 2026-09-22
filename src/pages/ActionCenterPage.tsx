@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
 import { format } from 'date-fns';
 import {
@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { StatusBadge } from '@/components/StatusBadge';
+import { ApprovalPipeline } from '@/components/ApprovalPipeline';
+import { ConfirmTicketAction, type ConfirmKind } from '@/components/ConfirmTicketAction';
 import { cn, fmt, money, lastActionWhen, todayStr, safeImageUrl } from '@/lib/utils';
 import type { TicketWithItems, TicketStatus, SKU, TicketAction } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
@@ -26,13 +28,6 @@ const CARD_STATUS: Record<string, { badge: string; tile: string; icon: ReactNode
 };
 
 type DecisionKind = 'approve' | 'reject' | 'recall' | 'return';
-
-const PIPELINE = [
-  { status: 'pending', label: 'Submitted', who: 'Staff' },
-  { status: 'reviewed', label: 'Review & Book', who: 'Warehouse' },
-  { status: 'lm_approved', label: 'Approve', who: 'Line Manager' },
-  { status: 'finalized', label: 'Finalize', who: 'Director / Admin' },
-];
 
 const fmtDate = (iso?: string | null) => {
   if (!iso) return '—';
@@ -57,7 +52,7 @@ function ItemThumb({ imageUrl, name, className }: { imageUrl?: string | null; na
 
 export function ActionCenterPage() {
   const { user } = useAuth();
-  const { tickets, skus, actions, updateTicketStatus, loading, error, refresh } = useData();
+  const { tickets, skus, actions, updateTicketStatus, loading, error, refresh, config } = useData();
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [q, setQ] = useState('');
@@ -179,6 +174,7 @@ export function ActionCenterPage() {
               role={role}
               busy={busy}
               isReturn={isReturn(selected)}
+              canOverApprove={String(config?.engine_version || '') === '0014'}
               onBack={() => setSelectedId(null)}
               onApprove={(meta) => run(selected, nxt(selected.status), meta)}
               onReject={(comment) => run(selected, 'rejected', { comment })}
@@ -250,52 +246,6 @@ function QueueCard({ ticket, active, isReturn, onClick }: {
         </div>
       </div>
     </button>
-  );
-}
-
-/* ───────────────────── Pipeline stepper ───────────────────── */
-
-const RETURNED_STEP = { status: 'returned', label: 'Returned', who: 'Warehouse' };
-
-function Pipeline({ status, steps, createdAt }: { status: TicketStatus; steps: typeof PIPELINE; createdAt?: string | null }) {
-  const idx = steps.findIndex((s) => s.status === status);
-  const pct = idx <= 0 ? 0 : (idx / (steps.length - 1)) * 100;
-  return (
-    <div className="relative px-1 pt-1">
-      <div className="absolute left-[19px] right-[19px] top-[15px] h-0.5 rounded bg-slate-200" />
-      {idx > 0 && (
-        <div
-          className="absolute left-[19px] top-[15px] h-0.5 rounded bg-brand-500 transition-all duration-500"
-          style={{ width: `calc((100% - 38px) * ${pct / 100})` }}
-        />
-      )}
-      <div className="relative flex items-start justify-between">
-        {steps.map((s, i) => {
-          const done = idx > i;
-          const current = idx === i;
-          return (
-            <div key={s.status} className="flex w-16 flex-col items-center text-center">
-              <div
-                className={cn(
-                  'flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ring-4 ring-white transition',
-                  (done || current) && 'bg-brand-600 text-white shadow-sm',
-                  !done && !current && 'border border-slate-200 bg-white text-slate-400',
-                )}
-              >
-                {done ? <CheckCircle2 className="h-4 w-4" /> : i + 1}
-              </div>
-              <p className={cn('mt-1.5 text-[11px] font-semibold leading-tight', current ? 'text-brand-700' : done ? 'text-slate-700' : 'text-slate-400')}>
-                {s.label}
-              </p>
-              <p className="text-[10px] leading-tight text-slate-400">{s.who}</p>
-              {i === 0 && createdAt && (
-                <p className="mt-0.5 text-[9px] leading-tight text-slate-400">{fmtDateTime(createdAt)}</p>
-              )}
-            </div>
-          );
-        })}
-      </div>
-    </div>
   );
 }
 
@@ -379,13 +329,14 @@ function ActionTrail({ actions }: { actions: TicketAction[] }) {
 
 /* ───────────────────── Detail panel (right) ───────────────────── */
 
-function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onApprove, onReject, onRecall, onReturn }: {
+function DetailPanel({ ticket, actions, skus, role, busy, isReturn, canOverApprove, onBack, onApprove, onReject, onRecall, onReturn }: {
   ticket: TicketWithItems;
   actions: TicketAction[];
   skus: SKU[];
   role: string;
   busy: boolean;
   isReturn: boolean;
+  canOverApprove: boolean;
   onBack: () => void;
   onApprove: (m: { comment?: string; actualDeliveryDate?: string | null; items?: { skuId: string; qtyApproved: number }[] | null }) => void;
   onReject: (comment: string) => void;
@@ -402,20 +353,60 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
   );
   const [pipeOpen, setPipeOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [ask, setAsk] = useState<ConfirmKind | null>(null);
+
+  // Keep the sheets in sync when a different ticket, a fresh status or new
+  // quantities arrive (realtime refresh / switching selection). Keyed on
+  // primitives so an unrelated ticket update never wipes what the user types.
+  const itemsKey = ticket.items.map((i) => `${i.skuId}:${i.qtyApproved ?? ''}:${i.qtyRequested}`).join('|');
+  useEffect(() => {
+    setQtys(Object.fromEntries(ticket.items.map((i) => [i.skuId, String(i.qtyApproved ?? i.qtyRequested ?? '')])));
+    setReturns(Object.fromEntries(ticket.items.map((i) => [i.skuId, { ret: String(i.qtyApproved ?? i.qtyRequested ?? ''), broken: '0' }])));
+    setComment('');
+    setDelivery(ticket.actualDeliveryDate || todayStr());
+  }, [ticket.id, ticket.status, itemsKey]);
+
+  // Ceiling rule — an approver may approve MORE than was requested (the engine
+  // true-ups the booking at each level), but never more than is actually
+  // available: current stock + what this ticket already booked (the booking is
+  // already deducted from current_stock).
+  const availableOf = (it: TicketWithItems['items'][number]) => {
+    const sku = skus.find((s) => s.id === it.skuId);
+    const booked = it.qtyApproved ?? it.qtyRequested ?? 0;
+    return Math.max(0, (sku?.currentStock || 0) + booked);
+  };
+  // Ceiling for THIS deployment. Over-approval (up to available stock) needs
+  // migration 0014 (sets engine_version) — until it is applied, cap at the
+  // requested qty so a frontend-only deploy can never silently drop an
+  // over-approval again (the exact bug this change fixes).
+  const capOf = (it: TicketWithItems['items'][number]) =>
+    canOverApprove ? availableOf(it) : it.qtyRequested;
 
   const setQty = (skuId: string, v: number) => {
-    // Clamp to what was requested — the engine also caps server-side, but the
-    // input should never even suggest approving more than the requester asked.
-    const req = ticket.items.find((i) => i.skuId === skuId)?.qtyRequested || 0;
-    setQtys((q) => ({ ...q, [skuId]: String(Math.min(Math.max(0, v), req)) }));
+    const it = ticket.items.find((i) => i.skuId === skuId);
+    const cap = it ? capOf(it) : Math.max(0, v);
+    setQtys((q) => ({ ...q, [skuId]: String(Math.min(Math.max(0, Math.floor(v)), cap)) }));
   };
   const setReturn = (skuId: string, field: 'ret' | 'broken', v: string) =>
     setReturns((r) => ({ ...r, [skuId]: { ...r[skuId], [field]: v } }));
 
-  const overStock = !isReturn && ticket.items.some((it) => {
-    const sku = skus.find((s) => s.id === it.skuId);
-    return sku && (Number(qtys[it.skuId]) || 0) > sku.currentStock;
+  // Per-item validation — blocks submit with a clear message instead of
+  // silently changing the number the user typed.
+  const qtyIssues: Record<string, string> = {};
+  const hasIssue = !isReturn && ticket.items.some((it) => {
+    const raw = qtys[it.skuId] ?? '';
+    const n = Number(raw);
+    if (raw === '' || !Number.isFinite(n) || n < 0) { qtyIssues[it.skuId] = 'Enter a quantity (0 or more)'; return true; }
+    const cap = capOf(it);
+    if (n > cap) {
+      qtyIssues[it.skuId] = canOverApprove
+        ? `Only ${fmt(cap)} available — cannot approve ${fmt(n)}`
+        : `Approving more than requested (${fmt(cap)}) needs migration 0014`;
+      return true;
+    }
+    return false;
   });
+
   const canRecall = ['reviewed', 'lm_approved'].includes(ticket.status) && (role === 'admin' || role === 'warehouse');
   const primaryLabel = isReturn
     ? 'Confirm Return'
@@ -437,10 +428,10 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
       onApprove({
         comment,
         actualDeliveryDate: role === 'warehouse' ? delivery : null,
-        items: Object.entries(qtys).map(([skuId, q]) => {
-          const req = ticket.items.find((i) => i.skuId === skuId)?.qtyRequested || 0;
-          return { skuId, qtyApproved: Math.min(Number(q) || 0, req) };
-        }),
+        // Send exactly what was entered — validation above already guarantees a
+        // number within the availability ceiling, so nothing is re-clamped here
+        // (the old Math.min(..., requested) is what silently dropped over-approval).
+        items: ticket.items.map((it) => ({ skuId: it.skuId, qtyApproved: Math.floor(Number(qtys[it.skuId]) || 0) })),
       });
     }
   };
@@ -496,18 +487,24 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
           />
           <span className="pointer-events-none absolute bottom-2 right-3 text-[10px] font-medium text-slate-300">{comment.length}/500</span>
         </div>
+        {hasIssue && (
+          <p className="mt-3 flex items-start gap-1.5 rounded-lg bg-rose-50 p-2.5 text-xs font-medium text-rose-700 ring-1 ring-rose-100">
+            <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+            {Object.values(qtyIssues)[0]}
+          </p>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {!isReturn && canRecall && (
-            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => onRecall(comment)}>
+            <button className="btn btn-secondary btn-sm" disabled={busy} onClick={() => setAsk('recall')}>
               <Undo2 className="h-3.5 w-3.5" /> Recall
             </button>
           )}
           {!isReturn && (
-            <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => onReject(comment)}>
+            <button className="btn btn-danger btn-sm" disabled={busy} onClick={() => setAsk('reject')}>
               <XCircle className="h-3.5 w-3.5" /> Reject
             </button>
           )}
-          <button className="btn btn-primary btn-sm ml-auto" disabled={busy} onClick={confirm}>
+          <button className="btn btn-primary btn-sm ml-auto" disabled={busy || hasIssue} onClick={confirm}>
             {busy
               ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
               : isReturn ? <PackageCheck className="h-3.5 w-3.5" /> : <CheckCircle2 className="h-3.5 w-3.5" />}
@@ -530,7 +527,7 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
           {pipeOpen && (
             <>
               <h3 className="mb-3 text-[13px] font-bold text-brand-700">Approval Pipeline</h3>
-              <Pipeline status={ticket.status} steps={ticket.type === 'borrow' ? [...PIPELINE, RETURNED_STEP] : PIPELINE} createdAt={ticket.createdAt} />
+              <ApprovalPipeline status={ticket.status} type={ticket.type} createdAt={ticket.createdAt} />
             </>
           )}
         </section>
@@ -567,11 +564,18 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
               Est. value <span className="font-bold text-slate-700">{money(estTotal)}</span>
             </span>
           </div>
+          {!canOverApprove && (
+            <p className="mb-2 rounded-lg bg-amber-50 px-2.5 py-1.5 text-[11px] font-medium text-amber-700 ring-1 ring-amber-100">
+              Over-approval (more than requested) is disabled until migration 0014 is applied — the approved qty is capped at the request.
+            </p>
+          )}
           <div className="divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white lg:max-h-[300px] lg:overflow-y-auto">
             {ticket.items.map((it) => {
               const sku = skus.find((s) => s.id === it.skuId);
               const q = Number(qtys[it.skuId]) || 0;
-              const over = !isReturn && !!sku && q > sku.currentStock;
+              const avail = sku ? (canOverApprove ? availableOf(it) : it.qtyRequested) : q;
+              const over = !isReturn && q > avail;
+              const beyondRequested = !isReturn && canOverApprove && q > it.qtyRequested;
               return (
                 <div key={it.skuId} className="flex flex-wrap items-center gap-x-3 gap-y-2 p-3">
                   <ItemThumb imageUrl={sku?.imageUrl} name={it.skuName} className="h-10 w-10 shrink-0 rounded-lg ring-1 ring-slate-200" />
@@ -579,7 +583,12 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
                     <p className={cn('truncate text-[13px] font-semibold', over ? 'text-rose-700' : 'text-slate-800')} title={it.skuName}>{it.skuName}</p>
                     <p className="mt-0.5 text-[11px] text-slate-400">
                       Requested {fmt(it.qtyRequested)} {it.unit}
-                      {sku && <> · in stock <span className={cn('font-semibold', sku.currentStock >= q ? 'text-emerald-600' : 'text-rose-600')}>{fmt(sku.currentStock)}</span></>}
+                      {sku && <> · {canOverApprove ? 'available' : 'requested'} <span className={cn('font-semibold', q <= avail ? 'text-emerald-600' : 'text-rose-600')} title={canOverApprove ? 'Available = stock on hand + what this ticket already booked' : 'Approved qty cannot exceed what was requested'}>{fmt(avail)}</span></>}
+                      {beyondRequested && (
+                        <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-inset ring-amber-200">
+                          more than requested ({fmt(it.qtyRequested)})
+                        </span>
+                      )}
                     </p>
                   </div>
                   {isReturn ? (
@@ -598,9 +607,15 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
                         disabled={busy} onClick={() => setQty(it.skuId, q - 1)} aria-label={`Decrease approved qty of ${it.skuName}`}
                       >−</button>
                       <input
-                        className="w-12 rounded-lg border border-slate-200 py-1 text-center text-[13px] font-semibold text-slate-800 focus:border-brand-400 focus:outline-none focus:ring-2 focus:ring-brand-100"
+                        className={cn(
+                          'w-12 rounded-lg border py-1 text-center text-[13px] font-semibold focus:outline-none focus:ring-2',
+                          qtyIssues[it.skuId]
+                            ? 'border-rose-300 text-rose-700 focus:border-rose-300 focus:ring-rose-100'
+                            : 'border-slate-200 text-slate-800 focus:border-brand-400 focus:ring-brand-100',
+                        )}
                         type="number" min={0} value={qtys[it.skuId] ?? ''}
                         onChange={(e) => setQtys((s) => ({ ...s, [it.skuId]: e.target.value }))}
+                        onBlur={(e) => setQty(it.skuId, Number(e.target.value) || 0)}
                         aria-label={`Approved qty of ${it.skuName}`}
                       />
                       <button
@@ -614,12 +629,6 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
               );
             })}
           </div>
-          {overStock && (
-            <p className="mt-2 flex items-center gap-1.5 rounded-lg bg-rose-50 p-2.5 text-xs font-medium text-rose-700 ring-1 ring-rose-100">
-              <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
-              Some approved quantities exceed current stock — double-check before booking.
-            </p>
-          )}
           {role === 'warehouse' && !isReturn && (
             <div className="mt-2.5">
               <label className="label">Actual delivery date</label>
@@ -648,6 +657,17 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, onBack, onAp
         </section>
       </div>
 
+      {ask && (
+        <ConfirmTicketAction
+          ticket={ticket}
+          kind={ask}
+          skus={skus}
+          busy={busy}
+          initialReason={comment}
+          onCancel={() => setAsk(null)}
+          onConfirm={(reason) => { setAsk(null); if (ask === 'reject') onReject(reason); else onRecall(reason); }}
+        />
+      )}
     </div>
   );
 }

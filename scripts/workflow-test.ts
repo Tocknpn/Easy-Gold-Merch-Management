@@ -1,4 +1,4 @@
-﻿// ── Workflow & reporting test — exercises the SAME engine the UI uses ─────
+// ── Workflow & reporting test — exercises the SAME engine the UI uses ─────
 // Covers: submit → ticket# → booking → WH review → LM → Director (per-role
 // visibility), approval-level gating, reject at each stage, recall, MKT↔CS
 // transfers, destock/loss, borrow returns, cs_transfer auto-restock and
@@ -297,19 +297,42 @@ check('ticket.actualDeliveryDate stored (2026-12-03)', rmTicket.actualDeliveryDa
 const allTx = demoDB.transactions.filter((tx) => tx.ticketId === rt1);
 check('all workflow txs have YYYY-MM-DD date', allTx.every((tx) => /^\d{4}-\d{2}-\d{2}$/.test(tx.date || '')));
 
-console.log('\n── 10) Edge: over-approval at review is now CAPPED at requested');
+console.log('\n── 10) Edge: approve MORE than requested (up to available) — last value wins');
 const skuA = addSku({ name: 'WF Overapprove', category: 'MKT', unit: 'pcs', openingBalance: 30 });
 const tA = demoCreateTicket({
   createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
   items: [{ skuId: skuA, skuName: 'WF Overapprove', qtyRequested: 5, unit: 'pcs' }],
 });
-const bA = skuStock(skuA);   // after booking: 30 − 5 = 25
+const bA = skuStock(skuA);                       // after booking: 30 − 5 = 25
 demoUpdateTicketStatus(tA, 'reviewed', { actorName: wh.fullName, actorRole: wh.role, items: [{ skuId: skuA, qtyApproved: 12 }] });
-check('over-approval capped to requested (approved 12 → 5, NO extra deduction)', skuStock(skuA) === bA);
-check('qty_approved recorded = 5 (not 12)', demoDB.items[tA].find((i) => i.skuId === skuA)!.qtyApproved === 5);
-demoUpdateTicketStatus(tA, 'rejected', { actorName: wh.fullName, actorRole: wh.role, comment: 'x' });
-check('reject after capped review returns the 5 → back to opening 30', skuStock(skuA) === bA + 5);
+check('review accepts MORE than requested (approved 12, NOT capped to 5)', demoDB.items[tA].find((i) => i.skuId === skuA)!.qtyApproved === 12);
+check('over-approval true-ups the booking (stock 25 → 18)', skuStock(skuA) === bA - (12 - 5));
+const txARev = demoDB.transactions.find((tx) => tx.ticketId === tA && tx.skuId === skuA && tx.type === 'deduction');
+check('booking tx qty updated to 12', !!txARev && txARev.qty === 12);
 
+// LM reduces 12 → 8 — honoured at the LM step too (last value wins)
+demoUpdateTicketStatus(tA, 'lm_approved', { actorName: lm.fullName, actorRole: lm.role, items: [{ skuId: skuA, qtyApproved: 8 }] });
+check('LM reduce honoured (12 → 8)', demoDB.items[tA].find((i) => i.skuId === skuA)!.qtyApproved === 8);
+check('LM reduce returns the diff to stock (18 → 22)', skuStock(skuA) === bA - (12 - 5) + (12 - 8));
+
+// Director increases 8 → 10; finalize deducts the LAST value
+demoUpdateTicketStatus(tA, 'finalized', { actorName: dir.fullName, actorRole: dir.role, items: [{ skuId: skuA, qtyApproved: 10 }] });
+check('director increase honoured (8 → 10)', demoTicketsWithItems().find((t) => t.id === tA)!.items.find((i) => i.skuId === skuA)!.qtyApproved === 10);
+check('finalize deducts the last value (stock 22 → 20)', skuStock(skuA) === bA - (12 - 5) + (12 - 8) - (10 - 8));
+const txAFinal = demoDB.transactions.find((tx) => tx.ticketId === tA && tx.skuId === skuA && tx.type === 'deduction');
+check('finalized booking DEDUCTED at the last value (10)', !!txAFinal && txAFinal.status === 'Deducted' && txAFinal.qty === 10);
+
+// Reject still returns the last approved value to stock
+const skuB = addSku({ name: 'WF RejectLast', category: 'MKT', unit: 'pcs', openingBalance: 20 });
+const tB = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: skuB, skuName: 'WF RejectLast', qtyRequested: 3, unit: 'pcs' }],
+});
+const bB = skuStock(skuB);                       // 20 − 3 = 17
+demoUpdateTicketStatus(tB, 'reviewed', { actorName: wh.fullName, actorRole: wh.role, items: [{ skuId: skuB, qtyApproved: 8 }] });
+check('over-approve for the reject case (3 → 8), stock 17 → 12', skuStock(skuB) === bB - (8 - 3));
+demoUpdateTicketStatus(tB, 'rejected', { actorName: lm.fullName, actorRole: lm.role, comment: 'x' });
+check('reject returns the last value → back to opening 20', skuStock(skuB) === bB + 3);
 console.log('\n── 11) SKU Setup edit: opening balance is a plain edit (no stock in/out)');
 const skuE = addSku({ name: 'WF Opening Edit', category: 'MKT', unit: 'pcs', openingBalance: 50, costPerUnit: 10 });
 const eOpenBefore = demoDB.skus.find((s) => s.id === skuE)!.openingBalance;

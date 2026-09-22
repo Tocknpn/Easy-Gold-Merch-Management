@@ -63,6 +63,10 @@ You can log in with any account from the demo chips on the login screen
      `stock_transactions` / `cs_transactions` / `cs_skus`, Reject/Recall only cancels the booking
      (cleaner Stock In/Out reporting) and per-approval-level comment timestamps
      (`wh_comment_at` / `lm_comment_at` / `director_comment_at`)
+   - `supabase/migrations/0014_approved_qty_propagation.sql` — **approved-qty propagation**: any approval
+     step (warehouse / LM / director) may set the quantity — **last value wins** — and over-approval is
+     allowed up to available stock (`Current_Stock` + already booked), no more silently capping at the
+     request; sets `system_config.engine_version = '0014'` (the UI only allows over-approval once set)
 
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
@@ -172,6 +176,12 @@ npx wrangler pages deploy dist --project-name easy-gold-merch
   approval level commented)
 
 RLS is enabled — authenticated users can read; all writes go through security-definer RPC functions.
+- **Approved-qty propagation** (migration `0014`): the warehouse, Line Manager *or* Director may set the
+  approved qty — the **last value wins** and is what the engine books / deducts at finalize. Over-approval
+  beyond the request is allowed up to **available stock** (`Current_Stock` + what this ticket already
+  booked), never silently capped at the request. A change is echoed in the audit trail as
+  "approved qty: X -> Y".
+
 All open tabs update within ~1s via Supabase Realtime, so Action Center badges and stock numbers stay in sync.
 
 ### Editing an SKU (Manage Stock → SKU Setup)

@@ -299,6 +299,7 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 | Warehouse **Review & Book Stock** fails with **"COALESCE types text and jsonb cannot be matched"** | Run `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` (re-asserts `update_ticket_status` with type-safe jsonb handling) |
 | SKU edit: renaming a SKU or editing its **Opening balance** doesn't update tickets / reports, or a rejected ticket shows a phantom Stock In | Run `supabase/migrations/0013_sku_edit_restock_reporting.sql` (rename cascade, baseline-edit opening balance, clean reject/recall accounting) |
 | SKU **Activate / Deactivate** (or the Status field) has no effect, and the "time not recorded" label shows on approval comments | Run `supabase/migrations/0013_sku_edit_restock_reporting.sql` (adds `skus.status` + `wh/lm/director_comment_at`) |
+| Warehouse approval qty **keeps reverting to the requested amount** (15 → 20 doesn't stick, LM/finalize still see 15) | Run `supabase/migrations/0014_approved_qty_propagation.sql` (approved-qty propagation, `engine_version=0014`). The UI is built so over-approval stays disabled until this migration is applied |
 | Users tab: "Only an Admin can manage users" / "function public.manage_user does not exist" | Run `supabase/migrations/0009_user_management.sql` |
 | Password column shows **— not set —** for old users | Run `0009_user_management.sql`, then `npm run seed:auth` (back-fills from `data/Users.csv`) |
 | Photos won't upload | Run `0005_sku_image_storage.sql` (creates the `sku-images` bucket) |

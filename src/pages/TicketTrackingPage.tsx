@@ -10,6 +10,7 @@ import { useData } from '@/contexts/DataContext';
 import { Modal, Spinner, ErrorBanner, EmptyState, Pagination, toast } from '@/components/ui/primitives';
 import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { TicketDetail } from '@/components/TicketDetail';
+import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
 import { fmt, money, cn } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
@@ -430,7 +431,7 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
             </div>
           )}
           {['pending', 'reviewed', 'lm_approved'].includes(open.status) && (
-            <CreatorRecall ticket={open} onDone={() => setOpen(null)} />
+            <CreatorRecall ticket={open} skus={skus} onDone={() => setOpen(null)} />
           )}
         </Modal>
       )}
@@ -440,17 +441,18 @@ function TicketsTab({ mineOnly }: { mineOnly: boolean }) {
 
 /* ── Creator recall: pull your own request back while it's still in approval ── */
 
-function CreatorRecall({ ticket, onDone }: { ticket: TicketWithItems; onDone: () => void }) {
+function CreatorRecall({ ticket, skus, onDone }: { ticket: TicketWithItems; skus: SKU[]; onDone: () => void }) {
   const { user } = useAuth();
   const { updateTicketStatus } = useData();
   const [reason, setReason] = useState('');
   const [busy, setBusy] = useState(false);
+  const [ask, setAsk] = useState(false);
 
-  const run = async () => {
+  const run = async (finalReason: string) => {
     setBusy(true);
     try {
       await updateTicketStatus(ticket.id, 'recalled', {
-        actorName: user?.fullName || '', actorRole: user?.role || '', comment: reason,
+        actorName: user?.fullName || '', actorRole: user?.role || '', comment: finalReason,
       });
       toast(`${ticket.id} recalled — any booked stock returns to the warehouse`);
       onDone();
@@ -462,24 +464,37 @@ function CreatorRecall({ ticket, onDone }: { ticket: TicketWithItems; onDone: ()
   };
 
   return (
-    <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
-      <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
-        <Undo2 className="h-4 w-4" /> This request is in approval — you can recall it
-      </p>
-      <p className="mt-0.5 text-xs text-amber-700">
-        Recalling pulls the ticket back and returns any booked stock to the warehouse.
-      </p>
-      <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
-        <input
-          className="input flex-1" placeholder="Reason (optional)…"
-          value={reason} onChange={(e) => setReason(e.target.value)}
-        />
-        <button className="btn btn-danger btn-sm shrink-0" disabled={busy} onClick={run}>
-          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
-          Recall Request
-        </button>
+    <>
+      <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-3.5">
+        <p className="flex items-center gap-1.5 text-sm font-semibold text-amber-800">
+          <Undo2 className="h-4 w-4" /> This request is in approval — you can recall it
+        </p>
+        <p className="mt-0.5 text-xs text-amber-700">
+          Recalling pulls the ticket back and returns any booked stock to the warehouse.
+        </p>
+        <div className="mt-2.5 flex flex-col gap-2 sm:flex-row">
+          <input
+            className="input flex-1" placeholder="Reason (optional)…"
+            value={reason} onChange={(e) => setReason(e.target.value)}
+          />
+          <button className="btn btn-danger btn-sm shrink-0" disabled={busy} onClick={() => setAsk(true)}>
+            {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Undo2 className="h-3.5 w-3.5" />}
+            Recall Request
+          </button>
+        </div>
       </div>
-    </div>
+      {ask && (
+        <ConfirmTicketAction
+          ticket={ticket}
+          kind="recall"
+          skus={skus}
+          busy={busy}
+          initialReason={reason}
+          onCancel={() => setAsk(false)}
+          onConfirm={(r) => { setAsk(false); run(r); }}
+        />
+      )}
+    </>
   );
 }
 
