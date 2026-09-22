@@ -9,7 +9,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
-import { StatusBadge } from '@/components/StatusBadge';
+import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { ApprovalPipeline } from '@/components/ApprovalPipeline';
 import { ConfirmTicketAction, type ConfirmKind } from '@/components/ConfirmTicketAction';
 import { cn, fmt, money, lastActionWhen, todayStr, safeImageUrl } from '@/lib/utils';
@@ -60,7 +60,10 @@ export function ActionCenterPage() {
   const role = user?.role || 'staff';
 
   const roleQueue = useMemo(() => tickets.filter((t) => {
-    if (role === 'warehouse') return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
+    // Finalized borrows waiting for return live in Ticket Tracking → "To return
+    // to WH" (the warehouse processes the return there), so they no longer
+    // clutter the approval queue.
+    if (role === 'warehouse') return t.status === 'pending';
     if (role === 'line_manager') return t.status === 'reviewed';
     if (role === 'director') return t.status === 'lm_approved';
     if (role === 'admin') return !['finalized', 'rejected', 'returned', 'recalled'].includes(t.status);
@@ -88,6 +91,10 @@ export function ActionCenterPage() {
   if (loading) return <Spinner label="Loading action center…" />;
   if (error) return <ErrorBanner msg={error} retry={refresh} />;
 
+  // Borrow returns are recorded in Ticket Tracking -> "To return to WH" now, so
+  // the queue above never yields a finalized borrow. The flag (and the return form
+  // it drives) is kept as the Action Center fallback should a waiting borrow ever
+  // be routed back here.
   const isReturn = (t: TicketWithItems) => role === 'warehouse' && t.type === 'borrow' && t.status === 'finalized';
   const nxt = (s: TicketStatus): TicketStatus =>
     role === 'warehouse' ? 'reviewed'
@@ -157,7 +164,6 @@ export function ActionCenterPage() {
                     key={t.id}
                     ticket={t}
                     active={t.id === selectedId}
-                    isReturn={isReturn(t)}
                     onClick={() => setSelectedId(t.id)}
                   />
                 ))}
@@ -198,8 +204,8 @@ export function ActionCenterPage() {
 
 /* ───────────────────── Queue card (left) ───────────────────── */
 
-function QueueCard({ ticket, active, isReturn, onClick }: {
-  ticket: TicketWithItems; active: boolean; isReturn: boolean; onClick: () => void;
+function QueueCard({ ticket, active, onClick }: {
+  ticket: TicketWithItems; active: boolean; onClick: () => void;
 }) {
   return (
     <button
@@ -215,9 +221,11 @@ function QueueCard({ ticket, active, isReturn, onClick }: {
         <span className="relative shrink-0">
           <span className={cn(
             'grid h-10 w-10 place-items-center rounded-xl ring-1',
-            CARD_STATUS[ticket.status]?.tile || 'bg-brand-50 text-brand-600 ring-brand-100',
+            ticket.type === 'borrow'
+              ? 'bg-violet-50 text-violet-600 ring-violet-100'
+              : CARD_STATUS[ticket.status]?.tile || 'bg-brand-50 text-brand-600 ring-brand-100',
           )}>
-            {isReturn ? <PackageCheck className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
+            {ticket.type === 'borrow' ? <Undo2 className="h-4 w-4" /> : <FileText className="h-4 w-4" />}
           </span>
           <span
             title={STATUS_LABELS[ticket.status] || ticket.status}
@@ -232,11 +240,17 @@ function QueueCard({ ticket, active, isReturn, onClick }: {
         <div className="min-w-0 flex-1">
           <div className="flex items-center justify-between gap-2">
             <span className="truncate text-[13px] font-bold text-brand-700">{ticket.id}</span>
+            <TypeBadge type={ticket.type} />
           </div>
           <p className="mt-1 truncate text-[13px] font-medium text-slate-800">{ticket.createdByName}</p>
           <p className="mt-0.5 truncate text-[11px] text-slate-400">
             {ticket.department} · {ticket.items.length} item{ticket.items.length > 1 ? 's' : ''}
           </p>
+          {ticket.type === 'borrow' && ticket.returnDate && (
+            <p className={cn('mt-1 truncate text-[11px] font-semibold', ticket.returnDate < todayStr() ? 'text-rose-600' : 'text-indigo-600')}>
+              Return by {fmtDate(ticket.returnDate)}
+            </p>
+          )}
         </div>
         <div className="flex shrink-0 flex-col items-end justify-between self-stretch">
           <span className="flex items-center gap-1 whitespace-nowrap text-[11px] text-slate-400">
@@ -447,6 +461,7 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, canOverAppro
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <h2 className="text-base font-bold text-brand-700">{ticket.id}</h2>
+              <TypeBadge type={ticket.type} />
               <StatusBadge status={ticket.status} />
             </div>
             <p className="mt-1 truncate text-xs text-slate-400">

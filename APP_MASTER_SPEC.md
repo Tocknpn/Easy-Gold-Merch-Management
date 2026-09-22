@@ -25,8 +25,10 @@
 ### 1.1 Feature summary
 - Role-based login (email + password, plaintext check against the Users sheet) with `localStorage` session.
 - Create **Request** tickets (consumables, permanent use) and **Borrow** tickets (must come back, with return date).
-- **Action Center**: per-role approval queue (pending → reviewed → lm_approved → finalized) plus reject, recall,
-  return processing (with broken/lost quantity) and auto low-cost bypass.
+- **Action Center**: per-role approval queue (pending → reviewed → lm_approved → finalized) plus reject and recall.
+- **Ticket Tracking**: every ticket plus the full stock-movement audit. A finalized **borrow** that has not come
+  back yet is listed here under "To return to WH" (indigo count badge on the menu) and warehouse/admin record
+  the return from the ticket modal (returned + broken/lost qty).
 - **Auto email notifications** at each status transition.
 - SKU master management (add/edit/delete/restock), image upload to Google Drive, categories, low-stock thresholds,
   cost per unit, total inflow.
@@ -377,7 +379,7 @@ registered with `hasAccess([...])`. `App` wraps everything in
 | Role | Can do |
 |---|---|
 | `staff` | request, borrow, view my tickets, dashboard |
-| `warehouse` | review (book stock), set actual delivery dates, reject, recall, process borrow returns + broken qty, manage SKUs/categories, CS→MKT transfer, reports, settings |
+| `warehouse` | review (book stock), set actual delivery dates, reject, recall, process borrow returns + broken qty (in Ticket Tracking), manage SKUs/categories, CS→MKT transfer, reports, settings |
 | `line_manager` | approve after reviewed, comment, view dept tickets/inventory reports |
 | `director` | final approval (finalize), view all, total stock, month-end |
 | `admin` | everything incl. user management, system config, bypass, both warehouses toggle |
@@ -387,7 +389,8 @@ registered with `hasAccess([...])`. `App` wraps everything in
 ### 6.3 Sidebar menu (role-filtered `AppSidebar`)
 `Dashboard, New Request, Item Borrow, Destock (cs), Return to MKT (admin/wh), My Tickets, Action Center,
 History Ticket, Inventory Report, Month End Report, System Settings` (+ existing commented-out `Total Stock`).
-Red ping dot + count badge on **Action Center** when `actionableTicketCount > 0`; dot on **My Tickets** when
+Count badge on **Action Center** when `actionableTicketCount > 0`; indigo count badge on **Ticket Tracking**
+when borrows are waiting to return; dot on **My Tickets** when
 `hasMyTicketUpdates`. Menu is hidden on print.
 
 ### 6.4 Contexts
@@ -399,8 +402,9 @@ Red ping dot + count badge on **Action Center** when `actionableTicketCount > 0`
   `deleteSku`, `addUser`, `updateUser`, `deleteUser`, `addCategory`, `deleteCategory`, `restockSku`,
   `uploadSkuImage`, `updateSystemConfig`, `patchTicketFields`, `repairSkus`, `addRemark`, and CS actions
   `csAddSku, csUpdateSku, csDeleteSku, csRestockSku, csDestockSku, transferCsToMkt`.
-  Computes `actionableTicketCount` per role (warehouse: pending + finalized-borrow-unreturned; line_manager:
-  reviewed; director: lm_approved; admin: any non-terminal) and `hasMyTicketUpdates` comparing seen statuses
+  Computes `actionableTicketCount` per role (warehouse: pending only; line_manager:
+  reviewed; director: lm_approved; admin: any non-terminal); waiting borrow returns are counted on the **Ticket Tracking** badge instead.
+  `hasMyTicketUpdates` compares statuses
   (stored in `localStorage['seenTicketStatuses']`) vs ticket status. `transferCsToMkt` creates a
   `cs_transfer`-style ticket moving CS→MKT stock via a returned-items update.
 
@@ -457,12 +461,15 @@ centered card + gold Crown logo.
 - **BorrowPage**: same form with `type:'borrow'` + **return date** field.
 - **MyTicketsPage**: filters to current user's tickets (`createdBy` id or email match), search by ticket id,
   red dot when unseen status change, opens `TicketDetailDialog`.
-- **ActionCenterPage**: role-scoped queue. Warehouse: review (adjust approved qty, set actual delivery date,
-  book stock), process borrow returns (record broken qty), recall, reject. LM: approve/reject with comment.
+- **ActionCenterPage**: role-scoped approval queue (waiting borrow returns are no longer here -- they moved to
+  Ticket Tracking). Warehouse: review (adjust approved qty, set actual delivery date, book stock), recall,
+  reject. LM: approve/reject with comment.
   Director: finalize/reject with comment. Admin: any action incl. emergency finalize (bypass). Each action calls
   `updateTicketStatus` with `meta {actorName, actorRole, statusLabel, comment}` and toast feedback.
 - **HistoryTicketsPage**: archive of all tickets with filters (status, date range, ticket id, department); grouped
   by ticket; search + sort.
+- **TicketTrackingPage**: "My Requests" / "All Tickets" / "Stock Movements" scopes with status chips (incl.
+  "to-return"), a clickable "To return to WH" stat card, and the borrow-return panel for warehouse/admin.
 - **InventoryReportPage**: per-SKU report within a date range (Stock In = Σ addition in range, Stock Out = Σ
   deduction in range, Opening = current rolled back to range start, Loss Value = broken qty × cost, Usage % =
   (inflow−current)/inflow). Sortable columns. Print/export.
@@ -505,7 +512,8 @@ Usage %         = Inflow > 0 ? max(0, (Inflow − Current) / Inflow × 100) : 0
 Low stock flag  = Current <= Threshold
 Active Borrows  = tickets with type=='borrow', status=='finalized', not yet 'returned'
 Overdue         = Active Borrow where today > returnDate
-Action Center count = warehouse: pending OR (finalized borrow unreturned); line_manager: reviewed;
+Action Center count = warehouse: pending; line_manager: reviewed;
+Ticket Tracking badge = Active Borrows (finalized, not yet returned) -- warehouse/admin
                       director: lm_approved; admin: any status not in final/resolved set.
 ```
 

@@ -122,8 +122,9 @@ export function overdueBorrows(tickets: Ticket[], today = todayStr()): Ticket[] 
 
 export function actionableTicketCount(tickets: Ticket[], role: string): number {
   return tickets.filter((t) => {
-    if (role === 'warehouse')
-      return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
+    // Finalized borrows waiting for return are tracked in Ticket Tracking
+    // ("To return to WH") — they are no longer an Action Center item.
+    if (role === 'warehouse') return t.status === 'pending';
     if (role === 'line_manager') return t.status === 'reviewed';
     if (role === 'director' || role === 'finance') return t.status === 'lm_approved';
     if (role === 'admin') return !['finalized', 'rejected', 'returned', 'recalled'].includes(t.status);

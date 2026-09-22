@@ -37,7 +37,9 @@ const addCsSku = (o: any) => demoCsAddSku({ id: uniq(), unit: 'pcs', costPerUnit
 
 // ── helpers that mirror ActionCenterPage.roleQueue exactly ───────────────
 const acQueue = (role: string) => demoTicketsWithItems().filter((t) => {
-  if (role === 'warehouse') return t.status === 'pending' || (t.status === 'finalized' && t.type === 'borrow' && !t.returnedProcessed);
+  // warehouse: pending approvals only — finalized borrows waiting for return are
+  // tracked in Ticket Tracking ("To return to WH"), not the Action Center.
+  if (role === 'warehouse') return t.status === 'pending';
   if (role === 'line_manager') return t.status === 'reviewed';
   if (role === 'director') return t.status === 'lm_approved';
   if (role === 'admin') return !['finalized', 'rejected', 'returned', 'recalled'].includes(t.status);
@@ -211,7 +213,8 @@ demoUpdateTicketStatus(t5, 'reviewed', { actorRole: 'warehouse', items: [{ skuId
 demoUpdateTicketStatus(t5, 'lm_approved', { actorRole: 'line_manager' });
 demoUpdateTicketStatus(t5, 'finalized', { actorRole: 'director' });
 check('borrow active after finalize', activeBorrows(demoDB.tickets).some((t) => t.id === t5));
-check('borrow shows in WH queue (return to process)', acQueue('warehouse').some((t) => t.id === t5));
+check('borrow NOT in WH Action Center (tracked in Ticket Tracking instead)', !acQueue('warehouse').some((t) => t.id === t5));
+check('WH actionable badge ignores waiting returns (only pending)', actionableTicketCount(demoDB.tickets, 'warehouse') === demoDB.tickets.filter((t) => t.status === 'pending').length);
 check('overdue detected (return date < today)', overdueBorrows(demoDB.tickets).some((t) => t.id === t5));
 const st5 = skuStock(sku5);
 demoUpdateTicketStatus(t5, 'returned', {
@@ -222,7 +225,7 @@ check('return adds back 7 (not 10)', skuStock(sku5) === st5 + 7);
 check('return tx records broken=1', demoDB.transactions.some((tx) => tx.ticketId === t5 && tx.type === 'addition' && tx.qty === 7 && tx.qtyBroken === 1));
 check('return comment flags broken/lost', demoDB.transactions.some((tx) => tx.ticketId === t5 && tx.comment?.includes('1 broken/lost')));
 check('no longer active borrow', !activeBorrows(demoDB.tickets).some((t) => t.id === t5));
-check('no longer in WH queue', !acQueue('warehouse').some((t) => t.id === t5));
+check('returned borrow no longer listed as waiting', !activeBorrows(demoDB.tickets).some((t) => t.id === t5));
 
 console.log('\n── 6) CS transfer ticket: books MKT, auto-restocks CS at finalize');
 const sku6 = addSku({ name: 'WF CTSku', category: 'MKT', unit: 'pcs', openingBalance: 90 });
