@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Search, Plus, Minus, Trash2, Send, Loader2, ShoppingBag, Package, ArrowUpDown, Check, Lightbulb, FilePlus2, Repeat, MoreHorizontal } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -95,6 +95,42 @@ function StockBadge({ sku, booked = 0 }: { sku: SKU; booked?: number }) {
       {label}
       {/* qty already booked by other open tickets (stock is booked at submission) */}
       {booked > 0 && <span className="shrink-0 opacity-70">· {fmt(booked)} booked</span>}
+    </span>
+  );
+}
+
+/** Truncated SKU name whose full-text tooltip is anchored to the NAME only
+ *  (never the whole card) and opens ABOVE the text with `pointer-events-none`,
+ *  so it can never cover the stock badge / qty stepper row underneath.
+ *  Layout note: `min-w-0 flex-1` lets the text actually shrink so `truncate`
+ *  kicks in; the tooltip only exists when the text is truly clipped. */
+function SkuName({ name, className }: { name: string; className?: string }) {
+  const ref = useRef<HTMLSpanElement>(null);
+  const [truncated, setTruncated] = useState(false);
+
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const check = () => setTruncated(el.scrollWidth > el.clientWidth + 1);
+    check();
+    const ro = new ResizeObserver(check);
+    ro.observe(el);
+    // Webfont swap can change metrics after mount — re-measure once fonts are in.
+    document.fonts?.ready.then(check).catch(() => {});
+    return () => ro.disconnect();
+  }, [name]);
+
+  return (
+    <span className="group/name relative block min-w-0 flex-1">
+      <span ref={ref} className={cn('block truncate', className)}>{name}</span>
+      {truncated && (
+        <span
+          role="tooltip"
+          className="pointer-events-none absolute bottom-full left-0 z-50 mb-1.5 hidden w-max max-w-[min(20rem,calc(100vw-2.5rem))] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-pop group-hover/name:block"
+        >
+          {name}
+        </span>
+      )}
     </span>
   );
 }
@@ -374,7 +410,7 @@ export function TicketForm({
 
                       <div className="relative min-w-0 flex-1">
                         <div className="flex items-start justify-between gap-2">
-                          <p className={cn('truncate text-sm font-semibold', out ? 'text-slate-400' : 'text-slate-800')}>{sku.name}</p>
+                          <SkuName name={sku.name} className={cn('text-sm font-semibold', out ? 'text-slate-400' : 'text-slate-800')} />
                           {inCart ? (
                             <span className="mt-0.5 grid h-5 w-5 shrink-0 place-items-center rounded-full bg-brand-600 text-white shadow-sm">
                               <Check className="h-3 w-3" />
@@ -385,11 +421,6 @@ export function TicketForm({
                             </span>
                           )}
                         </div>
-                        {sku.name.length > 16 && (
-                          <span className="pointer-events-none absolute left-0 top-full z-30 mt-1 hidden max-w-[280px] whitespace-normal break-words rounded-lg bg-slate-900 px-2.5 py-1.5 text-[11px] font-medium leading-snug text-white shadow-card group-hover:block">
-                            {sku.name}
-                          </span>
-                        )}
                         <span className="mt-1 inline-block rounded-md bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-slate-500">
                           {sku.category || 'General'}
                         </span>
