@@ -70,6 +70,9 @@ export function ReportingPage() {
   const [wh, setWh] = useState<Wh>(user?.role === 'customer_service' ? 'cs' : 'all');
   const [cat, setCat] = useState('All');
   const [vat, setVat] = useState(false);
+  // Month End tab: real movements only by default — items with no opening
+  // balance and no movement in the month are hidden (Finance can flip this on).
+  const [showEmpty, setShowEmpty] = useState(false);
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
 
@@ -115,12 +118,14 @@ export function ReportingPage() {
   // row lands in Stock In and its Opening is 0), Closing rolls back only what
   // happened AFTER the month end, and "All" merges MKT + CS per SKU summing
   // quantity AND value (each warehouse keeps its own cost per unit).
+  // Items are never listed before they were created, and rows with no balance
+  // and no movement are hidden unless "Show items with no movement" is ticked.
   const monthRows = useMemo(() =>
     getMonthEndRows({
       month, scope: wh,
       skus, transactions, csSkus, csTransactions,
-      tickets, category: cat, vat,
-    }), [month, wh, skus, csSkus, transactions, csTransactions, tickets, cat, vat]);
+      tickets, category: cat, vat, includeEmpty: showEmpty,
+    }), [month, wh, skus, csSkus, transactions, csTransactions, tickets, cat, vat, showEmpty]);
 
   // Opening + In − Out === Closing by construction — anything else means the
   // SKU baseline drifted from the ledger and Finance should be told.
@@ -389,10 +394,16 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
           </select>
         </div>
         {tab === 'month-end' && (
-          <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600">
-            <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={vat} onChange={(e) => setVat(e.target.checked)} />
-            Include VAT (10%)
-          </label>
+          <>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600">
+              <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={vat} onChange={(e) => setVat(e.target.checked)} />
+              Include VAT (10%)
+            </label>
+            <label className="flex items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm font-medium text-slate-600">
+              <input type="checkbox" className="h-4 w-4 accent-brand-600" checked={showEmpty} onChange={(e) => setShowEmpty(e.target.checked)} />
+              Show items with no movement
+            </label>
+          </>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button className="btn btn-primary btn-sm" onClick={exportExcel} disabled={exporting}>
@@ -731,7 +742,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
 
       <p className="text-[11px] text-slate-400 no-print">
         Reports reflect {merged.label}. Opening/Closing are computed by rolling the current stock through transaction history (not stored).
-        {tab === 'month-end' && ' Month End: Opening rolls every movement back from the 1st of the month (a brand-new item starts at 0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, and All stock merges the MKT + CS rows (quantities and values summed).'}
+        {tab === 'month-end' && ' Month End: Opening rolls every movement back from the 1st of the month (a brand-new item starts at 0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, All stock merges the MKT + CS rows (quantities and values summed), items are never listed before their creation date, and items with no balance and no movement in the month are hidden unless "Show items with no movement" is ticked.'}
         {tab === 'month-end' && ' Print = landscape physical sign-off copy submitted to Finance & Audit.'}
       </p>
     </div>

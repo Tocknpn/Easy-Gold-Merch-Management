@@ -494,7 +494,12 @@ centered card + gold Crown logo.
   0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, and the
   "All" scope merges the MKT + CS rows (quantities and values summed, each warehouse keeps its own cost) — see
   §7. Rows from both warehouses carry a `MKT + CS` badge; a ledger-drift warning appears if
-  `Opening + In − Out ≠ Closing`. Exports to **XLSX** with `xlsx`; Print injects landscape `@page` while mounted.
+  `Opening + In − Out ≠ Closing`. **Visibility**: an item is never listed before it started existing (its
+  `createdAt`, else its first movement — legacy baseline-only rows are always listed), and a row with
+  Opening = In = Out = Closing = 0 is hidden unless the **"Show items with no movement"** checkbox is ticked
+  (Finance/audit view). In its birth month an item's initial stock — including an imported baseline with no
+  `OPENING` ledger row — is reported as **Stock In** (Opening 0). Exports to **XLSX** with `xlsx`; Print injects
+  landscape `@page` while mounted.
 - **TotalStockPage**: merged MKT+CS totals (admin/director).
 - **CsDestockPage**: CS direct destock with confirmation dialog (no remark/reason required).
 - **TransferToMktPage**: admin/warehouse transfer CS stock back to MKT via a `cs_transfer`-style ticket.
@@ -555,6 +560,14 @@ Variance(month)  = (Opening + In − Out) − Closing   (0 unless a SKU baseline
 All stock        = MKT and CS are computed independently against their OWN ledger + cost, then merged by
                    matched SKU with quantities AND values summed (a warehouse's stock is never re-priced).
 VAT              = costPerUnit × 1.1 before the value columns are calculated.
+
+Visibility       = an item is never listed in a month that ended before it started existing
+                   (`birth = min(createdAt, first ledger row)`; no evidence at all → always listed), and a row
+                   with Opening = In = Out = Closing = 0 is dropped unless `includeEmpty` is set (the
+                   "Show items with no movement" checkbox). Hiding is display-only — totals never change.
+Birth month      = in the month an item starts existing, the stock the ledger cannot explain (an imported
+                   baseline with no OPENING row) is reported as Stock In — Opening is always 0, so
+                   Previous Closing === Opening holds across every month boundary.
 ```
 
 Month-End Report row layout: **Opening Qty/Value | Stock In Qty/Value | Stock Out Qty/Value | Closing Qty/Value**

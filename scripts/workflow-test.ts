@@ -355,6 +355,83 @@ const vatRows = getMonthEndRows({
 }).filter((r) => r.sku.name === 'WF MonthEnd');
 check('month end: VAT toggle = ×1.1 on values', vatRows.length === 1 && Math.abs(vatRows[0].closingVal - 100 * 7 * 1.1) < 1e-6);
 
+// ── 9c) Month End visibility rules ────────────────────────────────────────
+// An item never appears before it was created, and a row with no balance and
+// no movement for the month is hidden (unless the audit toggle asks for it).
+const nextDate = new Date(now.getFullYear(), now.getMonth() + 1, 1);
+const nextMonth = `${nextDate.getFullYear()}-${String(nextDate.getMonth() + 1).padStart(2, '0')}`;
+const mktRowsFor = (m: string, name: string, includeEmpty = false) =>
+  getMonthEndRows({
+    month: m, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), includeEmpty,
+  }).filter((r) => r.sku.name === name);
+
+// (a) created after the reported month → absent, not a zero row
+const bornNow = addSku({ name: 'WF BornThisMonth', category: 'MKT', unit: 'pcs', openingBalance: 40, costPerUnit: 3 });
+check('month end: item created this month is listed this month',
+  mktRowsFor(curMonth, 'WF BornThisMonth').length === 1 && mktRowsFor(curMonth, 'WF BornThisMonth')[0].stockInQty === 40);
+check('month end: item created this month is ABSENT from the previous month',
+  mktRowsFor(prevMonth, 'WF BornThisMonth').length === 0);
+check('month end: an item with only later activity is absent from an older month',
+  mktRowsFor('2026-01', 'WF BornThisMonth').length === 0);
+
+// (b) item that existed BEFORE the month, run down to 0 during it
+const soldOut = addSku({ name: 'WF Sold Out', category: 'MKT', unit: 'pcs', openingBalance: 10, costPerUnit: 2 });
+// back-date the item (and its OPENING row) so it pre-dates the reported month
+(demoDB.skus.find((s) => s.id === soldOut) as any).createdAt = `${prevMonth}-05`;
+(demoDB.transactions.find((tx) => tx.ticketId === 'OPENING' && tx.skuId === soldOut) as any).date = `${prevMonth}-05`;
+demoMktDestockSku(soldOut, 10, S(wh.email), 'sold out');
+const soldCur = mktRowsFor(curMonth, 'WF Sold Out');
+check('month end: consumed-to-zero item still lists the month it was consumed',
+  soldCur.length === 1 && soldCur[0].openingQty === 10 && soldCur[0].stockOutQty === 10 && soldCur[0].closingQty === 0);
+check('month end: sold-out item is hidden the following month', mktRowsFor(nextMonth, 'WF Sold Out').length === 0);
+check('month end: "Show items with no movement" brings the zero row back',
+  mktRowsFor(nextMonth, 'WF Sold Out', true).length === 1);
+
+// (c) zero balance but a Stock In during the month → listed
+const refill = addSku({ name: 'WF Refill Only', category: 'MKT', unit: 'pcs', openingBalance: 0, costPerUnit: 1 });
+demoRestockSku(refill, 25, 'WH', 'refill');
+const refillRows = mktRowsFor(curMonth, 'WF Refill Only');
+check('month end: zero-balance item with a Stock In is listed',
+  refillRows.length === 1 && refillRows[0].openingQty === 0 && refillRows[0].stockInQty === 25);
+
+// (d) legacy import: baseline in the master, no createdAt and no ledger row → never hidden
+const legacy = addSku({ name: 'WF Legacy Baseline', category: 'MKT', unit: 'pcs', openingBalance: 15, costPerUnit: 1 });
+(demoDB.skus.find((s) => s.id === legacy) as any).createdAt = null;
+demoDB.transactions = demoDB.transactions.filter((tx) => tx.skuId !== legacy);
+const legacyRows = mktRowsFor('2026-01', 'WF Legacy Baseline');
+check('month end: legacy baseline item (no createdAt, no ledger) is never hidden',
+  legacyRows.length === 1 && legacyRows[0].closingQty === 15);
+
+// (f) imported baseline with no OPENING ledger row → birth month shows Stock In
+const beforePrevDate = new Date(now.getFullYear(), now.getMonth() - 2, 1);
+const beforePrev = `${beforePrevDate.getFullYear()}-${String(beforePrevDate.getMonth() + 1).padStart(2, '0')}`;
+const imported = addSku({ name: 'WF Imported Baseline', category: 'MKT', unit: 'pcs', openingBalance: 30, costPerUnit: 4 });
+(demoDB.skus.find((s) => s.id === imported) as any).createdAt = `${prevMonth}-08`;
+demoDB.transactions = demoDB.transactions.filter((tx) => tx.skuId !== imported); // no ledger row at all
+const importedPrev = mktRowsFor(prevMonth, 'WF Imported Baseline');
+check('month end: imported baseline lands in Stock In of its birth month (Opening 0)',
+  importedPrev.length === 1 && importedPrev[0].openingQty === 0 && importedPrev[0].stockInQty === 30 && importedPrev[0].closingQty === 30);
+check('month end: the month before an imported item is empty, birth month opens at 0',
+  mktRowsFor(beforePrev, 'WF Imported Baseline').length === 0 && importedPrev[0].openingQty === 0);
+const importedCur = mktRowsFor(curMonth, 'WF Imported Baseline');
+check('month end: ...and it carries over as Opening the next month',
+  importedCur.length === 1 && importedCur[0].openingQty === 30 && importedCur[0].stockInQty === 0 && importedCur[0].closingQty === 30);
+
+// (e) hiding is display-only: totals are untouched and only all-zero rows go
+const mktAll = (m: string, includeEmpty: boolean) => getMonthEndRows({
+  month: m, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+  csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), includeEmpty,
+});
+const totalOf = (rows: ReturnType<typeof mktAll>) =>
+  rows.reduce((a, r) => a + r.openingQty + r.stockInQty + r.stockOutQty + r.closingQty, 0);
+const tight = mktAll(curMonth, false), loose = mktAll(curMonth, true);
+check('month end: hiding rows does not change any total', tight.length < loose.length && totalOf(tight) === totalOf(loose));
+const tightKeys = new Set(tight.map((r) => r.key));
+check('month end: only all-zero rows are hidden',
+  loose.filter((r) => !tightKeys.has(r.key)).every((r) => r.openingQty === 0 && r.stockInQty === 0 && r.stockOutQty === 0 && r.closingQty === 0));
+
+
 
 
 console.log('\n── 10) Edge: approve MORE than requested (up to available) — last value wins');

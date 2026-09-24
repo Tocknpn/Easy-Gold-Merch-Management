@@ -256,7 +256,11 @@ max(0,(Inflow−Current)/Inflow×100). The **Month End Report** works on one who
 includes the item's initial `OPENING` genesis row, Opening = Current rolled back over every movement from the
 1st of the month (so a brand-new item opens at 0), Closing = Current rolled back over the movements *after* the
 month end (so a past month never shows today's stock), and **All stock** merges the MKT + CS rows, summing
-quantities *and* values (each warehouse keeps its own cost per unit).
+quantities *and* values (each warehouse keeps its own cost per unit). An item is **never listed before its
+creation date** (`createdAt`, else its first movement), and rows with no balance and no movement in the month
+are hidden unless you tick **Show items with no movement** (Finance/audit view). In the month an item first
+exists, its initial stock — even an imported baseline that has no `OPENING` ledger row — is reported as
+**Stock In** with Opening 0, so the previous month's Closing always equals this month's Opening.
 
 ---
 
