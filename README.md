@@ -251,8 +251,12 @@ The photo then shows wherever SKUs appear (dashboard stock table, SKU detail dia
 and the SKU Setup list). Replacing/removing a photo cleans up the old file in Storage.
 Existing Google Drive image links from the legacy app keep working unchanged.
 
-Report formulas are unchanged from the spec (§7): Stock In = Σ addition (excl. OPENING), Stock Out = Σ deduction,
-Opening = Current + StockOut − StockIn, Usage % = max(0,(Inflow−Current)/Inflow×100).
+Report formulas (spec §7): Stock In = Σ addition, Stock Out = Σ deduction, Usage % =
+max(0,(Inflow−Current)/Inflow×100). The **Month End Report** works on one whole month (`YYYY-MM`): Stock In
+includes the item's initial `OPENING` genesis row, Opening = Current rolled back over every movement from the
+1st of the month (so a brand-new item opens at 0), Closing = Current rolled back over the movements *after* the
+month end (so a past month never shows today's stock), and **All stock** merges the MKT + CS rows, summing
+quantities *and* values (each warehouse keeps its own cost per unit).
 
 ---
 

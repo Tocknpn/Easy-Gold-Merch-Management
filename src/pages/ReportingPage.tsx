@@ -15,7 +15,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
-import { getStockMovement, reportableTransactions } from '@/lib/stockMovement';
+import { getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
@@ -26,7 +26,6 @@ type Tone = 'slate' | 'amber' | 'emerald' | 'brand';
 const TONES: Record<Tone, string> = {
   slate: 'bg-slate-700', amber: 'bg-amber-600', emerald: 'bg-emerald-600', brand: 'bg-brand-700',
 };
-const MULT = (vat: boolean, n: number) => (vat ? n * 1.1 : n);
 const cellCls = 'border border-slate-200 px-3 py-1.5';
 
 const TAB_DEFS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
@@ -74,6 +73,17 @@ export function ReportingPage() {
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
 
+  // The Month End tab reports on a whole month ('YYYY-MM'). The month picker
+  // keeps the shared `from`/`to` filters on that month's boundaries, so the
+  // other six tabs, the exports and the file names all stay consistent.
+  const month = from.slice(0, 7);
+  const monthRange = monthBounds(month);
+  const setMonth = (m: string) => {
+    if (!/^\d{4}-\d{2}$/.test(m)) return;
+    setFrom(monthBounds(m).from);
+    setTo(monthBounds(m).to);
+  };
+
   const merged = useMemo(() => {
     // Reportable ledger: cancelled bookings and everything belonging to a
     // rejected / recalled ticket are excluded (they netted out to zero).
@@ -100,19 +110,24 @@ export function ReportingPage() {
   const shown = useMemo(() => merged.list.filter((s) => cat === 'All' || s.category === cat), [merged, cat]);
   const inRange = (d?: string | null) => !!d && d >= from && d <= to;
 
+  // Month End Report rows — see "Month End Report.md". Opening rolls every
+  // movement back from the month start (so a brand-new item's OPENING genesis
+  // row lands in Stock In and its Opening is 0), Closing rolls back only what
+  // happened AFTER the month end, and "All" merges MKT + CS per SKU summing
+  // quantity AND value (each warehouse keeps its own cost per unit).
   const monthRows = useMemo(() =>
-    shown.map((s) => {
-      const mv = getStockMovement(s as SKU, merged.tx, from, to);
-      const cpu = s.costPerUnit || 0;
-      return {
-        sku: s, cpu,
-        openingQty: mv.opening, openingVal: MULT(vat, mv.opening * cpu),
-        stockInQty: mv.stockIn, stockInVal: MULT(vat, mv.stockIn * cpu),
-        stockOutQty: mv.stockOut, stockOutVal: MULT(vat, mv.stockOut * cpu),
-        closingQty: mv.closing, closingVal: MULT(vat, mv.closing * cpu),
-      };
-    }).sort((a, b) => a.sku.name.localeCompare(b.sku.name, 'la')),
-    [shown, merged.tx, from, to, vat]);
+    getMonthEndRows({
+      month, scope: wh,
+      skus, transactions, csSkus, csTransactions,
+      tickets, category: cat, vat,
+    }), [month, wh, skus, csSkus, transactions, csTransactions, tickets, cat, vat]);
+
+  // Opening + In − Out === Closing by construction — anything else means the
+  // SKU baseline drifted from the ledger and Finance should be told.
+  const varianceRows = useMemo(
+    () => monthRows.filter((r) => Math.abs(r.variance) > 1e-6),
+    [monthRows],
+  );
 
   const stockOutRows = useMemo(() =>
     merged.tx.filter((t) => t.type === 'deduction' && inRange(t.date))
@@ -209,7 +224,7 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       const wb = XLSX.utils.book_new();
     // Sheet 1: Month End (Stock Movement)
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['STOCK MOVEMENT', `${from} TO ${to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
+      ['STOCK MOVEMENT', `${monthRange.from} TO ${monthRange.to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
       ['ITEM', 'CPU', 'OPENING QTY', 'OPENING VALUE', 'STOCK IN QTY', 'STOCK IN VALUE', 'STOCK OUT QTY', 'STOCK OUT VALUE', 'CLOSING QTY', 'CLOSING VALUE'],
       ...monthRows.map((r) => [r.sku.name, r.cpu, r.openingQty, Math.round(r.openingVal), r.stockInQty, Math.round(r.stockInVal),
         r.stockOutQty, Math.round(r.stockOutVal), r.closingQty, Math.round(r.closingVal)]),
@@ -273,7 +288,7 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
   const handleExportPdf = () => {
     exportMonthEndPdf({
       title: 'Month End Report',
-      dateRange: `${from} to ${to}`,
+      dateRange: `${monthRange.from} to ${monthRange.to}`,
       warehouse: merged.label,
       category: cat,
       includeVat: vat,
@@ -289,7 +304,7 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
   const handlePrintPdf = () => {
     printMonthEndPdf({
       title: 'Month End Report',
-      dateRange: `${from} to ${to}`,
+      dateRange: `${monthRange.from} to ${monthRange.to}`,
       warehouse: merged.label,
       category: cat,
       includeVat: vat,
@@ -348,14 +363,23 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
             ))}
           </div>
         </div>
-        <div>
-          <label className="label">Date from</label>
-          <input className="input w-40" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
-        </div>
-        <div>
-          <label className="label">Date to</label>
-          <input className="input w-40" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
-        </div>
+        {tab === 'month-end' ? (
+          <div>
+            <label className="label">Month</label>
+            <input className="input w-44" type="month" value={month} onChange={(e) => setMonth(e.target.value)} />
+          </div>
+        ) : (
+          <>
+            <div>
+              <label className="label">Date from</label>
+              <input className="input w-40" type="date" value={from} onChange={(e) => setFrom(e.target.value)} />
+            </div>
+            <div>
+              <label className="label">Date to</label>
+              <input className="input w-40" type="date" value={to} onChange={(e) => setTo(e.target.value)} />
+            </div>
+          </>
+        )}
         <div>
           <label className="label">Merch Type</label>
           <select className="input w-52" value={cat} onChange={(e) => setCat(e.target.value)}>
@@ -402,11 +426,18 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
 {tab === 'month-end' && (
         <div className="card card-pad">
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
-            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">Stock Movement — {from} to {to}</h2>
+            <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">Stock Movement — {monthRange.from} to {monthRange.to}</h2>
             <span className="text-xs text-slate-400">
               {cat === 'All' ? 'All Categories' : cat} · {monthRows.length} items{vat ? ' · incl. VAT 10%' : ''}
             </span>
           </div>
+          {varianceRows.length > 0 && (
+            <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Ledger check: {varianceRows.length} item{varianceRows.length > 1 ? 's' : ''} where Opening + In − Out ≠ Closing (
+              {varianceRows.slice(0, 5).map((r) => r.sku.name).join(', ')}
+              {varianceRows.length > 5 ? ', …' : ''}) — the SKU baseline has drifted from its movements.
+            </p>
+          )}
           {monthRows.length === 0 ? (
             <EmptyState icon={<CalendarRange className="h-6 w-6" />} title="No stock in this range" />
           ) : (
@@ -429,8 +460,13 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                 </thead>
                 <tbody>
                   {monthRows.map((r) => (
-                    <tr key={r.sku.id} className="transition hover:bg-slate-50/70">
-                      <td className={`${cellCls} font-medium text-slate-800`}>{r.sku.name}</td>
+                    <tr key={r.key} className="transition hover:bg-slate-50/70">
+                      <td className={`${cellCls} font-medium text-slate-800`}>
+                        {r.sku.name}
+                        {r.warehouses === 2 && (
+                          <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">MKT + CS</span>
+                        )}
+                      </td>
                       <td className={`${cellCls} text-right tabular-nums text-slate-500`}>{money(r.cpu)}</td>
                       <td className={`${cellCls} text-right tabular-nums text-slate-700`}>{fmt(r.openingQty)}</td>
                       <td className={`${cellCls} text-right tabular-nums text-slate-600`}>{money(r.openingVal)}</td>
@@ -695,6 +731,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
 
       <p className="text-[11px] text-slate-400 no-print">
         Reports reflect {merged.label}. Opening/Closing are computed by rolling the current stock through transaction history (not stored).
+        {tab === 'month-end' && ' Month End: Opening rolls every movement back from the 1st of the month (a brand-new item starts at 0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, and All stock merges the MKT + CS rows (quantities and values summed).'}
         {tab === 'month-end' && ' Print = landscape physical sign-off copy submitted to Finance & Audit.'}
       </p>
     </div>

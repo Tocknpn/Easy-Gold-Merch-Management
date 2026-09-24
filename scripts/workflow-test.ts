@@ -13,7 +13,7 @@ import {
 } from '../src/lib/demoData';
 import { demoFetchAudit } from '../src/lib/demoAudit';
 import {
-  getStockMovement, getMonthRows, actionableTicketCount,
+  getStockMovement, getMonthRows, getMonthMovement, getMonthEndRows, actionableTicketCount,
   activeBorrows, overdueBorrows, reportableTransactions,
 } from '../src/lib/stockMovement';
 import { todayStr } from '../src/lib/utils';
@@ -301,6 +301,61 @@ check('ticket.deliveryDate stored (2026-12-03)', rmTicket.deliveryDate === '2026
 check('ticket.actualDeliveryDate stored (2026-12-03)', rmTicket.actualDeliveryDate === '2026-12-03');
 const allTx = demoDB.transactions.filter((tx) => tx.ticketId === rt1);
 check('all workflow txs have YYYY-MM-DD date', allTx.every((tx) => /^\d{4}-\d{2}-\d{2}$/.test(tx.date || '')));
+
+// ── 9b) Month End Report — "Month End Report.md" (dynamic month snapshot) ─
+// Opening rolls every movement back from the 1st of the month (so a brand-new
+// item starts at 0 and its OPENING genesis row shows as Stock In), Closing
+// rolls back only the movements AFTER the month end, and "All" merges the MKT
+// and CS rows (quantities AND values summed, each side keeps its own cost).
+const curMonth = today.slice(0, 7);
+const now = new Date();
+const prevDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+const prevMonth = `${prevDate.getFullYear()}-${String(prevDate.getMonth() + 1).padStart(2, '0')}`;
+
+// Scenario A — a brand-new item is created this month with 100 pcs @ cost 7
+const meSku = addSku({ name: 'WF MonthEnd', category: 'MKT', unit: 'pcs', openingBalance: 100, costPerUnit: 7 });
+const meCur = getMonthRows(demoDB.skus.filter((s) => s.id === meSku), demoDB.transactions, curMonth)[0];
+check('month end: brand-new item opens at 0 (genesis rule)', meCur.openingQty === 0);
+check('month end: the OPENING genesis stock counts as Stock In', meCur.stockInQty === 100);
+check('month end: closing = current stock in the birth month', meCur.closingQty === 100 && skuStock(meSku) === 100);
+
+// Scenario B — the previous month's report of the same item (it did not exist yet)
+const mePrev = getMonthRows(demoDB.skus.filter((s) => s.id === meSku), demoDB.transactions, prevMonth)[0];
+check('month end: past month closing is rolled back (0), NOT the live current stock (100)',
+  mePrev.closingQty === 0 && skuStock(meSku) === 100);
+check('month end: opening + in − out = closing', mePrev.openingQty + mePrev.stockInQty - mePrev.stockOutQty === mePrev.closingQty);
+const mvMe = getMonthMovement(demoDB.skus.find((s) => s.id === meSku)!, demoDB.transactions, prevMonth);
+check('month end: no ledger variance', mvMe.variance === 0);
+
+// Scenario C — All stock: two warehouses, same item name, different costs
+const mergeM = addSku({ name: 'WF Merge', category: 'MKT', unit: 'pcs', openingBalance: 60, costPerUnit: 10 });
+const mergeC = addCsSku({ name: 'WF Merge', category: 'MKT', unit: 'pcs', openingBalance: 50, costPerUnit: 12 });
+check('month end: the merge pair lives in both warehouses', mergeM !== mergeC && skuStock(mergeM) === 60 && csStock(mergeC) === 50);
+const allRows = getMonthEndRows({
+  month: curMonth, scope: 'all',
+  skus: demoDB.skus, transactions: demoDB.transactions,
+  csSkus: demoDB.csSkus, csTransactions: demoDB.csTransactions,
+  tickets: demoTicketsWithItems(),
+});
+const mergedRows = allRows.filter((r) => r.sku.name === 'WF Merge');
+check('month end All: matched MKT + CS collapses into one row', mergedRows.length === 1 && mergedRows[0].warehouses === 2);
+check('month end All: quantities summed (60 + 50 = 110)', mergedRows[0].closingQty === 110);
+check('month end All: values summed (60×10 + 50×12 = 1200)', mergedRows[0].closingVal === 1200);
+check('month end All: both items are newborn → opening 0, in = 1200',
+  mergedRows[0].openingQty === 0 && mergedRows[0].stockInVal === 1200);
+check('month end All: no ledger variance', mergedRows[0].variance === 0);
+// The MKT ↔ CS transfers done in §7 use ONE id in both warehouses: the merged
+// row must show the true combined stock (MKT 30 + CS 0), not a half-pair.
+const moveRows = allRows.filter((r) => r.sku.name === 'WF Move');
+check('month end All: internal transfer pair nets out (MKT 30 + CS 0 = 30)', moveRows.length === 1 && moveRows[0].closingQty === 30);
+// VAT toggle inflates every value column by 10%
+const vatRows = getMonthEndRows({
+  month: curMonth, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+  csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), vat: true,
+}).filter((r) => r.sku.name === 'WF MonthEnd');
+check('month end: VAT toggle = ×1.1 on values', vatRows.length === 1 && Math.abs(vatRows[0].closingVal - 100 * 7 * 1.1) < 1e-6);
+
+
 
 console.log('\n── 10) Edge: approve MORE than requested (up to available) — last value wins');
 const skuA = addSku({ name: 'WF Overapprove', category: 'MKT', unit: 'pcs', openingBalance: 30 });

@@ -488,9 +488,13 @@ centered card + gold Crown logo.
 - **InventoryReportPage**: per-SKU report within a date range (Stock In = Σ addition in range, Stock Out = Σ
   deduction in range, Opening = current rolled back to range start, Loss Value = broken qty × cost, Usage % =
   (inflow−current)/inflow). Sortable columns. Print/export.
-- **MonthEndReportPage**: per-SKU monthly ledger — Opening Qty/Value, Stock In, Stock Out, Closing Qty/Value —
-  computed by rolling current stock back/forward through transactions to month boundaries. Month picker defaults
-  to previous month. Exports to **XLSX** with `xlsx`; Print button injects landscape `@page` while mounted.
+- **MonthEndReportPage**: per-SKU monthly ledger — Opening Qty/Value, Stock In, Stock Out, Closing Qty/Value.
+  The tab has a **month picker** (`YYYY-MM`, defaults to the previous month) which pins the shared from/to
+  filters to that month's boundaries. Opening rolls every movement back from the 1st (a brand-new item opens at
+  0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, and the
+  "All" scope merges the MKT + CS rows (quantities and values summed, each warehouse keeps its own cost) — see
+  §7. Rows from both warehouses carry a `MKT + CS` badge; a ledger-drift warning appears if
+  `Opening + In − Out ≠ Closing`. Exports to **XLSX** with `xlsx`; Print injects landscape `@page` while mounted.
 - **TotalStockPage**: merged MKT+CS totals (admin/director).
 - **CsDestockPage**: CS direct destock with confirmation dialog (no remark/reason required).
 - **TransferToMktPage**: admin/warehouse transfer CS stock back to MKT via a `cs_transfer`-style ticket.
@@ -501,11 +505,14 @@ centered card + gold Crown logo.
 ### 6.8 Frontend helper libs
 - `src/lib/sheets-api.ts` — typed wrappers for every backend action (list in §5). `isSheetsConfigured()` returns
   boolean whether `VITE_SHEETS_API_URL` is set.
-- `src/lib/stockMovement.ts` — `getStockMovementSummary(skus, transactions, from, to)` → per-SKU
-  Opening | Stock In | Stock Out | Closing; `mergeStockMovementRows(mktRows, csRows)` merges MKT+CS using
-  `matchAcrossWarehouses`, keeps separate cost figures per warehouse.
+- `src/lib/stockMovement.ts` — report math. Range reports: `getStockMovement(sku, tx, from, to)` (Dashboard +
+  Stock Balance tab). Month End Report (see `Month End Report.md`): `monthBounds('YYYY-MM')`,
+  `getMonthMovement(sku, tx, month)` (opening / in / out / closing / variance), `getMonthRows(...)` and
+  `getMonthEndRows({ month, scope, skus, transactions, csSkus, csTransactions, tickets, category, vat })` which
+  returns the report rows (quantity + value per column, VAT factor, `variance`) and builds the "All" scope by
+  computing MKT and CS separately, then merging matched SKUs with quantities AND values summed.
 - `src/lib/warehouseMerge.ts` — `matchAcrossWarehouses(mktItems, csItems)` pairs by id then by
-  lowercased name; flags `mkt_only` / `cs_only` / `both`.
+  trimmed lowercased name; flags `mkt_only` / `cs_only` / `both`.
 - `src/lib/utils.ts` — `cn(...)` (clsx+tailwind-merge) and `getSafeImageUrl(url)` which rewrites
   `drive.google.com` URLs to the robust `uc?id` form.
 - `src/lib/mock-data.ts` — offline seed data used when the sheet API is unreachable (see §11).
@@ -517,10 +524,10 @@ Let `Opening = sku.openingBalance`, `Current = sku.currentStock`, `Inflow = sku.
 `Cost = sku.costPerUnit`, `Threshold = sku.lowStockThreshold`, `Tx = StockTransactions`.
 
 ```
-Stock In   = Σ qty where type == 'addition'  (per SKU; excludes ticket_id 'OPENING')
-Stock Out  = Σ qty where type == 'deduction'
-Opening(period) = Current + StockOut(period) − StockIn(period)      [roll-back from today]
-Closing(period) = Opening(period) + StockIn(period) − StockOut(period)
+Stock In(range)   = Σ qty where type == 'addition'   (range reports exclude ticket_id 'OPENING')
+Stock Out(range)  = Σ qty where type == 'deduction'
+Opening(range) = Current + StockOut(range) − StockIn(range)      [roll-back from today]
+Closing(range) = Opening(range) + StockIn(range) − StockOut(range)
 Total Value     = Current × Cost
 Loss Value      = Σ (qtyBroken × Cost)  (cumulative)
 Usage %         = Inflow > 0 ? max(0, (Inflow − Current) / Inflow × 100) : 0
@@ -532,9 +539,28 @@ Ticket Tracking badge = Active Borrows (finalized, not yet returned) -- warehous
                       director: lm_approved; admin: any status not in final/resolved set.
 ```
 
+**Month End Report** (`getMonthMovement` / `getMonthEndRows` — the spec is `Month End Report.md`). The
+report is not snapshotted: every figure is rolled back from the live `Current` over a strict month range
+(`from` = 1st, `to` = last day of the selected `YYYY-MM`).
+
+```
+Stock In(month)  = Σ addition qty  where from <= date <= to    (INCLUDES the OPENING genesis row)
+Stock Out(month) = Σ deduction qty where from <= date <= to
+Opening(month)   = Current − Σ(additions − deductions) for every tx with date >= from
+                   → a brand-new item opens at 0 and its initial stock shows as Stock In
+Closing(month)   = Current − Σ(additions − deductions) for every tx with date > to
+                   → a past month never reports today's stock
+Variance(month)  = (Opening + In − Out) − Closing   (0 unless a SKU baseline drifted from the ledger)
+
+All stock        = MKT and CS are computed independently against their OWN ledger + cost, then merged by
+                   matched SKU with quantities AND values summed (a warehouse's stock is never re-priced).
+VAT              = costPerUnit × 1.1 before the value columns are calculated.
+```
+
 Month-End Report row layout: **Opening Qty/Value | Stock In Qty/Value | Stock Out Qty/Value | Closing Qty/Value**
 (Value = Qty × Cost per unit; each warehouse keeps its own cost). Same logic runs for CS data when the CS
-warehouse is selected.
+warehouse is selected. In the "All" scope a matched MKT + CS item renders as ONE row with the quantities and
+the values of both warehouses summed (the CPU column shows the blended cost of the closing balance).
 
 > **MIMS-2026 rebuild additions (migration `0013`)** — the reporting view of the ledger also drops
 > movements that never actually happened:
