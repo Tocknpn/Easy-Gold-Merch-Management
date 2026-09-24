@@ -221,6 +221,11 @@ begin
           when coalesce(v_ref,'') = 'DIRECT_DESTOCK'           then 'destock'
           when coalesce(v_ref,'') like 'CS_TRANSFER%'          then 'transfer'
           when coalesce(v_ref,'') like 'MKT_TRANSFER%'         then 'transfer'
+          -- cs_transactions has no `status` column, so a CS row that arrived
+          -- from a finalized cs_transfer ticket is identified by its comment
+          -- (the engine writes 'Auto-transferred from MKT WH - Ticket: …').
+          when TG_TABLE_NAME = 'cs_transactions'
+               and lower(coalesce(v_row->>'comment','')) like '%auto-transferred%' then 'transfer'
           when coalesce(v_ref,'') = 'OPENING'                  then 'opening'
           when lower(coalesce(v_row->>'status','')) = 'booked' then 'book'
           when v_dir = 'IN'                                    then 'return'
@@ -434,7 +439,8 @@ begin
     return;
   end if;
 
-  -- ── ticket workflow history ────────────────────────────────────
+  begin
+    -- ── ticket workflow history ──────────────────────────────────
   insert into public.audit_log (
     at, actor_name, actor_role, module, action, entity, entity_id, entity_name,
     ref_ticket, summary, comment, origin)
@@ -487,7 +493,10 @@ begin
            when coalesce(t.ticket_id, '') = 'OPENING'          then 'opening'
            when coalesce(t.ticket_id, '') like 'MKT_TRANSFER%' then 'transfer'
            when coalesce(t.ticket_id, '') like 'CS_TRANSFER%'  then 'transfer'
-           when lower(coalesce(t.status, '')) = 'booked'       then 'book'
+           -- cs_transactions has NO `status` column (stock_transactions does):
+           -- a CS addition that came from a finalized cs_transfer ticket is the
+           -- engine's auto-transfer, so read that from the comment instead.
+           when lower(coalesce(t.comment, '')) like '%auto-transferred%' then 'transfer'
            when t.type = 'addition'                            then 'return'
            else 'issue'
          end,
@@ -516,6 +525,13 @@ begin
 
   select count(*) into v_imported from public.audit_log;
   raise notice 'audit_log backfilled — % history rows imported', v_imported;
+
+  exception when others then
+    -- Importing the OLD history is a convenience: never let a schema hiccup
+    -- here block the actual setup (table + triggers + Admin-only read rule,
+    -- which all ran before this block). The self-check below reports the count.
+    raise warning 'Audit history import skipped (%): the audit_log table, the triggers and the admin-only read rule are still active.', SQLERRM;
+  end;
 end $$;
 
 -- ------------------------------------------------------------------
