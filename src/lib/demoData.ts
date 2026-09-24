@@ -1,8 +1,35 @@
 // ── In-memory demo engine: SKU / config mutations ────────────────────────
-import { demoDB, nextId, nextLedgerId } from './demoStore';
-import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction, MovementEditPatch } from './types';
+import { demoDB, nextId, nextLedgerId, pushAudit } from './demoStore';
+import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction, MovementEditPatch, AuditChange } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
+
+// ── Audit helpers (mirror the audit_row() trigger of 0016) ────────────────
+// Live mode logs master-data / settings / user changes with database
+// triggers; demo mode pushes the same shape here. Field names are the
+// snake_case column names so the Audit page reads identically in both modes.
+type FieldMap<T> = [keyof T & string, string][];
+
+const skuFieldMap: FieldMap<SKU> = [
+  ['name', 'name'], ['category', 'category'], ['unit', 'unit'],
+  ['openingBalance', 'opening_balance'], ['currentStock', 'current_stock'],
+  ['totalInflow', 'total_inflow'], ['lowStockThreshold', 'low_stock_threshold'],
+  ['costPerUnit', 'cost_per_unit'], ['status', 'status'],
+];
+const userFieldMap: FieldMap<AppUser> = [
+  ['fullName', 'full_name'], ['username', 'username'], ['email', 'email'],
+  ['department', 'department'], ['role', 'role'], ['status', 'status'],
+];
+
+function diffOf<T extends object>(before: T, after: T, map: FieldMap<T>): AuditChange[] {
+  return map
+    .filter(([k]) => String((before as any)[k] ?? '') !== String((after as any)[k] ?? ''))
+    .map(([k, field]) => {
+      const from = (before as any)[k];
+      const to = (after as any)[k];
+      return { field, from: from == null ? null : String(from), to: to == null ? null : String(to) };
+    });
+}
 
 // ── rename cascade (mirrors manage_sku/manage_cs_sku in the SQL engine) ───
 // A renamed SKU keeps ONE name everywhere: ticket items, both ledgers and
@@ -46,8 +73,9 @@ function syncOpeningTx(
 export function demoAddSku(sku: Partial<SKU>): string {
   const id = sku.id || nextId('sku-');
   const opening = castNumber(sku.openingBalance);
+  const name = sku.name || 'Untitled';
   demoDB.skus.push({
-    id, name: sku.name || 'Untitled', category: sku.category || '', unit: sku.unit || 'pcs',
+    id, name, category: sku.category || '', unit: sku.unit || 'pcs',
     openingBalance: opening, currentStock: sku.currentStock !== undefined ? castNumber(sku.currentStock) : opening,
     totalInflow: opening, imageUrl: sku.imageUrl || null,
     lowStockThreshold: castNumber(sku.lowStockThreshold), costPerUnit: castNumber(sku.costPerUnit),
@@ -55,6 +83,10 @@ export function demoAddSku(sku: Partial<SKU>): string {
   });
   if (opening > 0)
     demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionBy: '', status: 'Opening', comment: 'Opening balance on SKU creation' });
+  pushAudit({
+    module: 'master', action: 'create', entity: 'skus', entityId: id, entityName: name, warehouse: 'MKT',
+    summary: `Added MKT item "${name}"` + (opening > 0 ? ` · opening ${opening}` : ''),
+  });
   return id;
 }
 
@@ -62,6 +94,7 @@ export function demoUpdateSku(id: string, updates: Partial<SKU>): number {
   const s = demoDB.skus.find((x) => x.id === id);
   if (!s) throw new Error('SKU not found');
   const oldName = s.name;
+  const before: SKU = { ...s };
   const patch: Partial<SKU> = { ...updates };
   let delta = 0;
 
@@ -79,11 +112,23 @@ export function demoUpdateSku(id: string, updates: Partial<SKU>): number {
 
   Object.assign(s, patch);
   if (patch.name && patch.name !== oldName) cascadeSkuName(id, patch.name);
+  const changes = diffOf(before, s, skuFieldMap);
+  if (changes.length)
+    pushAudit({
+      module: 'master', action: 'update', entity: 'skus', entityId: id, entityName: s.name,
+      warehouse: 'MKT', summary: `Changed MKT item "${s.name}"`, changes,
+    });
   return delta;
 }
 
 export function demoDeleteSku(id: string): void {
-  demoDB.skus = demoDB.skus.filter((s) => s.id !== id);
+  const s = demoDB.skus.find((x) => x.id === id);
+  demoDB.skus = demoDB.skus.filter((x) => x.id !== id);
+  if (s)
+    pushAudit({
+      module: 'master', action: 'delete', entity: 'skus', entityId: id, entityName: s.name,
+      warehouse: 'MKT', summary: `Deleted MKT item "${s.name}"`,
+    });
 }
 
 export function demoRestockSku(id: string, qty: number, actionBy?: string, comment?: string): void {
@@ -98,8 +143,9 @@ export function demoRestockSku(id: string, qty: number, actionBy?: string, comme
 export function demoCsAddSku(sku: Partial<CS_SKU>): string {
   const id = sku.id || nextId('CS-SKU-');
   const opening = castNumber(sku.openingBalance);
+  const name = sku.name || 'Untitled';
   demoDB.csSkus.push({
-    id, name: sku.name || 'Untitled', category: sku.category || '', unit: sku.unit || 'pcs',
+    id, name, category: sku.category || '', unit: sku.unit || 'pcs',
     openingBalance: opening, currentStock: sku.currentStock !== undefined ? castNumber(sku.currentStock) : opening,
     totalInflow: opening, imageUrl: sku.imageUrl || null,
     lowStockThreshold: castNumber(sku.lowStockThreshold), costPerUnit: castNumber(sku.costPerUnit),
@@ -107,6 +153,10 @@ export function demoCsAddSku(sku: Partial<CS_SKU>): string {
   });
   if (opening > 0)
     demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy: '', comment: 'Opening balance on SKU creation' });
+  pushAudit({
+    module: 'master', action: 'create', entity: 'cs_skus', entityId: id, entityName: name, warehouse: 'CS',
+    summary: `Added CS item "${name}"` + (opening > 0 ? ` · opening ${opening}` : ''),
+  });
   return id;
 }
 
@@ -114,6 +164,7 @@ export function demoCsUpdateSku(id: string, updates: Partial<CS_SKU>): number {
   const s = demoDB.csSkus.find((x) => x.id === id);
   if (!s) throw new Error('CS SKU not found');
   const oldName = s.name;
+  const before: CS_SKU = { ...s };
   const patch: Partial<CS_SKU> = { ...updates };
   let delta = 0;
 
@@ -140,11 +191,23 @@ export function demoCsUpdateSku(id: string, updates: Partial<CS_SKU>): number {
       cascadeSkuName(id, patch.name);
     }
   }
+  const changes = diffOf(before, s, skuFieldMap);
+  if (changes.length)
+    pushAudit({
+      module: 'master', action: 'update', entity: 'cs_skus', entityId: id, entityName: s.name,
+      warehouse: 'CS', summary: `Changed CS item "${s.name}"`, changes,
+    });
   return delta;
 }
 
 export function demoCsDeleteSku(id: string): void {
-  demoDB.csSkus = demoDB.csSkus.filter((s) => s.id !== id);
+  const s = demoDB.csSkus.find((x) => x.id === id);
+  demoDB.csSkus = demoDB.csSkus.filter((x) => x.id !== id);
+  if (s)
+    pushAudit({
+      module: 'master', action: 'delete', entity: 'cs_skus', entityId: id, entityName: s.name,
+      warehouse: 'CS', summary: `Deleted CS item "${s.name}"`,
+    });
 }
 
 export function demoCsRestockSku(id: string, qty: number, actionBy?: string, comment?: string): void {
@@ -299,12 +362,34 @@ export function demoEditStockMovement(
 }
 
 export function demoManageConfig(key: string, value: string): void {
+  const before = demoDB.config[key];
   demoDB.config[key] = value;
+  if (before !== undefined && String(before) === String(value)) return;
+  pushAudit({
+    module: 'settings',
+    action: before === undefined ? 'create' : 'update',
+    entity: 'system_config', entityId: key, entityName: key,
+    summary: before === undefined ? `Set ${key} = ${value}` : `Changed setting ${key}`,
+    changes: before === undefined ? [] : [{ field: 'value', from: String(before), to: String(value) }],
+  });
 }
 
 export function demoManageCategory(action: 'add' | 'delete', name: string): void {
-  if (action === 'add' && name && !demoDB.categories.includes(name)) demoDB.categories.push(name);
-  if (action === 'delete') demoDB.categories = demoDB.categories.filter((c) => c !== name);
+  if (action === 'add' && name && !demoDB.categories.includes(name)) {
+    demoDB.categories.push(name);
+    pushAudit({
+      module: 'settings', action: 'create', entity: 'categories', entityId: name, entityName: name,
+      summary: `Added category "${name}"`,
+    });
+    return;
+  }
+  if (action === 'delete') {
+    demoDB.categories = demoDB.categories.filter((c) => c !== name);
+    pushAudit({
+      module: 'settings', action: 'delete', entity: 'categories', entityId: name, entityName: name,
+      summary: `Removed category "${name}"`,
+    });
+  }
 }
 
 export function demoAddRemark(skuId: string, remark: string, userName: string, userRole: string): void {
@@ -326,12 +411,18 @@ export function demoAddUser(u: NewUserInput): string {
     role: u.role, status: 'Active', password: u.password,
     passwordUpdatedAt: new Date().toISOString(),
   });
+  pushAudit({
+    module: 'users', action: 'create', entity: 'users', entityId: id,
+    entityName: u.fullName || email,
+    summary: `Added user ${u.fullName || email} (${u.role})`,
+  });
   return id;
 }
 
 export function demoUpdateUser(id: string, patch: Partial<AppUser>): void {
   const u = demoDB.users.find((x) => x.id === id);
   if (!u) throw new Error('User not found');
+  const before: AppUser = { ...u };
   if (patch.email) {
     const email = patch.email.trim().toLowerCase();
     if (demoDB.users.some((x) => x.email.toLowerCase() === email && x.id !== id))
@@ -344,6 +435,13 @@ export function demoUpdateUser(id: string, patch: Partial<AppUser>): void {
   if (patch.department !== undefined) u.department = patch.department;
   if (patch.role !== undefined) u.role = patch.role;
   if (patch.status !== undefined) u.status = patch.status;
+
+  const changes = diffOf(before, u, userFieldMap);
+  if (changes.length)
+    pushAudit({
+      module: 'users', action: 'update', entity: 'users', entityId: id, entityName: u.fullName,
+      summary: `Updated user ${u.fullName}`, changes,
+    });
 }
 
 export function demoSetUserPassword(id: string, password: string): void {
@@ -352,17 +450,34 @@ export function demoSetUserPassword(id: string, password: string): void {
   if (!password || password.length < 6) throw new Error('Password must be at least 6 characters');
   u.password = password;
   u.passwordUpdatedAt = new Date().toISOString();
+  pushAudit({
+    module: 'users', action: 'update', entity: 'users', entityId: id, entityName: u.fullName,
+    summary: `Reset the password of ${u.fullName}`,
+    changes: [{ field: 'password', from: null, to: 'changed' }],
+  });
 }
 
 export function demoSetUserStatus(id: string, status: 'Active' | 'Inactive'): void {
   const u = demoDB.users.find((x) => x.id === id);
   if (!u) throw new Error('User not found');
+  const before = u.status;
   u.status = status;
+  if (before === status) return;
+  pushAudit({
+    module: 'users', action: 'update', entity: 'users', entityId: id, entityName: u.fullName,
+    summary: `Updated user ${u.fullName}`,
+    changes: [{ field: 'status', from: before, to: status }],
+  });
 }
 
 export function demoDeleteUser(id: string): void {
-  if (!demoDB.users.some((x) => x.id === id)) throw new Error('User not found');
+  const u = demoDB.users.find((x) => x.id === id);
+  if (!u) throw new Error('User not found');
   demoDB.users = demoDB.users.filter((x) => x.id !== id);
+  pushAudit({
+    module: 'users', action: 'delete', entity: 'users', entityId: id, entityName: u.fullName,
+    summary: `Deleted user ${u.fullName}`,
+  });
 }
 
 export function demoRevealUserPassword(id: string): string | null {

@@ -3,11 +3,10 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Warehouse, Crown,
   Ticket, Inbox, FileBarChart, Settings2, HeartPulse,
-  RefreshCw, LogOut, Menu, X, PanelLeftClose, PanelLeftOpen,
+  RefreshCw, LogOut, Menu, X, PanelLeftClose, PanelLeftOpen, ScrollText,
 } from 'lucide-react';
 import { useAuth, getUserRoleLabel } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
-import { activeBorrows } from '@/lib/stockMovement';
 import { isSupabaseConfigured } from '@/lib/supabase';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/primitives';
@@ -26,6 +25,7 @@ export const NAV_DEFS: NavDef[] = [
   { key: 'ticket-tracking', label: 'Ticket Tracking', icon: <Ticket className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
   { key: 'action-center', label: 'Action Center', icon: <Inbox className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { key: 'reporting', label: 'Reporting', icon: <FileBarChart className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
+  { key: 'audit', label: 'Audit Trail', icon: <ScrollText className="h-4 w-4" />, roles: ['admin'] },
   { key: 'settings', label: 'System Settings', icon: <Settings2 className="h-4 w-4" />, roles: ['admin', 'warehouse', 'customer_service'] },
   { key: 'diagnostics', label: 'Diagnostics', icon: <HeartPulse className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
 ];
@@ -34,7 +34,7 @@ const ROLE_TO_PATH: Record<string, string> = {
   dashboard: 'dashboard', request: 'request',
   'manage-stock': 'manage-stock', 'ticket-tracking': 'ticket-tracking',
   'action-center': 'action-center', reporting: 'reporting',
-  settings: 'settings', diagnostics: 'diagnostics',
+  settings: 'settings', diagnostics: 'diagnostics', audit: 'audit',
 };
 
 export function pathToKey(path: string): string {
@@ -51,7 +51,7 @@ const SIDEBAR_COLLAPSED_KEY = 'eg-sidebar-collapsed';
 
 export function AppShell({ children }: { children: React.ReactNode }) {
   const { user, logout, hasAccess } = useAuth();
-  const { actionableTicketCount, tickets, refresh, loading } = useData();
+  const { actionableTicketCount, refresh, loading } = useData();
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
@@ -65,11 +65,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   if (!user) return null;
   const visible = NAV_DEFS.filter((n) => hasAccess(n.roles));
   const activeKey = pathToKey(location.pathname);
-
-  // Finalized borrows waiting to come back are tracked in Ticket Tracking (they
-  // are no longer an Action Center item), so badge that menu entry instead.
-  const waitingReturns =
-    ['warehouse', 'admin'].includes(user.role) ? activeBorrows(tickets).length : 0;
 
   const go = (key: string) => {
     setSidebarOpen(false);
@@ -146,7 +141,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
             collapsed ? 'w-[68px]' : 'w-60',
           )}
         >
-          <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} returnCount={waitingReturns} go={go} collapsed={collapsed} />
+          <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} go={go} collapsed={collapsed} />
           <div className="mt-auto flex flex-col items-center gap-2 pt-3">
             {!collapsed && (
               <div className="w-full rounded-xl bg-gradient-to-br from-brand-50 to-accent-400/10 px-3.5 py-3 text-[11px] leading-relaxed text-slate-500 no-print">
@@ -177,7 +172,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                   <X className="h-4 w-4" />
                 </button>
               </div>
-              <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} returnCount={waitingReturns} go={go} collapsed={false} />
+              <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} go={go} collapsed={false} />
             </aside>
           </div>
         )}
@@ -191,11 +186,9 @@ export function AppShell({ children }: { children: React.ReactNode }) {
 }
 
 function SidebarNav({
-  visible, activeKey, count, returnCount, go, collapsed,
+  visible, activeKey, count, go, collapsed,
 }: {
   visible: NavDef[]; activeKey: string; count: number;
-  /** Borrows finalized but not yet returned — badged on Ticket Tracking. */
-  returnCount: number;
   go:(k: string) => void; collapsed: boolean;
 }) {
   return (
@@ -207,13 +200,7 @@ function SidebarNav({
         <button
           key={n.key}
           onClick={() => go(n.key)}
-          title={
-            collapsed
-              ? n.label
-              : n.key === 'ticket-tracking' && returnCount > 0
-                ? returnCount + ' borrow(s) waiting to be returned to the warehouse'
-                : undefined
-          }
+          title={collapsed ? n.label : undefined}
           className={cn(
             'flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition no-print',
             collapsed && 'justify-center px-0',
@@ -226,9 +213,6 @@ function SidebarNav({
           {!collapsed && <span className="flex-1 truncate">{n.label}</span>}
           {!collapsed && n.key === 'action-center' && count > 0 && (
             <Badge className="bg-brand-600 text-white ring-transparent">{count}</Badge>
-          )}
-          {!collapsed && n.key === 'ticket-tracking' && returnCount > 0 && (
-            <Badge className="bg-indigo-600 text-white ring-transparent">{returnCount}</Badge>
           )}
         </button>
       ))}

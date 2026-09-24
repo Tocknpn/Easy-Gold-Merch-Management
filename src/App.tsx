@@ -21,6 +21,7 @@ const ReportingPage = lazyNamed(() => import('@/pages/ReportingPage'), 'Reportin
 const ManageStockPage = lazyNamed(() => import('@/pages/ManageStockPage'), 'ManageStockPage');
 const SystemSettingsPage = lazyNamed(() => import('@/pages/SystemSettingsPage'), 'SystemSettingsPage');
 const DiagnosticsPage = lazyNamed(() => import('@/pages/DiagnosticsPage'), 'DiagnosticsPage');
+const AuditLogPage = lazyNamed(() => import('@/pages/AuditLogPage'), 'AuditLogPage');
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,6 +37,7 @@ const ROUTES: { path: string; pageKey: string; roles: string[] }[] = [
   { path: '/action-center', pageKey: 'action-center', roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { path: '/reporting', pageKey: 'reporting', roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
   { path: '/settings', pageKey: 'settings', roles: ['admin', 'warehouse', 'customer_service'] },
+  { path: '/audit', pageKey: 'audit', roles: ['admin'] },
   { path: '/diagnostics', pageKey: 'diagnostics', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
 ];
 
@@ -90,6 +92,7 @@ function PageFor({ pageKey }: { pageKey: string }) {
     case 'reporting': Page = ReportingPage; break;
     case 'manage-stock': Page = ManageStockPage; break;
     case 'settings': Page = SystemSettingsPage; break;
+    case 'audit': Page = AuditLogPage; break;
     case 'diagnostics': Page = DiagnosticsPage; break;
     default: return <NotFoundPage />;
   }

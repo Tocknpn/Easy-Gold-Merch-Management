@@ -17,6 +17,23 @@ export function todayStr(): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** Local (device timezone) YYYY-MM-DD of a timestamp — the Audit page groups
+ *  and date-filters by this, so "today" means today where the user sits. */
+export function dayOf(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+/** Shifts a YYYY-MM-DD string by whole days (negative = earlier). */
+export function shiftDay(dayStr: string, days: number): string {
+  const [y, m, d] = String(dayStr).slice(0, 10).split('-').map(Number);
+  if (!y || !m || !d) return dayStr;
+  const dt = new Date(y, m - 1, d + days);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, '0')}-${String(dt.getDate()).padStart(2, '0')}`;
+}
+
 export function safeImageUrl(url?: string | null): string {
   if (!url) return '';
   const m = url.match(/[?&]id=([A-Za-z0-9_-]+)/);

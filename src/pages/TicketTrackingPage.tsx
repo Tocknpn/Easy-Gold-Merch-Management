@@ -906,8 +906,10 @@ function MovementsTab() {
                         </span>
                       )}
                     </td>
-                    <td className={`${td} max-w-[220px]`}>
-                      <p className="truncate text-xs text-slate-400" title={r.tx.comment || ''}>{r.tx.comment || '—'}</p>
+                    <td className={`${td} max-w-[260px]`}>
+                      <p className="line-clamp-3 break-words text-xs text-slate-500" title={r.tx.comment || ''}>
+                        {r.tx.comment || '—'}
+                      </p>
                     </td>
                     {mayEdit && (
                       <td className={`${td} pr-4 text-right`}>

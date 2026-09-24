@@ -4,11 +4,13 @@ import { isSupabaseConfigured, supabase } from './supabase';
 import * as demoRead from './demoStore';
 import * as demoWrite from './demoMutations';
 import * as demoData from './demoData';
+import * as demoAudit from './demoAudit';
 import type {
   AppUser, SKU, CS_SKU, Ticket, TicketWithItems, StockTransaction, CS_Transaction,
-  TicketAction, SkuRemark, TicketStatus, TicketType, SystemConfig,
+  TicketAction, SkuRemark, TicketStatus, TicketType, SystemConfig, AuditEntry,
 } from './types';
 import { castNumber } from './types';
+import { shiftDay } from './utils';
 
 export interface DataBundle {
   users: AppUser[];
@@ -162,6 +164,58 @@ const mapTx = (rows: any[]): StockTransaction[] =>
     actionBy: t.action_by, status: t.status, comment: t.comment,
     editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
   }));
+// ── audit trail (Admin → Audit Trail) ────────────────────────────────────
+// Rows live in `public.audit_log` (migration 0016) and are written by
+// database triggers — the app only ever READS them, and RLS only returns rows
+// to an Admin, so a non-admin session gets an empty list (never an error).
+// Fetched on demand (not part of the shared data bundle) so the bundle stays
+// small for everyone else.
+const AUDIT_COLUMNS =
+  'id,at,actor_id,actor_name,actor_email,actor_role,module,action,entity,entity_id,entity_name,' +
+  'warehouse,ref_ticket,amount,summary,comment,changes,origin';
+
+const mapAudit = (r: any): AuditEntry => ({
+  id: Number(r.id),
+  at: r.at,
+  actorId: r.actor_id ?? null,
+  actorName: r.actor_name ?? null,
+  actorEmail: r.actor_email ?? null,
+  actorRole: r.actor_role ?? null,
+  module: (r.module || 'app') as AuditEntry['module'],
+  action: r.action || 'update',
+  entity: r.entity ?? null,
+  entityId: r.entity_id ?? null,
+  entityName: r.entity_name ?? null,
+  warehouse: r.warehouse ?? null,
+  refTicket: r.ref_ticket ?? null,
+  amount: r.amount == null ? null : castNumber(r.amount),
+  summary: r.summary || '',
+  comment: r.comment ?? null,
+  changes: Array.isArray(r.changes) ? r.changes : [],
+  origin: r.origin ?? null,
+});
+
+export async function apiFetchAudit(
+  opts: { from?: string | null; to?: string | null; limit?: number } = {},
+): Promise<AuditEntry[]> {
+  const limit = Math.max(1, Math.min(opts.limit || 300, 2000));
+  if (!isLive()) return demoAudit.demoFetchAudit({ ...opts, limit });
+
+  let q = supabase!
+    .from('audit_log')
+    .select(AUDIT_COLUMNS)
+    .order('at', { ascending: false })
+    .limit(limit);
+  // The date range is padded by one day so no row can fall outside a
+  // timezone-shifted boundary — the page re-filters by the local day.
+  if (opts.from) q = q.gte('at', shiftDay(opts.from, -1));
+  if (opts.to) q = q.lte('at', shiftDay(opts.to, 1) + 'T23:59:59.999Z');
+
+  const { data, error } = await q;
+  if (error) throw new Error(error.message);
+  return (data as any[]).map(mapAudit);
+}
+
 // ── mutations ────────────────────────────────────────────────────────────
 export async function apiCreateTicket(p: {
   createdBy: string; createdByName: string; department: string;

@@ -218,6 +218,21 @@ flowchart LR
 ### 4.6 `TicketActions` (audit trail)
 `Action_ID, Ticket_ID, Action, Status, Action_At, Action_By, Comment, Role`
 
+### 4.7 `AuditLog` (Admin → Audit Trail — migration `0016`)
+`ID, At, Actor_ID, Actor_Name, Actor_Email, Actor_Role, Module, Action, Entity, Entity_ID,
+Entity_Name, Warehouse, Ref_Ticket, Amount, Summary, Comment, Changes (jsonb), Origin`
+- Append-only; written **only** by the `audit_row()` triggers (one per audited table:
+  `ticket_actions`, `stock_transactions`, `cs_transactions`, `skus`, `cs_skus`, `users`,
+  `system_config`, `categories`, `sku_remarks`). The actor comes from the signed-in session,
+  never from the payload; the password value is never stored (`password → changed`).
+- `module`: `ticket | ledger | master | settings | users | remark | app`. `action`: `create | update |
+  correct | delete | restock | destock | transfer | book | issue | return | opening | <ticket status>`.
+- No-op UPDATEs, `status`-only ledger UPDATEs and writes with no signed-in user are skipped;
+  the existing history is backfilled once (`origin = import`).
+- RLS: `select` for `authenticated` **only when `public.is_admin()`**; insert/update/delete revoked —
+  a non-admin session reads zero rows. `tickets` / `ticket_items` are deliberately not triggered
+  (their trail is `ticket_actions`).
+
 ### 4.7 `System_Config` (Key / Value / Description)
 Known keys: `bypass_threshold` (cost below which approval levels are skipped) and `bypass_level`
 (`none` | `wh_only` | `wh_lm`). Written via `?action=config`.
@@ -386,12 +401,12 @@ registered with `hasAccess([...])`. `App` wraps everything in
 | `finance` | history, inventory report, month-end report |
 | `customer_service` | request (auto `cs_transfer`), CS destock page, CS inventory/report/settings, own tickets, month-end (CS view) |
 
-### 6.3 Sidebar menu (role-filtered `AppSidebar`)
-`Dashboard, New Request, Item Borrow, Destock (cs), Return to MKT (admin/wh), My Tickets, Action Center,
-History Ticket, Inventory Report, Month End Report, System Settings` (+ existing commented-out `Total Stock`).
-Count badge on **Action Center** when `actionableTicketCount > 0`; indigo count badge on **Ticket Tracking**
-when borrows are waiting to return; dot on **My Tickets** when
-`hasMyTicketUpdates`. Menu is hidden on print.
+### 6.3 Sidebar menu (role-filtered)
+`Dashboard, Request, Manage Stock, Ticket Tracking, Action Center, Reporting, Audit Trail (admin only),
+System Settings, Diagnostics`. Count badge on **Action Center** when `actionableTicketCount > 0`;
+the finalized-borrows-waiting-to-return count lives **inside** Ticket Tracking (the indigo
+“To return to WH” card + the `to-return · N` status chip) — there is no nav-bar badge for it.
+Menu is hidden on print.
 
 ### 6.4 Contexts
 - **`AuthContext`**: `user`, `loading`, `login(email,password)`, `logout()`, `hasAccess(roles)`.

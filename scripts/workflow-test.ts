@@ -9,7 +9,9 @@ import { demoCreateTicket, demoUpdateTicketStatus } from '../src/lib/demoMutatio
 import {
   demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku, demoCsRestockSku,
   demoEditStockMovement, demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
+  demoManageConfig,
 } from '../src/lib/demoData';
+import { demoFetchAudit } from '../src/lib/demoAudit';
 import {
   getStockMovement, getMonthRows, actionableTicketCount,
   activeBorrows, overdueBorrows, reportableTransactions,
@@ -470,6 +472,43 @@ check('mkt gate: customer_service cannot edit MKT rows', throws(() => demoEditSt
 check('ledger ids are unique after all the edits',
   new Set(demoDB.transactions.map((t) => t.id)).size === demoDB.transactions.length &&
   new Set(demoDB.csTransactions.map((t) => t.id)).size === demoDB.csTransactions.length);
+
+console.log('\n── 15) Audit trail (Admin → Audit Trail)');
+// Master data, settings and user changes are pushed explicitly in demo mode;
+// the ledger / ticket / remark history is derived — together they must read
+// like the live audit_log the Admin page shows.
+const audSku = addSku({ name: 'WF Audit Item', openingBalance: 5 });
+demoUpdateSku(audSku, { costPerUnit: 1500 });
+demoManageConfig('bypass_threshold', '999999');
+const audAll = demoFetchAudit({ limit: 100000 });
+
+check('audit: a new SKU is logged as "create"',
+  audAll.some((e) => e.entityId === audSku && e.action === 'create' && e.summary.includes('WF Audit Item')));
+const audSkuEdit = audAll.find((e) => e.entityId === audSku && e.action === 'update');
+check('audit: the cost edit is logged with a before → after value',
+  // addSku() seeds costPerUnit = 1, then the edit sets 1500
+  !!audSkuEdit && (audSkuEdit.changes || []).some((c) => c.field === 'cost_per_unit' && c.from === '1' && c.to === '1500'));
+check('audit: a settings change is logged',
+  audAll.some((e) => e.module === 'settings' && e.entityId === 'bypass_threshold' && e.action === 'update'));
+
+const audCorr = audAll.find((e) => e.action === 'correct' && e.summary.includes('WF Edit Restock'));
+check('audit: a stock correction is logged as "correct" with the typed reason',
+  !!audCorr && (audCorr.comment || '').includes('delivery note says 30'));
+check('audit: the correction shows the qty move 50 → 30',
+  !!audCorr && (audCorr.changes || []).some((c) => c.field === 'qty' && c.from === '50' && c.to === '30'));
+check('audit: ledger history is derived from the trail (book/issue/restock present)',
+  audAll.some((e) => e.module === 'ledger' && e.action === 'book') &&
+  audAll.some((e) => e.module === 'ledger' && e.action === 'restock'));
+check('audit: ticket workflow history is derived from ticket_actions',
+  audAll.some((e) => e.module === 'ticket' && !!e.refTicket));
+check('audit: rows come back newest first',
+  audAll.every((e, i) => i === 0 || String(audAll[i - 1].at) >= String(e.at)));
+check('audit: a past-only period returns nothing',
+  demoFetchAudit({ from: '2000-01-01', to: '2000-01-02', limit: 100000 }).length === 0);
+check('audit: today still returns events',
+  demoFetchAudit({ from: todayStr(), to: todayStr(), limit: 100000 }).length > 0);
+check('audit: the limit is honoured',
+  demoFetchAudit({ limit: 5 }).length <= 5);
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

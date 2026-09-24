@@ -43,6 +43,15 @@ export function EditMovementModal({
   const brokenChanged = wh === 'MKT' && Number(broken) !== Number(tx.qtyBroken || 0);
   const noChange = !qtyValid || (delta === 0 && !dateChanged && !byChanged && !brokenChanged);
 
+  // The row's note accumulates one segment per correction (0015 stamps
+  // `<original note> | Edited by <name> (<role>) on <ts> — <reason> · qty 50 → 30`).
+  // Show them here so the editor sees what is ALREADY recorded on the record
+  // before adding another note — this is the note that used to "disappear".
+  const history = String(tx.comment || '')
+    .split(' | ')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
   // Rows that must not be edited here (the table hides the button too —
   // this is the server-mirroring double guard).
   const blocked =
@@ -168,6 +177,26 @@ export function EditMovementModal({
               {dateChanged && <p className="mt-1 text-slate-500">Report date → {date}</p>}
               {byChanged && <p className="mt-1 text-slate-500">Recorded “By” → {by.trim() || '(cleared)'}</p>}
               {brokenChanged && <p className="mt-1 text-slate-500">Broken / lost → {Math.max(0, Number(broken) || 0)}</p>}
+            </div>
+          )}
+
+          {/* ── notes already recorded on this row ── */}
+          {history.length > 0 && (
+            <div className="mt-3 rounded-xl bg-slate-50 px-3.5 py-2.5 ring-1 ring-slate-100">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">
+                Already recorded on this row
+              </p>
+              <ul className="mt-1.5 space-y-1">
+                {history.map((h, i) => (
+                  <li key={i} className="flex gap-2 text-[11px] leading-relaxed text-slate-600">
+                    <span className={cn('mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full', i === 0 ? 'bg-slate-300' : 'bg-amber-400')} />
+                    <span className="break-words">
+                      {i > 0 && <b className="font-semibold text-amber-700">correction: </b>}
+                      {h}
+                    </span>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 

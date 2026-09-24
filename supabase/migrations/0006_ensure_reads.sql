@@ -13,6 +13,10 @@
 -- ------------------------------------------------------------------
 -- 1. Recreate a SELECT policy on every app table for authenticated users.
 --    (drop-if-exists + create, so it is safe to run more than once)
+--
+--    ⚠ Do NOT add `audit_log` (0016) to this list: it is Admin-only on
+--      purpose — the permissive `read <table>` policy created here would
+--      expose the whole audit trail to every signed-in role.
 -- ------------------------------------------------------------------
 do $$
 declare

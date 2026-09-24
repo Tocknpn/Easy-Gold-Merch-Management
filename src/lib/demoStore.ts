@@ -2,7 +2,7 @@
 import demo from './demo-data.json';
 import type {
   AppUser, SKU, CS_SKU, Ticket, TicketWithItems, StockTransaction, CS_Transaction,
-  TicketAction, SkuRemark, UserRole,
+  TicketAction, SkuRemark, UserRole, AuditEntry, AuditModule,
 } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
@@ -19,6 +19,9 @@ export interface DemoDB {
   categories: string[];
   config: Record<string, string>;
   remarks: SkuRemark[];
+  /** Explicit audit rows (master data / settings / user accounts). The
+   *  ticket + ledger + remark history is derived on read in demoAudit.ts. */
+  audit: AuditEntry[];
 }
 
 const raw = demo as any;
@@ -55,7 +58,52 @@ export const demoDB: DemoDB = {
   categories: [...(raw.categories || [])],
   config: { ...(raw.config || {}) },
   remarks: (raw.remarks || []).map((r: any) => ({ ...r })),
+  audit: [],
 };
+
+// ── Audit helpers (mirror the audit_row() trigger of 0016) ───────────────
+// Demo mode has no triggers, so the master-data / settings / user mutations
+// call pushAudit() explicitly and the ledger / ticket / remark history is
+// derived on read (see demoAudit.ts).
+let _auditSeq = 0;
+export const nextAuditId = (): number => ++_auditSeq;
+
+/** Who is signed in (demo mode has no server-side JWT to resolve). */
+function sessionActor(): Pick<AuditEntry, 'actorName' | 'actorRole' | 'actorEmail'> {
+  try {
+    const raw = localStorage.getItem('sf_user');
+    if (!raw) return { actorName: null, actorRole: null, actorEmail: null };
+    const u = JSON.parse(raw) as { fullName?: string; email?: string; role?: string };
+    return {
+      actorName: u.fullName || u.email || null,
+      actorRole: u.role || null,
+      actorEmail: u.email || null,
+    };
+  } catch {
+    return { actorName: null, actorRole: null, actorEmail: null };
+  }
+}
+
+export function pushAudit(
+  entry: Partial<AuditEntry> & { module: AuditModule; action: string; summary: string },
+): void {
+  demoDB.audit.unshift({
+    id: nextAuditId(),
+    at: new Date().toISOString(),
+    ...sessionActor(),
+    actorId: null,
+    entity: null,
+    entityId: null,
+    entityName: null,
+    warehouse: null,
+    refTicket: null,
+    amount: null,
+    comment: null,
+    changes: [],
+    origin: 'app',
+    ...entry,
+  });
+}
 
 // ── Ledger row ids ────────────────────────────────────────────────────────
 // Live rows carry the DB identity (bigint) id; the Stock Movements editor

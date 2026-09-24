@@ -76,6 +76,16 @@ You can log in with any account from the demo chips on the login screen
      mandatory reason (`edited_by` / `edited_at` columns + note on the row); OPENING rows and cancelled
      bookings stay audit-only
 
+   - `supabase/migrations/0016_audit_log.sql` — **Audit Trail** (Admin → Audit Trail, nav bar): one
+     append-only `audit_log` table fed by row triggers on every table the app writes to
+     (`ticket_actions`, `stock_transactions`, `cs_transactions`, `skus`, `cs_skus`, `users`,
+     `system_config`, `categories`, `sku_remarks`). Each row keeps **who** (resolved from the signed-in
+     session, never the payload), **when**, **what changed** (a JSON old → new diff, passwords masked)
+     and the **full comment / reason**. Readable by **Admins only** (RLS `public.is_admin()`), written by
+     triggers only. It backfills the history that already exists (ticket actions, ledger rows, remarks)
+     the first time it runs, skips no-op updates, and ignores writes that have no signed-in user — so
+     re-running `seed.sql` can never flood the trail. Safe to re-run.
+
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
@@ -164,6 +174,7 @@ npx wrangler pages deploy dist --project-name easy-gold-merch
 | `/month-end-report` | Monthly opening/in/out/closing ledger + XLSX export + landscape print | finance, admin, director, WH, CS |
 | `/total-stock` | MKT + CS merged totals | admin, director |
 | `/settings` | Users, categories, bypass config | admin, WH, CS |
+| `/audit` | **Audit Trail** — who changed what and why (timeline + table, CSV export) | **admin only** |
 | `*` | 404 + role-blocked redirect | — |
 
 ---
@@ -203,6 +214,29 @@ All open tabs update within ~1s via Supabase Realtime, so Action Center badges a
 | **Status** | Active / Inactive — inactive SKUs are hidden from Request & Borrow. |
 | Restock | Single channel: **Manage Stock → Stock In / Out** (the Dashboard SKU dialog is read-only). |
 
+### Audit trail (Admin → Audit Trail)
+
+Every change the app makes is recorded automatically by the database — no screen has to remember to log it.
+
+| What is recorded | Example |
+|---|---|
+| Ticket workflow | `Ticket TKT-… — Reviewed` + the comment the approver wrote |
+| Stock ledger | `Booked 10 × "Gold Bar" on TKT-…`, `Restocked … +30`, `Warehouse transfer …`, and every **correction** (`Corrected MKT stock OUT "…" · qty 50 → 30`) with the reason |
+| SKU master data | `Changed MKT item "…"` + cost / threshold / status / opening-balance before → after |
+| System Settings | config keys and categories added / changed |
+| User accounts | user added, role or status changed, password reset (the password itself is never stored) |
+| SKU remarks | the remark text and who wrote it |
+
+- Open it from the nav bar → **Audit Trail** (visible to **Admins only**; the row level security policy
+  returns zero rows for every other role, even through the API).
+- Default view is a **day-grouped timeline**; switch to **Table** for dense scanning. Filters: free text,
+  person, area, action, period (Today / 7 / 30 days / All) and a one-click **Corrections only**.
+- Click any row to expand it: the actor, the exact timestamp, the source row, a **Field / Before / After**
+  table, and the **full comment** (nothing is truncated there — this is where an edit reason that looked
+  "missing" in a table cell is shown in full).
+- History that existed before the migration is imported once (`origin = import`); the newest 300 events of
+  the chosen period load first, with **Load 300 older**.
+
 ### SKU profile photos
 
 Manage Stock → **SKU Setup** lets you attach a photo to each SKU (add or edit):
@@ -240,6 +274,10 @@ supabase/
   migrations/0012_fix_jsonb_coalesce_types.sql    jsonb COALESCE type fix (Review & Book Stock)
   migrations/0013_sku_edit_restock_reporting.sql  SKU status + opening-balance edit + rename
                                                   cascade + clean reject/recall + comment stamps
+  migrations/0014_approved_qty_propagation.sql    approved qty last-wins + per-level comment stamps
+  migrations/0015_edit_stock_movement.sql         editable stock movements (edit_stock_movement RPC)
+  migrations/0016_audit_log.sql                   audit_log table + row triggers + admin-only RLS
+                                                  (Audit Trail page — safe to re-run)
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]

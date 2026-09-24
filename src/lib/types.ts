@@ -133,6 +133,90 @@ export interface SkuRemark {
   createdAt?: string | null;
 }
 
+// ── Audit trail (supabase/migrations/0016_audit_log.sql) ─────────────────
+// One append-only row per change: who, what, when, and why. Written by
+// database triggers (live) / the demo engine (preview) — never by the UI.
+// Readable by Admins only (RLS `public.is_admin()`).
+export type AuditModule = 'ticket' | 'ledger' | 'master' | 'settings' | 'users' | 'remark' | 'app';
+
+/** One column that changed: `50 → 30`. */
+export interface AuditChange {
+  field: string;
+  from?: string | null;
+  to?: string | null;
+}
+
+export interface AuditEntry {
+  id: number;
+  /** ISO timestamp of the change. */
+  at: string;
+  actorId?: string | null;
+  actorName?: string | null;
+  actorEmail?: string | null;
+  actorRole?: string | null;
+  module: AuditModule;
+  /** create | update | correct | delete | restock | destock | transfer | book | issue | return | opening | reviewed | finalized | … */
+  action: string;
+  /** Source table (live) — 'stock_transactions', 'skus', 'users', … */
+  entity?: string | null;
+  entityId?: string | null;
+  /** Human label: SKU name, person, ticket id. */
+  entityName?: string | null;
+  warehouse?: string | null;
+  /** 'TKT-…' when the change came from a ticket. */
+  refTicket?: string | null;
+  amount?: number | null;
+  summary: string;
+  /** The note / reason, stored in FULL (never truncated). */
+  comment?: string | null;
+  changes?: AuditChange[] | null;
+  origin?: string | null;
+}
+
+export const AUDIT_MODULES: AuditModule[] = ['ticket', 'ledger', 'master', 'settings', 'users', 'remark', 'app'];
+
+export const AUDIT_MODULE_LABELS: Record<string, string> = {
+  ticket: 'Ticket workflow',
+  ledger: 'Stock ledger',
+  master: 'Master data',
+  settings: 'Settings',
+  users: 'User accounts',
+  remark: 'Remarks',
+  app: 'System',
+};
+
+/** Friendly names for the "Before → After" table (falls back to the raw key). */
+export const AUDIT_FIELD_LABELS: Record<string, string> = {
+  qty: 'Qty',
+  qty_broken: 'Broken / lost',
+  date: 'Date',
+  action_by: 'Recorded by',
+  status: 'Status',
+  comment: 'Note',
+  ticket_id: 'Reference',
+  name: 'Name',
+  category: 'Category',
+  unit: 'Unit',
+  opening_balance: 'Opening balance',
+  current_stock: 'Current stock',
+  total_inflow: 'Total inflow',
+  low_stock_threshold: 'Low-stock level',
+  cost_per_unit: 'Cost per unit',
+  image_url: 'Photo',
+  photo: 'Photo',
+  value: 'Value',
+  description: 'Description',
+  full_name: 'Full name',
+  username: 'Username',
+  email: 'Email',
+  department: 'Department',
+  role: 'Role',
+  password: 'Password',
+};
+
+export const auditFieldLabel = (field: string): string =>
+  AUDIT_FIELD_LABELS[field] || field.replace(/_/g, ' ');
+
 export interface CS_SKU extends SKU {}
 export type CS_Transaction = StockTransaction;
 
