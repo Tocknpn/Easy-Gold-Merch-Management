@@ -237,6 +237,30 @@ Every change the app makes is recorded automatically by the database — no scre
 - History that existed before the migration is imported once (`origin = import`); the newest 300 events of
   the chosen period load first, with **Load 300 older**.
 
+### Reliability — a broken build can never leave a blank page
+
+The app used to have **no error boundary and no global handler**, so any uncaught
+error unmounted the whole React tree and left an empty page (no sidebar, no
+message). A fixed root cause was `ReportingPage`'s month-end `useMemo` sitting
+*after* the `if (loading) return` guard: on a deep link / hard refresh the hook
+count changed between the loading and loaded renders, React 18 threw error
+`#310`, and `/reporting` went blank.
+
+Now:
+
+| Layer | Behaviour |
+|---|---|
+| `ErrorBoundary` (`scope="app"` in `main.tsx`, `scope="page"` inside the shell) | Shows a readable card with **Reload** + **Copy details**; a crashing page keeps the sidebar/header usable. |
+| Stale-chunk recovery | `lazyNamed` retries once, Vite's `vite:preloadError` reloads once (max 2 per session, `markHealthyBoot()` re-arms it), then the card says “This page needs a reload”. |
+| `window.onerror` / `unhandledrejection` | Recorded in the crash log instead of dying silently. |
+| `safeStorage` | Browsers that block site storage (hardened Incognito, kiosk, embedded webviews) fall back to an in-memory session instead of throwing `SecurityError` from `AuthContext.readSession()`. |
+| Diagnostics → **Last app crash** | Build stamp (git SHA + build time), storage availability, and the last crashes with a copy button. |
+| `public/_headers` | `/index.html` → `no-store` (never keep stale HTML that points at deleted chunk hashes), `/assets/*` → `immutable`. |
+
+Verify a release with `npm run build && npx vite preview` and open every route in a
+fresh tab — a healthy build records nothing in Diagnostics → Last app crash.
+
+
 ### SKU profile photos
 
 Manage Stock → **SKU Setup** lets you attach a photo to each SKU (add or edit):

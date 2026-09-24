@@ -3,6 +3,8 @@ import type { AppUser, UserRole } from '@/lib/types';
 import { ROLE_LABELS } from '@/lib/types';
 import { apiLogin } from '@/lib/api';
 import { isSupabaseConfigured, supabase } from '@/lib/supabase';
+import { safeGet, safeRemove, safeSet } from '@/lib/safeStorage';
+import { describeError, recordCrash } from '@/lib/crashLog';
 
 interface AuthCtx {
   user: AppUser | null;
@@ -28,13 +30,20 @@ export const roleFromRaw = (raw?: string | null): UserRole => {
 };
 
 function readSession(): AppUser | null {
+  // safeGet never throws — a browser that blocks site storage used to make this
+  // crash (the old catch block called localStorage.removeItem again) and blank
+  // the app before the login form could even paint.
+  const raw = safeGet(SESSION_KEY);
+  if (!raw) return null;
   try {
-    const raw = localStorage.getItem(SESSION_KEY);
-    if (!raw) return null;
     const u = JSON.parse(raw) as AppUser;
+    if (!u || typeof u !== 'object') {
+      safeRemove(SESSION_KEY);
+      return null;
+    }
     return { ...u, role: roleFromRaw(u.role), fullName: u.fullName || u.email };
   } catch {
-    localStorage.removeItem(SESSION_KEY);
+    safeRemove(SESSION_KEY);
     return null;
   }
 }
@@ -56,7 +65,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           // A deactivated account must not be able to resume an old session.
           if (String(profile.status || 'Active').toLowerCase() !== 'active') {
             await supabase!.auth.signOut().catch(() => {});
-            localStorage.removeItem(SESSION_KEY);
+            safeRemove(SESSION_KEY);
             setUser(null);
             return;
           }
@@ -67,14 +76,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             role: roleFromRaw(profile.role), status: profile.status || 'Active',
           };
           setUser(u);
-          localStorage.setItem(SESSION_KEY, JSON.stringify(u));
+          safeSet(SESSION_KEY, JSON.stringify(u));
         }
       }
+    }).catch((err) => {
+      // A failed session check must not be silent (and must not blank the page):
+      // the local session keeps the user working, the crash log records why.
+      recordCrash({ message: `Session check failed: ${describeError(err).message}`, source: 'promise' });
     });
     const { data: sub } = supabase.auth.onAuthStateChange((event) => {
       if (event === 'SIGNED_OUT') {
         setUser(null);
-        localStorage.removeItem(SESSION_KEY);
+        safeRemove(SESSION_KEY);
       }
     });
     return () => sub.subscription.unsubscribe();
@@ -86,14 +99,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const u = await apiLogin(email, password);
       const normalized = { ...u, role: roleFromRaw(u.role), fullName: u.fullName || u.email };
       setUser(normalized);
-      localStorage.setItem(SESSION_KEY, JSON.stringify(normalized));
+      safeSet(SESSION_KEY, JSON.stringify(normalized));
     } finally {
       setLoading(false);
     }
   };
 
   const logout = async () => {
-    localStorage.removeItem(SESSION_KEY);
+    safeRemove(SESSION_KEY);
     setUser(null);
     if (isSupabaseConfigured() && supabase) {
       await supabase.auth.signOut().catch(() => {});

@@ -8,6 +8,7 @@ import {
 import { useAuth, getUserRoleLabel } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { isSupabaseConfigured } from '@/lib/supabase';
+import { safeGet, safeSet } from '@/lib/safeStorage';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/primitives';
 
@@ -55,14 +56,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const location = useLocation();
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [collapsed, setCollapsed] = useState(() => localStorage.getItem(SIDEBAR_COLLAPSED_KEY) === '1');
+  const [collapsed, setCollapsed] = useState(() => safeGet(SIDEBAR_COLLAPSED_KEY) === '1');
   const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    localStorage.setItem(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
+    safeSet(SIDEBAR_COLLAPSED_KEY, collapsed ? '1' : '0');
   }, [collapsed]);
 
-  if (!user) return null;
+  // Defensive: `Protected` already redirects when there is no session, but a
+  // session that ends mid-render must never leave an empty page behind.
+  if (!user) {
+    return (
+      <div className="flex min-h-screen items-center justify-center p-6">
+        <div className="card card-pad max-w-sm text-center">
+          <p className="text-sm font-semibold text-slate-700">Your session has ended</p>
+          <p className="mt-1 text-xs text-slate-500">Taking you back to the sign-in page…</p>
+        </div>
+      </div>
+    );
+  }
   const visible = NAV_DEFS.filter((n) => hasAccess(n.roles));
   const activeKey = pathToKey(location.pathname);
 

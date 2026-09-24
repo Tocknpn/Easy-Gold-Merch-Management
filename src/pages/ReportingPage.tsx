@@ -212,6 +212,18 @@ export function ReportingPage() {
     });
   }, [shown, merged.tx, from, to, bSort]);
 
+  // Month End column totals.
+  // NOTE: every hook must run BEFORE the loading/error early returns below. A
+  // hook placed after them changes the hook order between the "loading" render
+  // and the "loaded" render; React 18 rejects that with error #310 and unmounts
+  // the whole page — which is what blanked a fresh /reporting deep link.
+  const meTotals = useMemo(() => ({
+    opening: monthRows.reduce((a, r) => ({ qty: a.qty + r.openingQty, val: a.val + r.openingVal }), { qty: 0, val: 0 }),
+    stockIn: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockInQty, val: a.val + r.stockInVal }), { qty: 0, val: 0 }),
+    stockOut: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockOutQty, val: a.val + r.stockOutVal }), { qty: 0, val: 0 }),
+    closing: monthRows.reduce((a, r) => ({ qty: a.qty + r.closingQty, val: a.val + r.closingVal }), { qty: 0, val: 0 }),
+  }), [monthRows]);
+
   if (loading) return <Spinner label="Loading report…" />;
   if (error) return <ErrorBanner msg={error} retry={refresh} />;
   const isCS = user?.role === 'customer_service';
@@ -281,14 +293,6 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       setExporting(false);
     }
   };
-
-  // Calculate month-end totals
-  const meTotals = useMemo(() => ({
-    opening: monthRows.reduce((a, r) => ({ qty: a.qty + r.openingQty, val: a.val + r.openingVal }), { qty: 0, val: 0 }),
-    stockIn: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockInQty, val: a.val + r.stockInVal }), { qty: 0, val: 0 }),
-    stockOut: monthRows.reduce((a, r) => ({ qty: a.qty + r.stockOutQty, val: a.val + r.stockOutVal }), { qty: 0, val: 0 }),
-    closing: monthRows.reduce((a, r) => ({ qty: a.qty + r.closingQty, val: a.val + r.closingVal }), { qty: 0, val: 0 }),
-  }), [monthRows]);
 
   const handleExportPdf = () => {
     exportMonthEndPdf({

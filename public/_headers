@@ -1,0 +1,10 @@
+# ── Cloudflare Pages caching ─────────────────────────────────────────────
+# index.html must never be cached: a tab holding an old index.html asks for
+# chunk hashes that the next deploy has already deleted → the dynamic import
+# fails and (without an error boundary) the app goes blank.
+/index.html
+  Cache-Control: no-cache, no-store, must-revalidate
+
+# Hashed assets are immutable — safe to cache for a year.
+/assets/*
+  Cache-Control: public, max-age=31536000, immutable

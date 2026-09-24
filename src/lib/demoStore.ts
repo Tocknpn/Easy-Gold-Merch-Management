@@ -6,6 +6,7 @@ import type {
 } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
+import { safeGet } from './safeStorage';
 
 export interface DemoDB {
   users: AppUser[];
@@ -71,7 +72,7 @@ export const nextAuditId = (): number => ++_auditSeq;
 /** Who is signed in (demo mode has no server-side JWT to resolve). */
 function sessionActor(): Pick<AuditEntry, 'actorName' | 'actorRole' | 'actorEmail'> {
   try {
-    const raw = localStorage.getItem('sf_user');
+    const raw = safeGet('sf_user');
     if (!raw) return { actorName: null, actorRole: null, actorEmail: null };
     const u = JSON.parse(raw) as { fullName?: string; email?: string; role?: string };
     return {

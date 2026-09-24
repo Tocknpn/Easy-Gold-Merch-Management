@@ -518,6 +518,13 @@ centered card + gold Crown logo.
   computing MKT and CS separately, then merging matched SKUs with quantities AND values summed.
 - `src/lib/warehouseMerge.ts` — `matchAcrossWarehouses(mktItems, csItems)` pairs by id then by
   trimmed lowercased name; flags `mkt_only` / `cs_only` / `both`.
+- `src/components/ErrorBoundary.tsx` + `src/lib/crashLog.ts` + `src/lib/safeStorage.ts` — the boot safety
+  net. Boundaries at `scope="app"` (main.tsx) and `scope="page"` (inside AppShell, so a crashing page keeps
+  the sidebar). A crash log (`eg-last-error`) records render/window/promise/preload failures with the
+  `__BUILD__` stamp and shows them in **Diagnostics → Last app crash**; one guarded auto-reload (max 2 per
+  session, re-armed by `markHealthyBoot()`) recovers a tab left open across a deploy; `lazyNamed()` retries
+  the chunk import once. `safeStorage` degrades to an in-memory session when a browser blocks site storage
+  (a `SecurityError` there used to blank the app before the login form could paint).
 - `src/lib/utils.ts` — `cn(...)` (clsx+tailwind-merge) and `getSafeImageUrl(url)` which rewrites
   `drive.google.com` URLs to the robust `uc?id` form.
 - `src/lib/mock-data.ts` — offline seed data used when the sheet API is unreachable (see §11).
@@ -625,6 +632,10 @@ VITE_SHEETS_API_URL=https://script.google.com/macros/s/<DEPLOYMENT_ID>/exec
     "invocation_logs": true }, "traces": { "enabled": false, "persist": true, "head_sampling_rate": 1 } } }
 ```
 Deploy: `npm run build` then `npx wrangler deploy`.
+
+`public/_headers` ships with the SPA: `/index.html` → `Cache-Control: no-cache, no-store, must-revalidate`
+(a cached index.html requests chunk hashes the next deploy deleted → the lazy import fails and the page used
+to go blank) and `/assets/*` → `public, max-age=31536000, immutable`.
 
 ### 8.5 Google Apps Script deployment (backend)
 1. Open the Spreadsheet → Extensions → Apps Script → paste `google-apps-script/Code.gs`.

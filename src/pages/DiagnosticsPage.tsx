@@ -3,7 +3,7 @@ import {
   Activity, ShieldCheck, RefreshCw, AlertTriangle,
   CheckCircle2, XCircle, HeartPulse, Info, Loader2,
   Database, Users, Package, Receipt, ArrowRightLeft, Settings,
-  Clock, TrendingUp, Boxes, Wifi, WifiOff, Gauge, Timer,
+  Clock, TrendingUp, Boxes, Wifi, WifiOff, Gauge, Timer, Bug, Trash2,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { isSupabaseConfigured, supabase, SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/supabase';
@@ -12,6 +12,8 @@ import { demoDB } from '@/lib/demoStore';
 import { Spinner, ErrorBanner } from '@/components/ui/primitives';
 import { cn, fmt } from '@/lib/utils';
 import { STATUS_LABELS, TYPE_LABELS, ROLE_LABELS } from '@/lib/types';
+import { BUILD_STAMP, clearCrashes, readCrashes, type CrashEntry } from '@/lib/crashLog';
+import { storageAvailable } from '@/lib/safeStorage';
 
 interface PingEntry { time: number; ms: number; status: 'ok' | 'fail' }
 interface WebVitals { lcp: number | null; fid: number | null; cls: number | null; ttfb: number | null }
@@ -66,6 +68,10 @@ export function DiagnosticsPage() {
   const [webVitals, setWebVitals] = useState<WebVitals>({ lcp: null, fid: null, cls: null, ttfb: null });
   const [pingLog, setPingLog] = useState<string[]>([]);
   const pingTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // Crash log — a blank page in the field always leaves a trace here.
+  const [crashes, setCrashes] = useState<CrashEntry[]>(() => readCrashes());
+  const storageOk = useMemo(() => storageAvailable(), []);
 
   const configured = isSupabaseConfigured();
   const anonKey = (import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined) || '';
@@ -610,6 +616,62 @@ if (loading) return <Spinner label="Loading data…" />;
               </div>
             )}
           </div>
+        </div>
+      </div>
+
+      {/* Crash log — a blank page in the field always leaves a trace here */}
+      <div className="space-y-3">
+        <h2 className="flex items-center gap-2 text-sm font-semibold text-slate-800">
+          <Bug className="h-4 w-4 text-brand-600" /> Last app crash
+          <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-medium text-slate-500">
+            build {BUILD_STAMP}
+          </span>
+        </h2>
+        <div className="card card-pad space-y-3">
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold ring-1 ring-inset',
+              crashes.length ? 'bg-rose-50 text-rose-700 ring-rose-600/20' : 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
+            )}>
+              {crashes.length ? <XCircle className="h-3 w-3" /> : <CheckCircle2 className="h-3 w-3" />}
+              {crashes.length ? `${crashes.length} recorded` : 'None recorded'}
+            </span>
+            <span className={cn(
+              'inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-medium ring-1 ring-inset',
+              storageOk ? 'bg-slate-50 text-slate-600 ring-slate-200' : 'bg-amber-50 text-amber-700 ring-amber-200',
+            )}>
+              {storageOk ? 'Browser storage OK' : 'Browser storage BLOCKED — session kept in memory'}
+            </span>
+            {crashes.length > 0 && (
+              <button
+                className="btn btn-secondary btn-sm"
+                onClick={() => { clearCrashes(); setCrashes([]); }}
+              >
+                <Trash2 className="h-3.5 w-3.5" /> Clear log
+              </button>
+            )}
+          </div>
+          {crashes.length === 0 ? (
+            <p className="text-xs text-slate-500">
+              Nothing has crashed in this browser. If a screen ever goes blank or shows the
+              “Something went wrong” card, the reason — including the failing build — is listed here
+              so it can be copied and sent on.
+            </p>
+          ) : (
+            <ul className="space-y-2">
+              {crashes.slice(0, 3).map((c, i) => (
+                <li key={`${c.at}-${i}`} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                  <p className="flex flex-wrap items-center gap-2 text-[11px] font-semibold text-slate-700">
+                    <span className="rounded bg-white px-1.5 py-0.5 ring-1 ring-slate-200">{c.source || 'app'}</span>
+                    {c.at ? new Date(c.at).toLocaleString() : '—'}
+                    {c.build ? <span className="font-normal text-slate-400">· build {c.build}</span> : null}
+                  </p>
+                  <p className="mt-1 break-words text-[11px] text-slate-600">{c.message}</p>
+                  {c.url && <p className="mt-0.5 truncate text-[10px] text-slate-400">{c.url}</p>}
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       </div>
 

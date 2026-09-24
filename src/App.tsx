@@ -1,16 +1,37 @@
-import { BrowserRouter, Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useEffect, lazy, Suspense } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { DataProvider } from '@/contexts/DataContext';
 import { AppShell } from '@/components/Layout';
+import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { ToastViewport, Spinner } from '@/components/ui/primitives';
 import { LoginPage } from '@/pages/LoginPage';
 import { NotFoundPage } from '@/pages/NotFoundPage';
 
-// Helper: convert named export → default export for React.lazy
+// Helper: convert named export → default export for React.lazy, retrying once.
+// A code-split chunk can fail transiently (dropped connection, a deploy landing
+// mid-flight); one silent retry heals it, and a permanent failure is caught by
+// <ErrorBoundary> instead of blanking the app. The ORIGINAL error is re-thrown
+// so the boundary can recognise a stale-chunk failure and say so.
 const lazyNamed = (factory: () => Promise<any>, name: string) =>
-  lazy(() => factory().then((m) => ({ default: m[name] })));
+  lazy(async () => {
+    const load = async () => {
+      const mod = await factory();
+      if (!mod || !mod[name]) throw new Error(`Module "${name}" is missing (stale build?)`);
+      return { default: mod[name] as React.ComponentType };
+    };
+    try {
+      return await load();
+    } catch (err) {
+      await new Promise((resolve) => setTimeout(resolve, 600));
+      try {
+        return await load();
+      } catch {
+        throw err instanceof Error ? err : new Error(String(err));
+      }
+    }
+  });
 
 // Lazy-loaded pages — only load when navigated to (huge initial-load win)
 const DashboardPage = lazyNamed(() => import('@/pages/DashboardPage'), 'DashboardPage');
@@ -58,7 +79,11 @@ function Protected() {
             <Route
               key={r.path}
               path={r.path}
-              element={allowed.has(r.pageKey) ? <PageFor pageKey={r.pageKey} /> : <NoAccess />}
+              element={
+                allowed.has(r.pageKey)
+                  ? <PageBoundary><PageFor pageKey={r.pageKey} /></PageBoundary>
+                  : <NoAccess />
+              }
             />
           ))}
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -79,6 +104,20 @@ function Protected() {
         </Routes>
       </AppShell>
     </DataProvider>
+  );
+}
+
+/**
+ * A crashing page must not take the whole workspace down with it. This boundary
+ * sits INSIDE `AppShell`, so the sidebar/header stay usable and the user can
+ * simply navigate somewhere else (the route change clears the error).
+ */
+function PageBoundary({ children }: { children: React.ReactNode }) {
+  const location = useLocation();
+  return (
+    <ErrorBoundary scope="page" resetKey={`${location.pathname}${location.search}`}>
+      {children}
+    </ErrorBoundary>
   );
 }
 
