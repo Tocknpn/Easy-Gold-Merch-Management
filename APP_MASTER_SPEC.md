@@ -528,6 +528,21 @@ centered card + gold Crown logo.
 - `src/lib/utils.ts` — `cn(...)` (clsx+tailwind-merge) and `getSafeImageUrl(url)` which rewrites
   `drive.google.com` URLs to the robust `uc?id` form.
 - `src/lib/mock-data.ts` — offline seed data used when the sheet API is unreachable (see §11).
+- `src/lib/pdfExport.ts` — Month-End **Export PDF** / **Print** (jsPDF + `jspdf-autotable`, A4 landscape, lazy
+  in the `vendor-pdf` chunk). Mirrors the Excel form Finance signs: title block + meta line, two-row grouped
+  head (ITEM · UNIT · UNIT PRICE · OPENING BALANCE · STOCK IN · STOCK OUT · CLOSING BALANCE · REMARK) with a
+  tinted band per movement block, one row per SKU, a bold TOTAL foot row and four signature boxes
+  (CREATED BY / REVIEWED BY / LINE MANAGER / ACCOUNTING). Money cells are written as `₭` + digits by hand so
+  the Kip sign comes from the embedded font instead of the WinAnsi fallback.
+- `src/lib/pdfFonts.ts` — embeds `public/fonts/NotoSansLao-{Regular,Bold}.ttf` (≈35 kB each, fetched once and
+  cached; subset = Lao U+0E81–U+0EDD + `₭`, no Latin) as the `NotoSansLaoPDF` font.
+- `src/lib/pdfLaoText.ts` — `needsRaster()` / `rasterizeAll()` / `rasterizeText()`: any string WinAnsi cannot
+  draw (Lao item names, Lao units, the meta line) is drawn by the browser's own text engine on an offscreen
+  canvas at ≈285 dpi and placed in the cell as an opaque-white bitmap, because jsPDF does no OpenType shaping
+  (a Lao tone mark would be drawn beside the consonant, not above it). Latin-only strings are skipped and stay
+  selectable vector text.
+
+
 ---
 
 ## 7. Report & Dashboard Formulas (exact)
@@ -582,6 +597,14 @@ Month-End Report row layout: **Opening Qty/Value | Stock In Qty/Value | Stock Ou
 warehouse is selected. In the "All" scope a matched MKT + CS item renders as ONE row with the quantities and
 the values of both warehouses summed (the CPU column shows the blended cost of the closing balance).
 
+Month-End **Export PDF** / **Print** (`exportMonthEndPdf` / `printMonthEndPdf`) reproduces that Excel form: the
+title block (report title, period, warehouse · category · VAT meta line), the two-row grouped header, one row per
+SKU, a bold TOTAL footer and the four signature boxes — moved to a fresh page when the table would end too low.
+Column widths are `50 + 14 + 22 + 4×(18+25) + 17 = 275 mm` of the 277 mm usable width, and every money column is
+drawn as `₭` + digits (`MONEY_COLS`) so the Kip sign is real vector text from the embedded Noto Sans Lao. The Lao
+**item names / units / meta line** are the only bitmaps (browser-shaped at ≈285 dpi, opaque white — an alpha
+channel would add a soft-mask image per row and double the file size); Latin names stay selectable text.
+
 > **MIMS-2026 rebuild additions (migration `0013`)** — the reporting view of the ledger also drops
 > movements that never actually happened:
 > * rows whose `status` is `Booking Cancelled` / `Cancelled` / `Reversed` (reject, recall, or nothing
@@ -635,7 +658,8 @@ Deploy: `npm run build` then `npx wrangler deploy`.
 
 `public/_headers` ships with the SPA: `/index.html` → `Cache-Control: no-cache, no-store, must-revalidate`
 (a cached index.html requests chunk hashes the next deploy deleted → the lazy import fails and the page used
-to go blank) and `/assets/*` → `public, max-age=31536000, immutable`.
+to go blank), `/assets/*` → `public, max-age=31536000, immutable`, and `/fonts/*` (the Noto Sans Lao TTFs the PDF
+export fetches once) → the same immutable year.
 
 ### 8.5 Google Apps Script deployment (backend)
 1. Open the Spreadsheet → Extensions → Apps Script → paste `google-apps-script/Code.gs`.
@@ -870,7 +894,8 @@ Rule of thumb for PowerShell regex: use single quotes, escape `\` as `\\`, never
    Director finalizes → `finalized` + requester email.
 6. Borrow finalize then return → stock adds back, `returned`, broken qty recorded in transactions.
 7. CS user submits request (banner shown, `cs_transfer` type) → after finalization CS SKU/transactions appear.
-8. Month-End report exports XLSX + prints landscape; figures match the formulas in §7.
+8. Month-End report exports XLSX + prints landscape; **Export PDF** renders the signed layout (grouped head,
+   TOTAL footer, 4 signature boxes) with Lao item names/units and `₭` totals; figures match the formulas in §7.
 9. `npm run build && npx wrangler deploy` → SPA served with same routes; deep links work
    (`not_found_handling: single-page-application`).
 

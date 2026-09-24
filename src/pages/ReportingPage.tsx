@@ -75,6 +75,7 @@ export function ReportingPage() {
   const [showEmpty, setShowEmpty] = useState(false);
   const [bSort, setBSort] = useState<{ key: string; dir: 'asc' | 'desc' }>({ key: 'name', dir: 'asc' });
   const [exporting, setExporting] = useState(false);
+  const [exportingPdf, setExportingPdf] = useState(false);
 
   // The Month End tab reports on a whole month ('YYYY-MM'). The month picker
   // keeps the shared `from`/`to` filters on that month's boundaries, so the
@@ -294,35 +295,48 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
     }
   };
 
-  const handleExportPdf = () => {
-    exportMonthEndPdf({
-      title: 'Month End Report',
-      dateRange: `${monthRange.from} to ${monthRange.to}`,
-      warehouse: merged.label,
-      category: cat,
-      includeVat: vat,
-      rows: monthRows,
-      totalOpening: meTotals.opening,
-      totalStockIn: meTotals.stockIn,
-      totalStockOut: meTotals.stockOut,
-      totalClosing: meTotals.closing,
-    });
-    toast('PDF exported with signature areas');
+  // The PDF is built asynchronously (Lao font + rasterised item names), so the
+  // button reports progress and surfaces a failure instead of failing silently.
+  const handleExportPdf = async () => {
+    setExportingPdf(true);
+    try {
+      await exportMonthEndPdf({
+        title: 'Month End Stock Report',
+        dateRange: `${monthRange.from} to ${monthRange.to}`,
+        warehouse: merged.label,
+        category: cat,
+        includeVat: vat,
+        rows: monthRows,
+        totalOpening: meTotals.opening,
+        totalStockIn: meTotals.stockIn,
+        totalStockOut: meTotals.stockOut,
+        totalClosing: meTotals.closing,
+      });
+      toast('PDF exported with signature areas');
+    } catch (e: any) {
+      toast(e?.message || 'Could not build the PDF', 'error');
+    } finally {
+      setExportingPdf(false);
+    }
   };
 
-  const handlePrintPdf = () => {
-    printMonthEndPdf({
-      title: 'Month End Report',
-      dateRange: `${monthRange.from} to ${monthRange.to}`,
-      warehouse: merged.label,
-      category: cat,
-      includeVat: vat,
-      rows: monthRows,
-      totalOpening: meTotals.opening,
-      totalStockIn: meTotals.stockIn,
-      totalStockOut: meTotals.stockOut,
-      totalClosing: meTotals.closing,
-    });
+  const handlePrintPdf = async () => {
+    try {
+      await printMonthEndPdf({
+        title: 'Month End Stock Report',
+        dateRange: `${monthRange.from} to ${monthRange.to}`,
+        warehouse: merged.label,
+        category: cat,
+        includeVat: vat,
+        rows: monthRows,
+        totalOpening: meTotals.opening,
+        totalStockIn: meTotals.stockIn,
+        totalStockOut: meTotals.stockOut,
+        totalClosing: meTotals.closing,
+      });
+    } catch (e: any) {
+      toast(e?.message || 'Could not build the PDF', 'error');
+    }
   };
 
 const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean }) => (
@@ -416,8 +430,9 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
           </button>
           {tab === 'month-end' && (
             <>
-              <button className="btn btn-secondary btn-sm" onClick={handleExportPdf}>
-                <FileText className="h-3.5 w-3.5" /> Export PDF
+              <button className="btn btn-secondary btn-sm" onClick={handleExportPdf} disabled={exportingPdf}>
+                {exportingPdf ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileText className="h-3.5 w-3.5" />}
+                {exportingPdf ? 'Preparing…' : 'Export PDF'}
               </button>
               <button className="btn btn-ghost btn-sm" onClick={handlePrintPdf}>
                 <Printer className="h-3.5 w-3.5" /> Print
