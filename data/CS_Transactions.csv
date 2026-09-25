@@ -19,3 +19,30 @@
 ,OPENING,sku-1785121215788,Paper Bag for GOLD,50,addition,2026-08-11,2026-08-11T08:24:20.652Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1786012380968
 ,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,1,deduction,2026-08-25,2026-08-25T02:59:52.335Z,Saiyfon,ແຖມລູກຄ້າ
 ,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,400,deduction,2026-08-31,2026-08-31T08:21:49.677Z,Nopphanai Phomphakdee,[MKT_TRANSFER] Return item today to MKT warehouse
+,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,100,deduction,2026-09-07,2026-09-07T07:08:06.579Z,Babie,ການຕະຫລາດນໍາໄປໃຊ້ຢູ່ເທດສະການຄໍາ
+,DIRECT_DESTOCK,sku-1771407897767,ກະເປົາເດີນທາງ,2,deduction,2026-09-07,2026-09-07T07:08:11.105Z,Babie,ການຕະຫລາດນໍາໄປໃຊ້ຢູ່ເທດສະການຄໍາ
+,DIRECT_DESTOCK,sku-1780972510074,ຈອກເກັບອຸນຫະພູມ 2026,6,deduction,2026-09-07,2026-09-07T07:08:14.710Z,Babie,ການຕະຫລາດນໍາໄປໃຊ້ຢູ່ເທດສະການຄໍາ
+,OPENING,CS-SKU-1789010614312,ກ່ອງຄໍາ easy gold 1ກຮາມ ,50,addition,2026-09-10,2026-09-10T03:23:35.528Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789010613999,ກ່ອງຄໍາ easy gold 1ກຮາມ ,50,addition,2026-09-10,2026-09-10T03:23:35.676Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789010740689,ກ່ອງຄໍາ easy gold 1ກຮາມ,15,addition,2026-09-10,2026-09-10T03:25:41.492Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789011083031,ກ່ອງຄໍາ easy gold 1ກຮາມ,50,addition,2026-09-10,2026-09-10T03:31:23.572Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789011179200,ກ່ອງຄໍາ easy gold 1ກຮາມ,50,addition,2026-09-10,2026-09-10T03:32:59.669Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789011678995,ກ່ອງຄໍາ easy gold 1ບາດ,50,addition,2026-09-10,2026-09-10T03:41:19.436Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789011681106,ກ່ອງຄໍາ easy gold 1ບາດ,50,addition,2026-09-10,2026-09-10T03:41:22.554Z,Babie,Opening balance on SKU creation
+,OPENING,CS-SKU-1789011811847,ກ່ອງຄໍາ easy gold 2ບາດ,40,addition,2026-09-10,2026-09-10T03:43:32.530Z,Babie,Opening balance on SKU creation
+,OPENING,sku-1789008629179,ກ່ອງໃສ່ນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ສະລືງ),50,addition,2026-09-10,2026-09-10T08:52:14.504Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026485212
+,OPENING,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),50,addition,2026-09-10,2026-09-10T08:52:14.504Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026485212
+,OPENING,sku-1789008980374,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 2 ບາດ),40,addition,2026-09-10,2026-09-10T08:52:14.504Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026485212
+,OPENING,sku-1789009038990,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 5 ບາດ),40,addition,2026-09-10,2026-09-10T08:52:14.504Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026485212
+,OPENING,sku-1789009139983,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 10 ບາດ),20,addition,2026-09-10,2026-09-10T08:52:14.504Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026485212
+,DIRECT_DESTOCK,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),1,deduction,2026-09-10,2026-09-10T09:35:26.530Z,Babie,ແຖມໄຫ້ລູກຄ້າຖອນຄໍາ
+,DIRECT_DESTOCK,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),1,deduction,2026-09-09,2026-09-10T09:35:43.360Z,Babie,ແຖມໄຫ້ລູກຄ້າຖອນຄໍາ
+,DIRECT_DESTOCK,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),1,deduction,2026-09-09,2026-09-10T09:38:19.627Z,Babie,ແຖມໄຫ້ລູກຄ້າຖອນຄໍາ
+,DIRECT_DESTOCK,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),1,deduction,2026-09-09,2026-09-10T09:39:20.970Z,Babie,ແຖມໄຫ້ລູກຄ້າຖອນຄໍາ
+,DIRECT_DESTOCK,sku-1789008745801,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ),1,deduction,2026-09-09,2026-09-10T09:39:37.753Z,Babie,ແຖມໄຫ້ລູກຄ້າຖອນຄໍາ
+,OPENING,sku-1785121215788,Paper Bag for GOLD,50,addition,2026-09-11,2026-09-11T03:07:20.658Z,MKT Warehouse,Auto-transferred from MKT WH - Ticket: TKT-1789026815202
+,DIRECT_DESTOCK,sku-1771406960024,ບິກອີຊີໂກລ,50,deduction,2026-09-15,2026-09-15T06:58:13.555Z,Nopphanai Phomphakdee,[MKT_TRANSFER] Transfer to MKT
+,DIRECT_DESTOCK,sku-1781681021177,ຫມວກ 2026,24,deduction,2026-09-24,2026-09-24T03:54:59.770Z,Saiyfon,ຊັ່ນ4ເອົາອອກບູດ
+,DIRECT_DESTOCK,sku-1780972510074,ຈອກເກັບອຸນຫະພູມ 2026,20,deduction,2026-09-24,2026-09-24T03:55:18.819Z,Saiyfon,ຊັ່ນ4ເອົາອອກບູດ
+,DIRECT_DESTOCK,sku-1771407316677,ຄັນຮົ່ມ 2026,10,deduction,2026-09-24,2026-09-24T04:06:57.552Z,Saiyfon,ຊັ່ນ4ເອົາອອກບູດ
+,DIRECT_DESTOCK,sku-1781681021177,ຫມວກ 2026,2,deduction,2026-09-24,2026-09-24T04:09:32.524Z,Saiyfon,ຊັ່ນ4ເອົາອອກບູດ

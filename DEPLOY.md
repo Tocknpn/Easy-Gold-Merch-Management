@@ -107,16 +107,18 @@ Cloudflare Pages  →  https://your-site.pages.dev
    > no more Supabase Dashboard needed.
 
 ### 2.3 Load your real data (from the Excel)
-The file **`supabase/seed.sql`** was generated from your Excel (in `Current Stock Data from previous Web.xlsx`) — 19 users, 40 MKT SKUs, 11 CS SKUs, 89 tickets, 205 transactions, with all Lao text intact.
+The file **`supabase/seed.sql`** is pre-generated from your live database (**`Actual Database.xlsx`**) — 20 users, 49 MKT SKUs, 15 CS SKUs, 100 tickets, 234 ticket items, 251 MKT transactions, 47 CS transactions, 375 audit actions, with all Lao Unicode text intact.
 
-1. Open a **New query** in SQL Editor.
-2. Open `supabase/seed.sql`, **select-all**, copy, paste, **Run**.
-   - You should see a green **"Success"** banner. (Seed is wrapped in `begin; … commit;` so if anything fails, nothing is half-loaded.)
+1. Open a **New query** in the Supabase **SQL Editor**.
+2. Open `supabase/seed.sql`, **select all**, copy, paste, and click **Run** (or `Ctrl/Cmd + Enter`).
+   - The file is self-contained: it wipes the transactional tables in safe order, upserts the masters, applies all canonical roles, derives comment timestamps, and re-asserts `engine_version='0014'`.
+   - You should see a green **"Success"** banner and a verification grid at the bottom showing exact row counts.
 
 3. **Verify it worked** → left menu → **Table Editor**:
-   - `tickets` should show **89 rows**
-   - `skus` → 40 rows, `cs_skus` → 11 rows, `stock_transactions` → 205 rows
-   - Open `skus` → the **Name** column should show Lao like ບິກອີຊີໂກລ correctly.
+   - `tickets` should show **100 rows**
+   - `skus` → **49 rows**, `cs_skus` → **15 rows**
+   - `stock_transactions` → **251 rows**, `cs_transactions` → **47 rows**
+   - Open `skus` → the **Name** column should show Lao text like ບິກອີຊີໂກລ correctly.
 
 ### 2.4 Create login accounts (Supabase Auth)
 Your Excel users keep their same email + password (`easygold1234` default).
@@ -242,12 +244,14 @@ then re-push the data with one command.
 ### Every time your Excel changes:
 
 ```bash
-npm run csv:export     # Excel  -> data/*.csv  (UTF-8 BOM, Lao-safe)
-npm run seed:generate  # CSVs   -> supabase/seed.sql
-npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundle)
-```
+# If using Actual Database.xlsx (your live export):
+npm run data:actual    # Excel -> data/*.csv + seed.sql + demo-data.json
 
-(Or just run `npm run seed:all` to do all three at once.)
+# Or step-by-step:
+node scripts/export-csv.mjs "Actual Database.xlsx"
+node scripts/generate-seed.mjs
+node scripts/generate-demo-data.mjs
+```
 
 ### Then apply to your live database — choose ONE of these:
 
@@ -255,23 +259,14 @@ npm run seed:demo      # CSVs   -> src/lib/demo-data.json (offline preview bundl
 1. Supabase Dashboard → **Table Editor** → open a table (e.g. `skus`).
 2. Click **Import data from CSV** (top-right) → select `data/SKU_MasterData.csv`.
 3. Supabase shows the column mapping — make sure they line up → **Import**.
-4. Repeat for each table that changed: `Users, SKU_MasterData, CS_SKU_MasterData,
-   Tickets, TicketItems, StockTransactions, CS_Transactions, TicketActions,
-   Categories, System_Config, SKU_Remarks`.
-   - ⚠️ For **Users**: delete existing rows first OR just run `npm run seed:auth` after
-     a fresh seed (it maps auth users to these rows).
-   - ⚠️ Watch the Import screen: some columns (e.g. date/time) may need format fixing.
+4. Repeat for each table: `Users, SKU_MasterData, CS_SKU_MasterData, Tickets, TicketItems, StockTransactions, CS_Transactions, TicketActions, Categories, System_Config, SKU_Remarks`.
 
-**Option B — Re-run the seed SQL (recommended, keeps everything consistent):**
-1. Regenerate: `npm run seed:generate`.
-2. Supabase → **SQL Editor → New query**. First run a wipe:
-   ```sql
-   truncate public.tickets, ticket_items, stock_transactions, ticket_actions, sku_remarks;
-   truncate public.skus, cs_skus;
-   ```
-   Then paste `supabase/seed.sql` and run it. (The seed uses `insert`, so tables must be
-   empty for a clean reload.)
-3. Run `npm run seed:auth` again to re-link logins (ids are regenerated).
+**Option B — Re-run the seed SQL (recommended, one single paste):**
+1. Run `npm run data:actual` (or `node scripts/generate-seed.mjs`).
+2. Supabase → **SQL Editor → New query**.
+3. Paste `supabase/seed.sql` and click **Run**.
+   - No manual truncate is needed anymore: the file automatically wipes transactional tables in FK-safe order and upserts masters on their natural key, keeping existing user UUIDs intact.
+4. Run `npm run seed:auth` in your terminal to sync Supabase Auth accounts.
 
 > 💡 Keep a **backup**: before reloading, use Supabase → **Database → Backups** to download
 > a copy, or export each table to CSV from Table Editor.

@@ -2,25 +2,34 @@
 // with a UTF-8 BOM so Lao / Unicode text opens correctly in Excel
 // and imports cleanly into Supabase (Table Editor CSV import).
 //
-// Run:  npm run csv:export
+// Run:  npm run csv:export                                   (defaults to legacy Excel)
+//   or: node scripts/export-csv.mjs "Actual Database.xlsx"   (points to the live export)
+//
 // Then: npm run seed:generate   (builds supabase/seed.sql from these CSVs)
 //       npm run seed:demo       (rebuilds the offline demo bundle)
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
+import { writeCsvFile } from './lib/csv.mjs';
+
 // xlsx's ESM entry is the browser build (no Node readFile), so use the CJS build.
 const require = createRequire(import.meta.url);
 const XLSX = require('xlsx');
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, '..');
-const XLSX_FILE = path.join(root, 'Current Stock Data from previous Web.xlsx');
+
+// CLI arg allows overriding the Excel workbook path
+const customFile = process.argv[2];
+const XLSX_FILE = customFile
+  ? (path.isAbsolute(customFile) ? customFile : path.join(root, customFile))
+  : path.join(root, 'Current Stock Data from previous Web.xlsx');
 const OUT_DIR = path.join(root, 'data');
 
 // Excel sheet name -> output CSV file.
 // System_Logs and Audit Tab are not used by the app, so they are skipped.
-const SHEET_TO_FILE = {
+export const SHEET_TO_FILE = {
   Users: 'Users.csv',
   CS_SKU_MasterData: 'CS_SKU_MasterData.csv',
   CS_Transactions: 'CS_Transactions.csv',
@@ -34,22 +43,12 @@ const SHEET_TO_FILE = {
   TicketActions: 'TicketActions.csv',
 };
 
-// RFC 4180 cell escaping (quote when the value contains , " or a newline).
-// Embedded newlines inside a cell are normalized to a space so every logical
-// row stays on ONE physical line — Excel, Supabase Table Editor import, and
-// the simple line-based seed parsers all handle that safely.
-const csvCell = (v) => {
-  if (v === null || v === undefined) return '';
-  const s = String(v).replace(/\r\n|\r|\n/g, ' ');
-  return /[",\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
-};
-const toCsv = (rows) => rows.map((r) => r.map(csvCell).join(',')).join('\r\n');
-
 if (!fs.existsSync(XLSX_FILE)) {
   console.error('Excel file not found:', XLSX_FILE);
   process.exit(1);
 }
 
+console.log(`Source workbook: ${path.basename(XLSX_FILE)}`);
 const wb = XLSX.readFile(XLSX_FILE);
 let total = 0;
 
@@ -72,11 +71,10 @@ for (const [sheet, file] of Object.entries(SHEET_TO_FILE)) {
       return out.map((c) => String(c ?? ''));
     });
 
-  // \ufeff = UTF-8 BOM (Excel + Lao safe). \r\n line endings.
-  const text = '\ufeff' + toCsv([header, ...data]) + '\r\n';
-  fs.writeFileSync(path.join(OUT_DIR, file), text, 'utf8');
+  writeCsvFile(path.join(OUT_DIR, file), [header, ...data]);
   console.log(`${file.padEnd(26)} ${data.length} data rows`);
   total += data.length;
 }
 
 console.log(`\nDone. ${total} rows exported with UTF-8 BOM -> ${OUT_DIR}`);
+

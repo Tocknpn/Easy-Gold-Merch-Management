@@ -190,10 +190,9 @@ tx-hist-005,RESTOCK,sku-1771407316677,200,addition,2026-05-10,2026-05-10T06:24:2
 ,TKT-1787543425737,sku-1771408020353,10,deduction,2026-08-26,2026-08-26T09:41:06.927Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
 ,TKT-1787539473267,sku-1775815774049,70,deduction,2026-08-26,2026-08-26T09:41:39.544Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
 ,TKT-1787814988879,sku-1787714793029,110,deduction,2026-08-28,2026-08-28T04:16:02.622Z,Sompartthana Bouphavong,Booked,,,Tote Bag If & Art
-,OPENING,sku-1788146835376,100,addition,2026-08-28,2026-08-31T03:27:15.972Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Piggy Bank V2 
+,OPENING,sku-1788146835376,200,addition,2026-08-28,2026-08-31T03:27:15.972Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Piggy Bank V2 
 ,TKT-1787815027847,sku-1774606011601,20,deduction,2026-08-31,2026-08-31T07:08:49.701Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
 ,TKT-1787815027847,sku-1775456004647,20,deduction,2026-08-31,2026-08-31T07:08:49.701Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
-,TKT-1787815069324,sku-1787714793029,110,deduction,2026-08-31,2026-08-31T07:09:06.879Z,Sompartthana Bouphavong,Booked,,,Tote Bag If & Art
 ,RESTOCK,sku-1771406960024,400,addition,2026-08-31,,,,[MKT_TRANSFER] Return item today to MKT warehouse,,ບິກອີຊີໂກລ
 ,TKT-1788160090372,sku-1771408020353,10,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ຊຸດພິນ້ຽມ (ປື້ມ+ຕຸກນ້ຳ+ບິກ)
 ,TKT-1788160090372,sku-1775456004647,20,deduction,2026-08-31,2026-08-31T08:54:43.452Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
@@ -204,3 +203,50 @@ tx-hist-005,RESTOCK,sku-1771407316677,200,addition,2026-05-10,2026-05-10T06:24:2
 ,TKT-1788166528113,sku-1773299233699,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,A4 Brochure
 ,TKT-1788166528113,sku-1775030698487,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
 ,TKT-1788166528113,sku-1785121215788,100,deduction,2026-08-31,2026-08-31T08:58:23.845Z,Sompartthana Bouphavong,Booked,,,Paper Bag for GOLD
+,OPENING,sku-1788767052509,300,addition,2026-09-07,2026-09-07T07:44:13.590Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ຈອກກາເຟ - Reoder 
+,OPENING,sku-1788852814387,110,addition,2026-09-07,2026-09-08T07:33:34.905Z,Nopphanai Phomphakdee,Opening Balance,Opening balance on SKU creation,,Tumbler x LDB
+,TKT-1788166702442,sku-1771407061986,250,deduction,2026-09-08,2026-09-08T08:54:10.905Z,Sompartthana Bouphavong,Booked,,,ຈອກກາເເຟ
+,TKT-1788166702442,sku-1787715043950,100,deduction,2026-09-08,2026-09-08T08:54:10.905Z,Sompartthana Bouphavong,Booked,,,Gift set 2026
+,TKT-1788166702442,sku-1788146835376,100,deduction,2026-09-08,2026-09-08T08:54:10.905Z,Sompartthana Bouphavong,Booked,,,Piggy Bank V2
+,TKT-1788230377490,sku-1771406960024,100,deduction,2026-09-08,2026-09-08T08:54:46.816Z,Sompartthana Bouphavong,Booked,,,ບິກອີຊີໂກລ
+,TKT-1788230377490,sku-1775030698487,100,deduction,2026-09-08,2026-09-08T08:54:46.816Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1788230377490,sku-1774606011601,10,deduction,2026-09-08,2026-09-08T08:54:46.816Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1788230377490,sku-1775456004647,10,deduction,2026-09-08,2026-09-08T08:54:46.816Z,Sompartthana Bouphavong,Booked,,,ກະເປົາກິລາ
+,TKT-1788230377490,sku-1775815774049,20,deduction,2026-09-08,2026-09-08T08:54:46.816Z,Sompartthana Bouphavong,Booked,,,ຂາຕັ້ງໂທລະສັບ
+,TKT-1788238977053,sku-1775030479680,8,deduction,2026-09-08,2026-09-08T08:56:11.232Z,Sompartthana Bouphavong,Booked,ຂາຕັ້ງໂທລະສັບຫມົດແລ້ວ,,ສາຍຮັດແຂນ (ກິລາ)
+,TKT-1788857848869,sku-1788852814387,2,deduction,2026-09-08,2026-09-08T09:12:20.165Z,Sompartthana Bouphavong,Booked,,,Tumbler x LDB
+,OPENING,sku-1789008629179,50,addition,2026-09-08,2026-09-10T02:50:29.873Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງໃສ່ນ້ອຍ 1ສະລືງ
+,OPENING,sku-1789008745801,50,addition,2026-09-08,2026-09-10T02:52:27.585Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ)
+,OPENING,sku-1789008980374,40,addition,2026-09-08,2026-09-10T02:56:20.962Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 2 ບາດ) 
+,OPENING,sku-1789009038990,40,addition,2026-09-08,2026-09-10T02:57:19.549Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 5 ບາດ) 
+,OPENING,sku-1789009139983,20,addition,2026-09-08,2026-09-10T02:59:00.640Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 10 ບາດ) 
+,TKT-1789026485212,sku-1789008629179,50,deduction,2026-09-10,2026-09-10T08:03:42.186Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງໃສ່ນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ສະລືງ)
+,TKT-1789026485212,sku-1789008745801,50,deduction,2026-09-10,2026-09-10T08:03:42.186Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ)
+,TKT-1789026485212,sku-1789008980374,40,deduction,2026-09-10,2026-09-10T08:03:42.186Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 2 ບາດ)
+,TKT-1789026485212,sku-1789009038990,40,deduction,2026-09-10,2026-09-10T08:03:42.186Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 5 ບາດ)
+,TKT-1789026485212,sku-1789009139983,20,deduction,2026-09-10,2026-09-10T08:03:42.186Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 10 ບາດ)
+,TKT-1789026485212,sku-1789008629179,50,deduction,2026-09-10,2026-09-10T08:04:31.824Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງໃສ່ນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ສະລືງ)
+,TKT-1789026485212,sku-1789008745801,50,deduction,2026-09-10,2026-09-10T08:04:31.824Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳນ້ອຍ (ສຳລັບໃສ່ຄຳ 1 ບາດ)
+,TKT-1789026485212,sku-1789008980374,40,deduction,2026-09-10,2026-09-10T08:04:31.824Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 2 ບາດ)
+,TKT-1789026485212,sku-1789009038990,40,deduction,2026-09-10,2026-09-10T08:04:31.824Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 5 ບາດ)
+,TKT-1789026485212,sku-1789009139983,20,deduction,2026-09-10,2026-09-10T08:04:31.824Z,Sompartthana Bouphavong,Booked,ກ່ອງໃຫຍ່ 6 ກ່ອງນ້ອຍ 4  ຕາດຳເບິກມາກ່ອນແລ້ວ ,,ກ່ອງຄຳໃຫຍ່ (ສຳລັບໃສ່ຄຳ 10 ບາດ)
+,TKT-1789026815202,sku-1785121215788,50,deduction,2026-09-10,2026-09-10T09:01:12.826Z,Sompartthana Bouphavong,Booked,,,Paper Bag for GOLD
+,RESTOCK,sku-1771406960024,50,addition,2026-09-15,,,,[MKT_TRANSFER] Transfer to MKT,,ບິກອີຊີໂກລ
+,TKT-1789628317751,sku-1774606011601,12,deduction,2026-09-21,2026-09-21T02:03:12.820Z,Sompartthana Bouphavong,Booked,,,ຫົວສາກໂທລະສັບ
+,TKT-1789628317751,sku-1775030698487,50,deduction,2026-09-21,2026-09-21T02:03:12.820Z,Sompartthana Bouphavong,Booked,,,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1789723529412,sku-1771406960024,20,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,ບິກອີຊີໂກລ
+,TKT-1789723529412,sku-1771407897767,1,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,ກະເປົາເດີນທາງ
+,TKT-1789723529412,sku-1772183613706,2,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,Beach flag 310x240x60 Cm
+,TKT-1789723529412,sku-1775030698487,5,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,ສາຍຫ້ອຍຄໍ (ພວງກະແຈ)
+,TKT-1789723529412,sku-1774606011601,3,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,ຫົວສາກໂທລະສັບ
+,TKT-1789723529412,sku-1775030479680,3,deduction,2026-09-21,2026-09-21T02:05:14.781Z,Sompartthana Bouphavong,Booked,"ບິກ, ແມ່ນເຮົາສາມາດໃຫ້ໄດ້ແຕ່ 20 ກ້ານ ເດີ້ ",,ສາຍຮັດແຂນ (ກິລາ)
+,TKT-1789955493838,sku-1779434977945,25,deduction,2026-09-21,2026-09-21T02:05:39.499Z,Sompartthana Bouphavong,Booked,,,Paper Bag
+,TKT-1789955811034,sku-1787027890986,10,deduction,2026-09-21,2026-09-21T02:05:50.069Z,Sompartthana Bouphavong,Booked,,,ກ່ອງຂອງຂວັນ
+,TKT-1789956108694,sku-1788852814387,35,deduction,2026-09-21,2026-09-21T02:06:00.528Z,Sompartthana Bouphavong,Booked,,,Tumbler x LDB
+,OPENING,sku-1790067589842,132,addition,2026-09-22,2026-09-22T08:59:50.489Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Umbrella X LDB
+,OPENING,sku-1790067614071,132,addition,2026-09-22,2026-09-22T09:00:14.706Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Umbrella X LDB
+,OPENING,sku-1790067637787,132,addition,2026-09-22,2026-09-22T09:00:38.510Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Umbrella X LDB
+,OPENING,sku-1790067645670,132,addition,2026-09-22,2026-09-22T09:00:46.604Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Umbrella X LDB
+,OPENING,sku-1790067653346,132,addition,2026-09-22,2026-09-22T09:00:54.254Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Umbrella X LDB
+,TKT-1789956137762,sku-1788852814387,15,deduction,2026-09-24,2026-09-24T02:59:50.360Z,Sompartthana Bouphavong,Booked,,,Tumbler x LDB
+,OPENING,sku-1790220235813,90,addition,2026-09-24,2026-09-24T03:23:56.542Z,Sompartthana Bouphavong,Opening Balance,Opening balance on SKU creation,,Gift set Hero

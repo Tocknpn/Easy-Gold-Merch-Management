@@ -13,6 +13,7 @@
     "test:smoke": "tsx scripts/smoke-test.ts",
     "test:workflow": "tsx scripts/workflow-test.ts",
     "csv:export": "node scripts/export-csv.mjs",
+    "data:actual": "node scripts/export-csv.mjs \"Actual Database.xlsx\" && node scripts/generate-seed.mjs && node scripts/generate-demo-data.mjs",
     "seed:all": "npm run csv:export && npm run seed:generate && npm run seed:demo",
     "seed:generate": "node scripts/generate-seed.mjs",
     "seed:demo": "node scripts/generate-demo-data.mjs",
