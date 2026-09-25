@@ -533,7 +533,10 @@ centered card + gold Crown logo.
   head (ITEM · UNIT · UNIT PRICE · OPENING BALANCE · STOCK IN · STOCK OUT · CLOSING BALANCE · REMARK) with a
   tinted band per movement block, one row per SKU, a bold TOTAL foot row and four signature boxes
   (CREATED BY / REVIEWED BY / LINE MANAGER / ACCOUNTING). Money cells are written as `₭` + digits by hand so
-  the Kip sign comes from the embedded font instead of the WinAnsi fallback.
+  the Kip sign comes from the embedded font instead of the WinAnsi fallback. The row pitch is solved from the row
+  count (`solveLayout`) so the signed form — title block, grouped head, every SKU, TOTAL and the four signature
+  boxes — stays on ONE A4 landscape page; rows compress 6 mm → 4.05 mm, which covers ~32 SKUs, and only a longer
+  report falls back to the roomy 6 mm rows (paginated, signature block on the last page).
 - `src/lib/pdfFonts.ts` — embeds `public/fonts/NotoSansLao-{Regular,Bold}.ttf` (≈35 kB each, fetched once and
   cached; subset = Lao U+0E81–U+0EDD + `₭`, no Latin) as the `NotoSansLaoPDF` font.
 - `src/lib/pdfLaoText.ts` — `needsRaster()` / `rasterizeAll()` / `rasterizeText()`: any string WinAnsi cannot
@@ -599,7 +602,10 @@ the values of both warehouses summed (the CPU column shows the blended cost of t
 
 Month-End **Export PDF** / **Print** (`exportMonthEndPdf` / `printMonthEndPdf`) reproduces that Excel form: the
 title block (report title, period, warehouse · category · VAT meta line), the two-row grouped header, one row per
-SKU, a bold TOTAL footer and the four signature boxes — moved to a fresh page when the table would end too low.
+SKU, a bold TOTAL footer and the four signature boxes on a single A4 landscape page — the row pitch is solved from
+the row count (6 mm → 4.05 mm, ~32 SKUs) and only a longer report keeps the roomy 6 mm rows, paginates and moves
+the signature block to the last page. Table geometry: title block to `TABLE_Y = 24.5 mm`, signature box 22 mm with
+a 6 mm gap, all ink above 197 mm, footer line at 204 mm.
 Column widths are `50 + 14 + 22 + 4×(18+25) + 17 = 275 mm` of the 277 mm usable width, and every money column is
 drawn as `₭` + digits (`MONEY_COLS`) so the Kip sign is real vector text from the embedded Noto Sans Lao. The Lao
 **item names / units / meta line** are the only bitmaps (browser-shaped at ≈285 dpi, opaque white — an alpha
@@ -895,7 +901,8 @@ Rule of thumb for PowerShell regex: use single quotes, escape `\` as `\\`, never
 6. Borrow finalize then return → stock adds back, `returned`, broken qty recorded in transactions.
 7. CS user submits request (banner shown, `cs_transfer` type) → after finalization CS SKU/transactions appear.
 8. Month-End report exports XLSX + prints landscape; **Export PDF** renders the signed layout (grouped head,
-   TOTAL footer, 4 signature boxes) with Lao item names/units and `₭` totals; figures match the formulas in §7.
+   TOTAL footer, 4 signature boxes) on one A4 landscape page, with Lao item names/units and `₭` totals; figures
+   match the formulas in §7.
 9. `npm run build && npx wrangler deploy` → SPA served with same routes; deep links work
    (`not_found_handling: single-page-application`).
 
