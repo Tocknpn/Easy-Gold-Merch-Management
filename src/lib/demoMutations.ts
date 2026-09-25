@@ -4,6 +4,11 @@ import type { SKU, CS_SKU, TicketStatus, TicketType } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
 
+/** Comment written when a Warehouse Manager's own request skips warehouse review
+ *  (mirrored by create_ticket in migration 0017). */
+export const AUTO_REVIEW_NOTE =
+  'Auto-reviewed — requested by the Warehouse Manager; routed to the Line Manager';
+
 export function demoCreateTicket(p: {
   createdBy: string; createdByName: string; department: string;
   deliveryDate?: string | null; remark?: string; type: TicketType; returnDate?: string | null;
@@ -11,6 +16,15 @@ export function demoCreateTicket(p: {
 }): string {
   const items = p.items.filter((i) => castNumber(i.qtyRequested) > 0);
   if (items.length === 0) throw new Error('Ticket must have at least one item');
+
+  // ── Warehouse Manager self-request: skip the warehouse review step ─────
+  // The requester IS the reviewing authority, so the ticket is created already
+  // 'reviewed' (booking confirmed, qty_approved = requested) and lands straight
+  // in the Line Manager's queue instead of the manager's own Action Center.
+  const creatorRole = demoDB.users.find(
+    (u) => u.email.toLowerCase() === String(p.createdBy).trim().toLowerCase(),
+  )?.role;
+  const autoReviewed = creatorRole === 'warehouse';
 
   // ── availability guard (mirrors create_ticket SQL) ─────────────
   // Stock requested by tickets that are still pending is already
@@ -39,15 +53,30 @@ export function demoCreateTicket(p: {
   }
 
   const id = nextId('TKT-');
+  const submittedAt = new Date().toISOString();
   demoDB.tickets.unshift({
     id, createdBy: p.createdBy, createdByName: p.createdByName, department: p.department,
-    deliveryDate: p.deliveryDate || null, remark: p.remark || '', status: 'pending', type: p.type,
-    returnDate: p.returnDate || null, createdAt: new Date().toISOString(),
-    lastActionAt: new Date().toISOString(), lastActionBy: p.createdByName,
-    lastActionStatus: 'Pending', lastActionComment: 'Ticket submitted',
+    deliveryDate: p.deliveryDate || null, remark: p.remark || '',
+    status: autoReviewed ? 'reviewed' : 'pending', type: p.type,
+    returnDate: p.returnDate || null, createdAt: submittedAt,
+    // The reviewed level's comment/timestamp is stamped right away so the modal
+    // shows why the warehouse step is already green.
+    ...(autoReviewed ? { whComment: AUTO_REVIEW_NOTE, whCommentAt: submittedAt } : {}),
+    lastActionAt: submittedAt, lastActionBy: p.createdByName,
+    lastActionStatus: autoReviewed ? 'Reviewed' : 'Pending',
+    lastActionComment: autoReviewed ? AUTO_REVIEW_NOTE : 'Ticket submitted',
   });
-  demoDB.items[id] = items.map((i) => ({ skuId: i.skuId, skuName: i.skuName, qtyRequested: i.qtyRequested, qtyApproved: null, unit: i.unit || 'pcs' }));
-  demoDB.actions.unshift({ ticketId: id, action: 'Created', status: 'pending', actionAt: new Date().toISOString(), actionBy: p.createdByName, role: '', comment: 'Ticket submitted' });
+  demoDB.items[id] = items.map((i) => ({
+    skuId: i.skuId, skuName: i.skuName, qtyRequested: i.qtyRequested,
+    // A warehouse manager's request confirms the booking with the requested qty
+    // (the same value the 'reviewed' step would have written).
+    qtyApproved: autoReviewed ? i.qtyRequested : null,
+    unit: i.unit || 'pcs',
+  }));
+  demoDB.actions.unshift({ ticketId: id, action: 'Created', status: 'pending', actionAt: submittedAt, actionBy: p.createdByName, role: creatorRole || '', comment: 'Ticket submitted' });
+  if (autoReviewed) {
+    demoDB.actions.unshift({ ticketId: id, action: 'Reviewed', status: 'reviewed', actionAt: submittedAt, actionBy: p.createdByName, role: 'warehouse', comment: AUTO_REVIEW_NOTE });
+  }
 
   // ── BOOK the requested qty right away (accrual) ────────────────
   for (const i of items) {

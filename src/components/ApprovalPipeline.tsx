@@ -1,7 +1,6 @@
-import { format } from 'date-fns';
 import { CheckCircle2, User, XCircle } from 'lucide-react';
-import { cn } from '@/lib/utils';
-import type { TicketAction, TicketStatus, TicketType } from '@/lib/types';
+import { cn, whenStamp } from '@/lib/utils';
+import { ROLE_LABELS, type TicketAction, type TicketStatus, type TicketType } from '@/lib/types';
 
 export type PipelineStep = { status: string; label: string; who: string };
 
@@ -26,18 +25,9 @@ export const STOPPED = -2;
 
 const norm = (s?: string | null) => String(s || '').trim().toLowerCase().replace(/\s+/g, '_');
 
-/** Step timestamps show the date and the time on separate lines (detail modal ref). */
-const fmtDate = (iso?: string | null): string => {
-  if (!iso) return '—';
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? iso : format(d, 'MMM d, yyyy');
-};
-
-const fmtTime = (iso?: string | null): string => {
-  if (!iso) return '';
-  const d = new Date(iso);
-  return isNaN(d.getTime()) ? '' : format(d, 'h:mm a');
-};
+/** Friendly name of a role string ('warehouse manager' → 'Warehouse Manager'). */
+const roleLabel = (raw?: string | null): string | null =>
+  ROLE_LABELS[String(raw || '').trim().toLowerCase().replace(/\s+/g, '_')] || null;
 
 /** Which pipeline step an actor's role points at (-1 when unknown). */
 function stepIndexByRole(role: string | null | undefined, steps: PipelineStep[]): number {
@@ -113,6 +103,13 @@ export function ApprovalPipeline({
   const stopped = idx < 0; // rejected / recalled / unknown
   const reached = times.reduce((acc, t, i) => (t ? i : acc), 0);
 
+  // Step 1 is always "Submitted" — name the role that actually submitted it
+  // (Staff / Warehouse Manager / Customer Service…) from the audit row that
+  // opened the ticket, so a Warehouse Manager request is visibly not a staff one.
+  const submitterRole = actions?.find((a) => stepIndexForAction(a, chain) === 0)?.role;
+  const whoOf = (s: PipelineStep, i: number) =>
+    i === 0 ? roleLabel(submitterRole) || s.who : s.who;
+
   // Where to plant the ✕: the step of the actor who rejected/recalled, but never
   // before the last step the chain actually completed.
   const stopAction = stopped ? actions?.find((a) => stepIndexForAction(a, chain) === STOPPED) : undefined;
@@ -160,12 +157,11 @@ export function ApprovalPipeline({
               >
                 {blocked ? stopLabel : s.label}
               </p>
-              <p className="text-[10px] leading-tight text-slate-400">{s.who}</p>
+              <p className="text-[10px] leading-tight text-slate-400">{whoOf(s, i)}</p>
               {times[i] && (
-                <div className="mt-0.5 text-[9px] leading-tight text-slate-400">
-                  <p>{fmtDate(times[i])}</p>
-                  {fmtTime(times[i]) && <p>{fmtTime(times[i])}</p>}
-                </div>
+                <p className="mt-0.5 whitespace-nowrap text-[9px] tabular-nums leading-tight text-slate-400">
+                  {whenStamp(times[i])}
+                </p>
               )}
             </div>
           );

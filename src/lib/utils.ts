@@ -1,5 +1,6 @@
 import { clsx, type ClassValue } from 'clsx';
 import { twMerge } from 'tailwind-merge';
+import { format } from 'date-fns';
 import { CURRENCY } from './types';
 
 export function cn(...inputs: ClassValue[]) {
@@ -48,6 +49,15 @@ export function lastActionWhen(t?: string | null): string {
   } catch {
     return t;
   }
+}
+
+/** Compact date + time stamp for dense rows (pipeline steps, approval trail):
+ *  `22/09/26 11:31`. 24-hour on purpose — the AM/PM suffix costs space and the
+ *  modal shows these stamps in tight columns. */
+export function whenStamp(t?: string | null): string {
+  if (!t) return '—';
+  const d = new Date(t);
+  return Number.isNaN(d.getTime()) ? String(t) : format(d, 'dd/MM/yy HH:mm');
 }
 
 /** Full date + time label — used for approval comments ("who commented when"). */

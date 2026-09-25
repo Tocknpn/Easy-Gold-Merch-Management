@@ -96,6 +96,43 @@ check('stock stays at −8 after finalize', skuStock(sku) === before1 - 8);
 check('Director & Admin queues cleared', !acQueue('director').some((t) => t.id === t1) && !acQueue('admin').some((t) => t.id === t1));
 check('audit trail has all 4 steps', demoDB.actions.filter((a) => a.ticketId === t1).length >= 4);
 
+console.log('\n── 1b) Warehouse Manager request skips the warehouse step (migration 0017)');
+const skuW = addSku({ name: 'WF WH Self', category: 'MKT', unit: 'pcs', openingBalance: 30, costPerUnit: 50 });
+const beforeW = skuStock(skuW);
+const tW = demoCreateTicket({
+  createdBy: wh.email, createdByName: wh.fullName, department: wh.department,
+  deliveryDate: '2026-12-04', remark: 'wf-wh-self', type: 'request',
+  items: [{ skuId: skuW, skuName: 'WF WH Self', qtyRequested: 6, unit: 'pcs' }],
+});
+const tWr = () => demoTicketsWithItems().find((t) => t.id === tW)!;
+check('warehouse request is created already reviewed', tWr().status === 'reviewed');
+check('warehouse request never enters the warehouse queue', !acQueue('warehouse').some((t) => t.id === tW));
+check('warehouse request is in the LINE MANAGER queue', acQueue('line_manager').some((t) => t.id === tW));
+check('booking made once at submission (30→24)', skuStock(skuW) === beforeW - 6);
+check('booking row is deduction/Booked', demoDB.transactions.some((tx) => tx.ticketId === tW && tx.type === 'deduction' && tx.status === 'Booked' && tx.qty === 6));
+check('qty approved confirmed as requested', tWr().items[0]!.qtyApproved === 6);
+check('auto-review note stored on the ticket', /auto-reviewed/i.test(String(tWr().whComment || '')));
+check('auto-review note is timestamped', !!tWr().whCommentAt);
+check('trail carries Submitted + Reviewed', demoDB.actions.filter((a) => a.ticketId === tW).length === 2);
+check('warehouse cannot review its own ticket again', throws(() => demoUpdateTicketStatus(tW, 'reviewed', { actorName: wh.fullName, actorRole: 'warehouse' }), /illegal transition/i));
+
+demoUpdateTicketStatus(tW, 'lm_approved', { actorName: S(lm.email), actorRole: 'line_manager', comment: 'ok by LM' });
+check('Line Manager approves without a warehouse step', tWr().status === 'lm_approved');
+check('no extra deduction on LM approval', skuStock(skuW) === beforeW - 6);
+check('Director queue now shows it', acQueue('director').some((t) => t.id === tW));
+demoUpdateTicketStatus(tW, 'finalized', { actorName: S(dir.email), actorRole: 'director', comment: 'go' });
+check('finalized end-to-end, stock still −6', tWr().status === 'finalized' && skuStock(skuW) === beforeW - 6);
+
+// The rule must NOT leak to other roles — staff still starts pending.
+const skuS = addSku({ name: 'WF Staff Pending', category: 'MKT', unit: 'pcs', openingBalance: 10 });
+const tS = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: staff.department,
+  deliveryDate: '2026-12-04', type: 'request',
+  items: [{ skuId: skuS, skuName: 'WF Staff Pending', qtyRequested: 2, unit: 'pcs' }],
+});
+check('staff request still starts pending', demoTicketsWithItems().find((t) => t.id === tS)!.status === 'pending');
+check('staff request still reaches the warehouse queue', acQueue('warehouse').some((t) => t.id === tS));
+
 console.log('\n── 2) Approval-level enforcement (no skipping, no cross-role)');
 const sku2 = addSku({ name: 'WF Gating', category: 'MKT', unit: 'pcs', openingBalance: 50 });
 const t2 = demoCreateTicket({

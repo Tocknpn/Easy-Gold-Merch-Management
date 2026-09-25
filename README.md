@@ -86,6 +86,14 @@ You can log in with any account from the demo chips on the login screen
      the first time it runs, skips no-op updates, and ignores writes that have no signed-in user — so
      re-running `seed.sql` can never flood the trail. Safe to re-run.
 
+   - `supabase/migrations/0017_warehouse_self_request.sql` — **Warehouse Manager self-request routing**:
+     requests submitted by a Warehouse Manager are routed directly to the Line Manager (`reviewed`
+     status) because the review authority is submitting them. The initial booking is confirmed as requested,
+     an auto-review note and timestamp are stamped, a `Reviewed` audit row is written to credit the
+     requester, and the ticket lands immediately in the Line Manager's Action Center. Staff / CS / Admin
+     requests are untouched and start `pending` as usual. Backfills any pending tickets previously
+     submitted by warehouse managers.
+
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
@@ -190,6 +198,11 @@ npx wrangler pages deploy dist --project-name easy-gold-merch
   no reversal Stock In row is written, and Reporting ignores cancelled / rejected / recalled
   movements, so a rejected ticket never shows a phantom Stock In + Stock Out
 - Borrow `finalized → returned` records returned + broken quantities
+- **Warehouse Manager self-request routing** (migration `0017`): when the ticket requester has the
+  `warehouse` or `warehouse manager` role, their request is created directly in status `reviewed` with
+  the booking confirmed (`qty_approved = qty_requested`), a `Reviewed` audit row, and auto-review comments.
+  It moves straight to the Line Manager's Action Center without a self-review loop. Staff, CS, and Admin
+  requests remain unchanged and start in `pending`.
 - Every transition writes a `ticket_actions` audit trail and stamps `last_action_*` (plus
   `wh_comment_at` / `lm_comment_at` / `director_comment_at` so My Ticket can show **when** each
   approval level commented)
@@ -310,6 +323,7 @@ supabase/
   migrations/0015_edit_stock_movement.sql         editable stock movements (edit_stock_movement RPC)
   migrations/0016_audit_log.sql                   audit_log table + row triggers + admin-only RLS
                                                   (Audit Trail page — safe to re-run)
+  migrations/0017_warehouse_self_request.sql      warehouse manager self-requests auto-reviewed to Line Manager
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]

@@ -92,11 +92,15 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 10 | `supabase/migrations/0010_fix_ticket_stock_lifecycle.sql` | flat ticket state machine: Book → Deduct on finalize, cs_transfer restock, reject/recall returns stock |
    | 11 | `supabase/migrations/0011_normalize_roles.sql` | canonicalises `users.role` so real approvers pass the engine's role checks |
    | 12 | `supabase/migrations/0012_fix_jsonb_coalesce_types.sql` | fixes **"COALESCE types text and jsonb cannot be matched"** on warehouse *Review & Book Stock* |
-| 13 | `supabase/migrations/0013_sku_edit_restock_reporting.sql` | SKU `status`, Opening-balance edits without phantom Stock In/Out, SKU rename cascade to tickets + ledgers, clean Reject/Recall accounting, per-level comment timestamps |
+   | 13 | `supabase/migrations/0013_sku_edit_restock_reporting.sql` | SKU `status`, Opening-balance edits without phantom Stock In/Out, SKU rename cascade to tickets + ledgers, clean Reject/Recall accounting, per-level comment timestamps |
+   | 14 | `supabase/migrations/0014_approved_qty_propagation.sql` | approved-qty propagation (warehouse/LM/director) + over-approval up to available stock |
+   | 15 | `supabase/migrations/0015_edit_stock_movement.sql` | editable stock movements (`edit_stock_movement` RPC + audit metadata) |
+   | 16 | `supabase/migrations/0016_audit_log.sql` | system-wide `audit_log` table with triggers and Admin view |
+   | 17 | `supabase/migrations/0017_warehouse_self_request.sql` | **Warehouse Manager self-request routing** (auto-reviewed straight to Line Manager) |
 
    Each should show **"Success. No rows returned"** (or similar). All of them are safe to re-run
    (paste + **Run** again any time). If you re-run `0006`, re-run `0009` after it.
-   Always finish with `0010` → `0011` → `0012` — they re-assert the current ticket engine.
+   Always finish with `0010` → `0011` → `0012` → `0014` → `0017` — they re-assert the current ticket engine.
 
    > 👥 **User management in the app:** after step 9 an **Admin** can add/edit users, activate or
    > deactivate them and set (or look up) their password right from **System Settings → Users** —

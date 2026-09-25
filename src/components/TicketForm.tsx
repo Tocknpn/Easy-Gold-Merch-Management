@@ -257,7 +257,11 @@ export function TicketForm({
         returnDate: isBorrow ? returnDate || null : null,
         items,
       });
-      toast('Ticket submitted (Pending)');
+      // A Warehouse Manager's own request is already 'reviewed' (it skipped the
+      // warehouse step), so it lands straight in the Line Manager's queue.
+      toast(user?.role === 'warehouse'
+        ? 'Ticket submitted → sent to the Line Manager'
+        : 'Ticket submitted (Pending)');
       navigate('/ticket-tracking');
     } catch (e: any) {
       toast(e?.message || 'Failed to create ticket', 'error');
@@ -299,6 +303,12 @@ export function TicketForm({
       {isBorrow && (
         <div className="rounded-xl border border-indigo-200 bg-indigo-50 px-4 py-3 text-sm text-indigo-800">
           🔁 Borrowed items must be returned by the <b>return date</b>. Lost or damaged items are charged at the listed value.
+        </div>
+      )}
+      {user?.role === 'warehouse' && (
+        <div className="rounded-xl border border-brand-100 bg-brand-50 px-4 py-3 text-sm text-brand-800">
+          ✅ As <b>Warehouse Manager</b> you review your own stock — your ticket skips the warehouse review step and goes
+          straight to the <b>Line Manager</b> for approval.
         </div>
       )}
 
