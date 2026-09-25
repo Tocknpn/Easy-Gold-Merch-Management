@@ -149,65 +149,32 @@ export async function apiMktDestockSku(id: string, qty: number, actionBy?: strin
 }
 
 // ── MKT → CS transfer (done by the MKT team) ────────────────────────────
+// The whole move runs INSIDE the `transfer_mkt_to_cs` RPC (migration 0018), so
+// it is one transaction and can never debit MKT while leaving CS empty. The RPC
+// also auto-creates the CS item on its first arrival, stamped as that item's
+// OPENING ledger row.
+//
+// Why it must not be done with direct table writes any more: every app table has
+// RLS enabled and only SELECT policies exist, so `supabase.from('cs_skus')
+// .insert(...)` is rejected — and supabase-js RETURNS that error instead of
+// throwing, which silently swallowed it (MKT was debited via the manage_sku RPC,
+// the CS warehouse received nothing).
 export async function apiTransferMktToCs(skuId: string, qty: number, actionBy: string, comment?: string): Promise<void> {
   if (!isLive()) return demoData.demoTransferMktToCs(skuId, qty, actionBy, comment);
-  const cs = await supabase!.from('cs_skus').select('*').eq('id', skuId).maybeSingle();
-  let name = skuId;
-  if (!cs.error && cs.data) {
-    name = cs.data.name;
-    await supabase!.from('cs_skus')
-      .update({ current_stock: cs.data.current_stock + qty, total_inflow: cs.data.total_inflow + qty })
-      .eq('id', skuId);
-  } else {
-    const mkt = await supabase!.from('skus').select('*').eq('id', skuId).single();
-    if (mkt.error) throw new Error(mkt.error.message);
-    name = mkt.data.name;
-    await supabase!.from('cs_skus').insert({
-      id: skuId, name: mkt.data.name, category: mkt.data.category, unit: mkt.data.unit,
-      opening_balance: qty, current_stock: qty, total_inflow: qty, image_url: mkt.data.image_url,
-      low_stock_threshold: mkt.data.low_stock_threshold, cost_per_unit: mkt.data.cost_per_unit,
-    });
-  }
-  // Deduct from the MKT warehouse — manage_sku 'destock' records the MKT ledger row
-  const { data, error } = await supabase!.rpc('manage_sku', {
-    p_action: 'destock', p_sku: { id: skuId, qty, ticket_id: 'MKT_TRANSFER' },
-    p_remark: comment || 'Transferred to CS warehouse', p_action_by: actionBy,
+  const { data, error } = await supabase!.rpc('transfer_mkt_to_cs', {
+    p_sku_id: skuId, p_qty: qty, p_action_by: actionBy, p_comment: comment || null,
   });
   if (error) throw new Error(error.message);
   ok(data);
-  // Record the CS receipt so the CS ledger reflects the transfer too
-  await supabase!.from('cs_transactions').insert({
-    ticket_id: 'MKT_TRANSFER', sku_id: skuId, sku_name: name, qty, type: 'addition',
-    date: new Date().toISOString().slice(0, 10), action_by: actionBy,
-    comment: comment || 'Transferred to CS warehouse',
-  });
 }
 // ── CS → MKT transfer ───────────────────────────────────────────────────
 export async function apiTransferCsToMkt(skuId: string, qty: number, actionBy: string): Promise<void> {
   if (!isLive()) return demoData.demoTransferCsToMkt(skuId, qty, actionBy);
-  const mkt = await supabase!.from('skus').select('*').eq('id', skuId).maybeSingle();
-  if (!mkt.error && mkt.data) {
-    await supabase!.from('skus')
-      .update({ current_stock: mkt.data.current_stock + qty, total_inflow: mkt.data.total_inflow + qty })
-      .eq('id', skuId);
-  } else {
-    const cs = await supabase!.from('cs_skus').select('*').eq('id', skuId).single();
-    await supabase!.from('skus').insert({
-      id: skuId, name: cs.data.name, category: cs.data.category, unit: cs.data.unit,
-      opening_balance: qty, current_stock: qty, total_inflow: qty, image_url: cs.data.image_url,
-      low_stock_threshold: cs.data.low_stock_threshold, cost_per_unit: cs.data.cost_per_unit,
-    });
-  }
-  const { data, error } = await supabase!.rpc('manage_cs_sku', {
-    p_action: 'destock', p_sku: { id: skuId, qty }, p_comment: 'Transferred back to MKT warehouse', p_action_by: actionBy,
+  const { data, error } = await supabase!.rpc('transfer_cs_to_mkt', {
+    p_sku_id: skuId, p_qty: qty, p_action_by: actionBy,
   });
   if (error) throw new Error(error.message);
   ok(data);
-  await supabase!.from('stock_transactions').insert({
-    ticket_id: 'CS_TRANSFER', sku_id: skuId, qty, type: 'addition',
-    date: new Date().toISOString().slice(0, 10), action_by: actionBy,
-    status: 'Returned to MKT', comment: 'Transferred from CS warehouse',
-  });
 }
 
 // ── config / category / remark ───────────────────────────────────────────

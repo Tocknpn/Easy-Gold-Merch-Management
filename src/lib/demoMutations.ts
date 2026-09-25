@@ -9,6 +9,11 @@ import { todayStr } from './utils';
 export const AUTO_REVIEW_NOTE =
   'Auto-reviewed — requested by the Warehouse Manager; routed to the Line Manager';
 
+/** Trimmed/lowercased item name — the fallback identity used to pair an item
+ *  across warehouses when the ids differ (mirrors src/lib/warehouseMerge.ts and
+ *  the CS lookup in transfer_mkt_to_cs / update_ticket_status). */
+const normName = (s?: string | null) => (s || '').trim().toLowerCase();
+
 export function demoCreateTicket(p: {
   createdBy: string; createdByName: string; department: string;
   deliveryDate?: string | null; remark?: string; type: TicketType; returnDate?: string | null;
@@ -184,6 +189,7 @@ export function demoUpdateTicketStatus(
         // legacy ticket submitted before booking-at-creation: deduct now
         sku.currentStock = Math.max(0, sku.currentStock - qty);
         demoDB.transactions.unshift({
+          id: nextLedgerId(),
           ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'deduction',
           date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
         });
@@ -195,11 +201,18 @@ export function demoUpdateTicketStatus(
   if (['reviewed', 'lm_approved', 'finalized'].includes(status)) applyItems();
 
   // FINALIZED + cs_transfer → auto-restock CS warehouse
+  // The arrival that CREATES the CS item is its opening balance, so that ledger
+  // row is stamped 'OPENING' and the Dashboard shows the qty under Opening ONLY
+  // (a ticket reference there made it count as Opening AND Stock In). Every
+  // later arrival of the same item is a real Stock In under the ticket id.
+  // The CS row is matched by shared id first, then by trimmed/lowercased name.
   if (status === 'finalized' && t.type === 'cs_transfer' && old !== 'finalized') {
     for (const it of (demoDB.items[t.id] || [])) {
       const qty = it.qtyApproved ?? it.qtyRequested;
       if (qty <= 0) continue;
-      const cs = demoDB.csSkus.find((s) => s.id === it.skuId);
+      const cs = demoDB.csSkus.find((s) => s.id === it.skuId)
+        || demoDB.csSkus.find((s) => normName(s.name) === normName(it.skuName));
+      const genesis = !cs;
       if (cs) { cs.currentStock += qty; cs.totalInflow += qty; }
       else {
         const mkt = demoDB.skus.find((s) => s.id === it.skuId);
@@ -207,10 +220,13 @@ export function demoUpdateTicketStatus(
           id: it.skuId, name: it.skuName, category: mkt?.category || 'General', unit: mkt?.unit || 'pcs',
           openingBalance: qty, currentStock: qty, totalInflow: qty, imageUrl: mkt?.imageUrl || null,
           lowStockThreshold: mkt?.lowStockThreshold || 0, costPerUnit: mkt?.costPerUnit || 0,
+          createdAt: todayStr(), status: 'active',
         });
       }
       demoDB.csTransactions.unshift({
-        ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'addition',
+        id: nextLedgerId(),
+        ticketId: genesis ? 'OPENING' : t.id,
+        skuId: cs ? cs.id : it.skuId, skuName: it.skuName, qty, type: 'addition',
         date: todayStr(), actionAt: new Date().toISOString(), actionBy: 'MKT Warehouse',
         comment: 'Auto-transferred from MKT WH - Ticket: ' + t.id,
       });

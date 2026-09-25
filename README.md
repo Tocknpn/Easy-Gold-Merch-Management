@@ -94,6 +94,22 @@ You can log in with any account from the demo chips on the login screen
      requests are untouched and start `pending` as usual. Backfills any pending tickets previously
      submitted by warehouse managers.
 
+   - `supabase/migrations/0018_transfer_mkt_to_cs.sql` — **MKT ⇄ CS transfers run inside the RPC engine**:
+     Manage Stock → Transfer used plain PostgREST inserts/updates on `cs_skus` / `cs_transactions` (and, on the way
+     back, `skus` / `stock_transactions`). Those tables are RLS-protected with read-only policies and supabase-js
+     *returns* the permission error instead of throwing, so the writes were silently dropped — the MKT warehouse was
+     debited while the CS warehouse received nothing. `transfer_mkt_to_cs()` / `transfer_cs_to_mkt()` now do the whole
+     move in one transaction, auto-create the destination item from the source master data on its first arrival
+     (**stamped `OPENING`**, so the dashboard never counts it as Opening *and* Stock In), record every later arrival
+     as a real movement, and match the destination by shared SKU id first, then by trimmed-lowercased name.
+
+   - `supabase/migrations/0019_cs_genesis_opening.sql` — **the arrival that creates a CS item is its Opening**:
+     re-asserts `update_ticket_status` (0014 logic unchanged) with the `cs_transfer` auto-restock fixed — the genesis
+     receipt is stamped `OPENING` instead of the ticket id (the ticket id made the Dashboard show e.g. *Opening 40 ·
+     Stock In +40 · Current 40*), later arrivals of the same item stay real Stock In, and the CS item is matched by
+     id then name. Section 2 re-stamps rows the old engine already mis-stamped (idempotent); `engine_version` stays
+     `0014`.
+
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
@@ -193,7 +209,13 @@ npx wrangler pages deploy dist --project-name easy-gold-merch
 
 - `pending → reviewed` books stock (deduction transaction, `Current_Stock` floor 0, approved-qty override)
 - `reviewed → lm_approved → finalized`
-- **Finalize a `cs_transfer` → CS warehouse auto-restocks** (`cs_skus` + `cs_transactions`)
+- **Finalize a `cs_transfer` → CS warehouse auto-restocks** (`cs_skus` + `cs_transactions`). The receipt that
+  **creates** the CS item is stamped `OPENING` (it *is* the opening balance — a ticket reference there made the
+  Dashboard count the same quantity as Opening *and* Stock In); later arrivals of the same item are real Stock In
+  rows under the ticket id (migration `0019`)
+- **MKT ⇄ CS Transfer** (Manage Stock → Transfer) is one `transfer_mkt_to_cs` / `transfer_cs_to_mkt` RPC call
+  (migration `0018`): the move is atomic, the destination item is auto-created from the source master data on its
+  first arrival, and the destination is matched by shared SKU id first, then by trimmed-lowercased name
 - Reject / Recall **cancel the booking** (row status `Booking Cancelled`) and return the stock —
   no reversal Stock In row is written, and Reporting ignores cancelled / rejected / recalled
   movements, so a rejected ticket never shows a phantom Stock In + Stock Out
@@ -324,6 +346,9 @@ supabase/
   migrations/0016_audit_log.sql                   audit_log table + row triggers + admin-only RLS
                                                   (Audit Trail page — safe to re-run)
   migrations/0017_warehouse_self_request.sql      warehouse manager self-requests auto-reviewed to Line Manager
+  migrations/0018_transfer_mkt_to_cs.sql          transfer_mkt_to_cs() / transfer_cs_to_mkt() RPCs
+                                                  (RLS-safe atomic move + auto-create the destination item)
+  migrations/0019_cs_genesis_opening.sql          cs_transfer genesis receipt stamped OPENING + data repair
   seed.sql                              auto-generated from your Excel data
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]

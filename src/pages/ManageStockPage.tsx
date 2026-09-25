@@ -465,8 +465,15 @@ function TransferTab() {
 
   const fromWh: Wh = dir === 'toCs' ? 'mkt' : 'cs';
   const list = dir === 'toCs' ? skus : csSkus;
-  const other = (dir === 'toCs' ? csSkus : skus).find((s) => s.id === skuId);
   const sku = list.find((s) => s.id === skuId);
+  // Destination preview: the shared SKU id first, then the trimmed/lowercased
+  // name — a CS item typed in by hand keeps its own CS-SKU-… id and only the
+  // name matches. That is exactly the row the transfer RPC credits (it matches
+  // id first, then name), so this preview never lies about the "after" balance.
+  const destName = (sku?.name || '').trim().toLowerCase();
+  const other = (dir === 'toCs' ? csSkus : skus).find(
+    (s) => s.id === skuId || (destName !== '' && (s.name || '').trim().toLowerCase() === destName),
+  );
   const nQty = Number(qty) || 0;
   const valid = !!sku && nQty > 0 && nQty <= sku.currentStock;
 

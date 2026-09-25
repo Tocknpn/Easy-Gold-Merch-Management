@@ -3,8 +3,10 @@
 import { demoDB, demoLogin, demoTicketsWithItems } from '../src/lib/demoStore';
 import { demoCreateTicket, demoUpdateTicketStatus } from '../src/lib/demoMutations';
 import {
-  demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku, demoTransferCsToMkt,
+  demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku,
+  demoTransferCsToMkt, demoTransferMktToCs,
 } from '../src/lib/demoData';
+import { getStockMovement } from '../src/lib/stockMovement';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean) => {
@@ -81,7 +83,16 @@ demoUpdateTicketStatus(t3, 'lm_approved', { actorName: 'LM', actorRole: 'line_ma
 demoUpdateTicketStatus(t3, 'finalized', { actorName: 'Dir', actorRole: 'director' });
 const csNewSku = demoDB.csSkus.find((s) => s.id === mktOnly.id);
 check('cs auto-created from MKT', Boolean(csNewSku) && csNewSku.currentStock === transferQty && demoDB.csSkus.length === csSkuCount + 1);
-check('cs tx logged', demoDB.csTransactions.some((tx) => tx.ticketId === t3 && tx.type === 'addition'));
+// The receipts that CREATED the CS item is its opening balance → stamped
+// OPENING (never Stock In), so the dashboard does not count the same quantity
+// as Opening AND Stock In (migration 0019).
+check('cs genesis receipt stamped OPENING', demoDB.csTransactions.some((tx) => tx.ticketId === 'OPENING' && tx.skuId === mktOnly.id && tx.qty === transferQty));
+check('cs genesis arrival not counted as stock-in', getStockMovement(csNewSku!, demoDB.csTransactions).stockIn === 0);
+// A later arrival for the SAME item is a real Stock In. Restock the MKT side
+// first — the ticket transfer above may have emptied it.
+demoRestockSku(mktOnly.id, 1, 'WH');
+demoTransferMktToCs(mktOnly.id, 1, 'WH', 'smoke top-up');
+check('cs later arrival is a real Stock In', demoDB.csTransactions.some((tx) => tx.ticketId === 'MKT_TRANSFER' && tx.skuId === mktOnly.id && tx.qty === 1) && getStockMovement(csNewSku!, demoDB.csTransactions).stockIn === 1);
 
 console.log('-- Borrow + return --');
 const t4 = demoCreateTicket({

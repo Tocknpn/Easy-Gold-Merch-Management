@@ -282,20 +282,45 @@ demoUpdateTicketStatus(t6, 'lm_approved', { actorRole: 'line_manager' });
 check('CS still not credited at lm_approved', csStock(sku6) === before6c);
 demoUpdateTicketStatus(t6, 'finalized', { actorRole: 'director' });
 check('CS credited +10 at finalize', csStock(sku6) === before6c + 10);
-check('CS tx logged with auto-transfer comment', demoDB.csTransactions.some((tx) => tx.ticketId === t6 && tx.type === 'addition' && tx.comment?.includes('Auto-transferred from MKT WH - Ticket: ' + t6)));
-check('CS genesis SKU created (opening balance = 10)', demoDB.csSkus.some((s) => s.id === sku6 && s.openingBalance === 10 && s.currentStock === before6c + 10));
+// The arrival that CREATED the CS item is its opening balance, so the ledger row
+// is stamped OPENING and the dashboard shows it under Opening only (a ticket
+// reference there made it count as Opening AND Stock In — see migration 0019).
+const cs6 = () => demoDB.csSkus.find((s) => s.id === sku6)!;
+check('CS genesis receipt stamped OPENING (not the ticket id)', demoDB.csTransactions.some((tx) => tx.ticketId === 'OPENING' && tx.skuId === sku6 && tx.qty === 10 && tx.comment?.includes('Auto-transferred from MKT WH - Ticket: ' + t6)));
+check('CS genesis arrival is not counted as Stock In', getStockMovement(cs6(), demoDB.csTransactions).stockIn === 0);
+check('CS genesis SKU created (opening balance = 10)', cs6().openingBalance === 10 && cs6().currentStock === before6c + 10);
 check('combined MKT+CS total preserved', (skuStock(sku6) + csStock(sku6)) === (before6m - 10) + (before6c + 10));
+
+// A SECOND cs_transfer for the same item is a normal refill → real ticket id,
+// so it shows up as Stock In while Opening keeps the genesis quantity.
+const t6b = demoCreateTicket({
+  createdBy: cs.email, createdByName: cs.fullName, department: cs.department, type: 'cs_transfer',
+  deliveryDate: '2026-12-03', remark: 'top up CS',
+  items: [{ skuId: sku6, skuName: 'WF CTSku', qtyRequested: 4, unit: 'pcs' }],
+});
+demoUpdateTicketStatus(t6b, 'reviewed', { actorRole: 'warehouse' });
+demoUpdateTicketStatus(t6b, 'lm_approved', { actorRole: 'line_manager' });
+demoUpdateTicketStatus(t6b, 'finalized', { actorRole: 'director' });
+check('CS refill credited +4', csStock(sku6) === before6c + 14);
+check('CS refill stamped with the ticket id', demoDB.csTransactions.some((tx) => tx.ticketId === t6b && tx.skuId === sku6 && tx.type === 'addition' && tx.qty === 4));
+check('CS refill counts as Stock In (+4), Opening unchanged at 10', getStockMovement(cs6(), demoDB.csTransactions).stockIn === 4 && cs6().openingBalance === 10);
 console.log('\n── 7) MKT ↔ CS manual transfers (move stock)');
 const sku7m = addSku({ name: 'WF Move', category: 'MKT', unit: 'pcs', openingBalance: 30 });
 const b7 = skuStock(sku7m), c7 = csStock(sku7m);
 demoTransferMktToCs(sku7m, 5, S(wh.email), 'send to CS');
 check('MKT→CS: MKT −5', skuStock(sku7m) === b7 - 5);
 check('MKT→CS: CS +5', csStock(sku7m) === c7 + 5);
+check('MKT→CS: CS item auto-created and visible', demoDB.csSkus.some((s) => s.id === sku7m && s.currentStock === 5 && s.openingBalance === 5));
+check('MKT→CS: first arrival stamped OPENING (no phantom Stock In)', demoDB.csTransactions.some((tx) => tx.ticketId === 'OPENING' && tx.skuId === sku7m && tx.qty === 5) && getStockMovement(demoDB.csSkus.find((s) => s.id === sku7m)!, demoDB.csTransactions).stockIn === 0);
 check('MKT→CS: tx in both ledgers', demoDB.transactions.some((tx) => tx.ticketId === 'MKT_TRANSFER' && tx.skuId === sku7m && tx.type === 'deduction') && demoDB.csTransactions.some((tx) => tx.skuId === sku7m && tx.type === 'addition'));
+// Second arrival of the same item is a real Stock In (the item already exists)
+demoTransferMktToCs(sku7m, 3, S(wh.email), 'top-up');
+check('MKT→CS: later arrival is a real Stock In (+3)', demoDB.csTransactions.some((tx) => tx.ticketId === 'MKT_TRANSFER' && tx.skuId === sku7m && tx.type === 'addition' && tx.qty === 3) && getStockMovement(demoDB.csSkus.find((s) => s.id === sku7m)!, demoDB.csTransactions).stockIn === 3);
 const b7b = skuStock(sku7m), c7b = csStock(sku7m);
 demoTransferCsToMkt(sku7m, 5, S(wh.email));
 check('CS→MKT: CS −5', csStock(sku7m) === c7b - 5);
 check('CS→MKT: MKT +5', skuStock(sku7m) === b7b + 5);
+check('CS→MKT: MKT receipt is a Stock In (item already exists)', demoDB.transactions.some((tx) => tx.ticketId === 'CS_TRANSFER' && tx.skuId === sku7m && tx.type === 'addition' && tx.qty === 5));
 check('over-transfer MKT blocked', throws(() => demoTransferMktToCs(sku7m, skuStock(sku7m) + 1, S(wh.email)), /invalid transfer quantity|insufficient/i));
 check('zero/negative transfer blocked', throws(() => demoTransferMktToCs(sku7m, 0, S(wh.email)), /invalid transfer quantity/i));
 

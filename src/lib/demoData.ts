@@ -246,15 +246,33 @@ export function demoMktDestockSku(id: string, qty: number, actionBy?: string, co
   });
 }
 
+// ── Item identity across warehouses (mirrors transfer_mkt_to_cs in 0018) ──
+// The shared SKU id first, then the trimmed/lowercased name — a CS item typed
+// in by hand keeps its own CS-SKU-… id and only the name matches, so it is
+// topped up instead of being duplicated (same rule as warehouseMerge.ts).
+const normName = (s?: string | null) => (s || '').trim().toLowerCase();
+const csMatch = (id: string, name: string) =>
+  demoDB.csSkus.find((s) => s.id === id) || demoDB.csSkus.find((s) => normName(s.name) === normName(name));
+const mktMatch = (id: string, name: string) =>
+  demoDB.skus.find((s) => s.id === id) || demoDB.skus.find((s) => normName(s.name) === normName(name));
+
 // MKT → CS warehouse transfer (done by the MKT team)
+// The arrival that CREATES the CS item IS its opening balance, so that ledger
+// row is stamped 'OPENING' (never counted as Stock In); every later arrival of
+// the same item is a real Stock In under the MKT_TRANSFER reference.
 export function demoTransferMktToCs(skuId: string, qty: number, actionBy: string, comment?: string): void {
   const mkt = demoDB.skus.find((s) => s.id === skuId);
   if (!mkt) throw new Error('SKU not found');
   if (!(qty > 0) || qty > mkt.currentStock) throw new Error('Invalid transfer quantity');
+  const note = comment?.trim();
   mkt.currentStock -= qty;
-  const cs = demoDB.csSkus.find((s) => s.id === skuId);
-  if (cs) { cs.currentStock += qty; cs.totalInflow += qty; }
-  else {
+
+  const cs = csMatch(skuId, mkt.name);
+  const genesis = !cs;
+  if (cs) {
+    cs.currentStock += qty;
+    cs.totalInflow += qty;
+  } else {
     demoDB.csSkus.push({
       id: skuId, name: mkt.name, category: mkt.category || 'General', unit: mkt.unit || 'pcs',
       openingBalance: qty, currentStock: qty, totalInflow: qty, imageUrl: mkt.imageUrl || null,
@@ -266,26 +284,58 @@ export function demoTransferMktToCs(skuId: string, qty: number, actionBy: string
     id: nextLedgerId(),
     ticketId: 'MKT_TRANSFER', skuId, skuName: mkt.name, qty, type: 'deduction',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
-    status: 'Transferred to CS', comment: comment || 'Transferred to CS warehouse',
+    status: 'Transferred to CS', comment: note || 'Transferred to CS warehouse',
   });
-  demoDB.csTransactions.unshift({
+  demoDB.csTransactions.unshift(genesis ? {
     id: nextLedgerId(),
-    ticketId: 'MKT_TRANSFER_IN', skuId, skuName: mkt.name, qty, type: 'addition',
+    ticketId: 'OPENING', skuId, skuName: mkt.name, qty, type: 'addition',
+    date: todayStr(), actionAt: new Date().toISOString(), actionBy: 'MKT Warehouse',
+    comment: 'Auto-transferred from MKT WH - opening balance' + (note ? ' - ' + note : ''),
+  } : {
+    id: nextLedgerId(),
+    ticketId: 'MKT_TRANSFER', skuId: cs!.id, skuName: cs!.name, qty, type: 'addition',
     date: todayStr(), actionAt: new Date().toISOString(), actionBy,
-    comment: 'Auto-transferred from MKT WH' + (comment ? ' — ' + comment : ''),
+    comment: 'Transferred from MKT warehouse' + (note ? ' - ' + note : ''),
   });
 }
 
+// CS → MKT warehouse transfer (return trip) — mirror of the SQL engine.
 export function demoTransferCsToMkt(skuId: string, qty: number, actionBy: string): void {
   const cs = demoDB.csSkus.find((s) => s.id === skuId);
   if (!cs) throw new Error('CS SKU not found');
   if (!(qty > 0) || qty > cs.currentStock) throw new Error('Invalid transfer quantity');
-  const mkt = demoDB.skus.find((s) => s.id === skuId);
-  if (mkt) mkt.currentStock += qty;
-  else demoDB.skus.push({ ...cs, currentStock: qty, totalInflow: qty });
   cs.currentStock -= qty;
-  demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'CS_TRANSFER', skuId, skuName: cs.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Returned to MKT', comment: 'Transferred from CS warehouse' });
-  demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'CS_TRANSFER_OUT', skuId, skuName: cs.name, qty, type: 'deduction', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: 'Transferred back to MKT warehouse' });
+
+  const mkt = mktMatch(skuId, cs.name);
+  const genesis = !mkt;
+  if (mkt) {
+    mkt.currentStock += qty;
+    mkt.totalInflow += qty;
+  } else {
+    demoDB.skus.push({
+      id: skuId, name: cs.name, category: cs.category || 'General', unit: cs.unit || 'pcs',
+      openingBalance: qty, currentStock: qty, totalInflow: qty, imageUrl: cs.imageUrl || null,
+      lowStockThreshold: cs.lowStockThreshold || 0, costPerUnit: cs.costPerUnit || 0,
+      createdAt: todayStr(), status: 'active',
+    });
+  }
+  demoDB.csTransactions.unshift({
+    id: nextLedgerId(),
+    ticketId: 'CS_TRANSFER_OUT', skuId, skuName: cs.name, qty, type: 'deduction',
+    date: todayStr(), actionAt: new Date().toISOString(), actionBy,
+    comment: 'Transferred back to MKT warehouse',
+  });
+  demoDB.transactions.unshift(genesis ? {
+    id: nextLedgerId(),
+    ticketId: 'OPENING', skuId, skuName: cs.name, qty, type: 'addition',
+    date: todayStr(), actionAt: new Date().toISOString(), actionBy: 'CS Warehouse',
+    status: 'Opening', comment: 'Auto-transferred from CS WH - opening balance',
+  } : {
+    id: nextLedgerId(),
+    ticketId: 'CS_TRANSFER', skuId: mkt!.id, skuName: mkt!.name, qty, type: 'addition',
+    date: todayStr(), actionAt: new Date().toISOString(), actionBy,
+    status: 'Returned to MKT', comment: 'Transferred from CS warehouse',
+  });
 }
 
 // ── Edit an existing stock movement row (mirrors edit_stock_movement in

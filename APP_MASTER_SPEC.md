@@ -244,11 +244,19 @@ Drives the category dropdowns. Managed from System Settings.
 `SKU_ID, Name, Category, Unit, Opening_Balance, Current_Stock, Total_Inflow, Low_Stock_Threshold, Cost_Per_Unit, Image, CreatedAt`
 - Auto-created on first `cs_skus` call; SKUs auto-created from MKT master on finalized `cs_transfer` tickets
   (copies name/category/unit/threshold/cost/image; first arrival becomes Opening Balance).
+- Also auto-created by the **MKT → CS Transfer** (`Manage Stock → Transfer`, migration `0018`), which credits the
+  existing CS row when the item is already catalogued. Both paths resolve the CS item by the shared SKU id
+  **then** by trimmed-lowercased name (same rule as `matchAcrossWarehouses`), so a hand-typed `CS-SKU-…` row
+  is topped up instead of duplicated.
 
 ### 4.10 `CS_Transactions`
 `ID, Ticket_ID, SKU_ID, SKU_Name, Qty, Type, Date, Action_At, Action_By, Comment`
 - `Ticket_ID` sentinels: `OPENING` (SKU genesis arrival tagged to not count as stock-in), `RESTOCK`, `DIRECT_DESTOCK`,
-  or a real MKT `TKT-xxxxx` when transferred in; comment always starts `Auto-transferred from MKT WH - Ticket: …`.
+  `MKT_TRANSFER` (a later MKT → CS receipt — a real Stock In), `CS_TRANSFER_OUT` (CS → MKT out),
+  or a real MKT `TKT-xxxxx` when transferred in by a ticket; comment starts `Auto-transferred from MKT WH - Ticket: …`.
+- **Only the arrival that CREATES the CS item is `OPENING`** (it *is* the opening balance); every later arrival for
+  the same item keeps its real reference and counts as Stock In — otherwise the Dashboard shows the same quantity
+  under Opening *and* Stock In. Enforced by `update_ticket_status` (0019) and `transfer_mkt_to_cs` (0018).
 
 ### 4.11 `Email_Debug` (helper log)
 Backend writes email send status here via `logEmailDebug(ss, msg)` for troubleshooting.
@@ -344,6 +352,10 @@ Fire inside `updateTicket` when new status is `finalized` **and** ticket `Type` 
     becomes `Opening_Balance`, `Current_Stock`, `Total_Inflow`.
   - Append `addition` transaction in `CS_Transactions`; `ticket_id` = `OPENING` for genesis SKUs else real ticket id;
     `action_by='MKT Warehouse'`; comment `Auto-transferred from MKT WH - Ticket: <id>`.
+    (Migration `0019` enforces this: the SQL engine used the ticket id for the genesis row too, so the Dashboard
+    counted the same quantity as Opening **and** Stock In. Section 2 of 0019 re-stamps the rows already written.)
+  - The CS item is resolved by the shared SKU id first, then by trimmed-lowercased name (migration `0019`), so an
+    item that only exists in CS under a hand-typed `CS-SKU-…` id is topped up instead of duplicated.
 
 ### 5.6 Email notifications (`sendEmailNotification`)
 | ticket.status | recipients |
