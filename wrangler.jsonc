@@ -1,6 +1,17 @@
 {
-  "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "easy-gold-merch",
-  "compatibility_date": "2026-07-10",
-  "pages_build_output_dir": "./dist"
+  // Cloudflare Workers static assets deployment config
+  // Docs: https://developers.cloudflare.com/workers/static-assets/
+  "name": "easy-gold-merch-system",
+  "compatibility_date": "2025-01-01",
+
+  // Expose on workers.dev (the unblocked domain)
+  "workers_dev": true,
+
+  // No main entrypoint — purely static assets
+  // "main" is intentionally omitted
+
+  "assets": {
+    "directory": "./dist",
+    "not_found_handling": "single-page-application"
+  }
 }
