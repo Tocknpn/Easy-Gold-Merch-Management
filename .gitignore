@@ -7,3 +7,4 @@ dist
 .vite
 supabase/.temp
 *.log
+email-preview

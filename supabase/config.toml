@@ -1,0 +1,12 @@
+# ── Supabase project config (CLI) ────────────────────────────────────────
+# Only what this repo needs: deploy the ticket-notification Edge Function.
+#   npx supabase login
+#   npx supabase link --project-ref <your-project-ref>
+#   npm run functions:deploy
+project_id = "easy-gold-merch"
+
+[functions.send-ticket-email]
+# The function is called by a Postgres trigger (pg_net) which has no user
+# session, so it must not require a Supabase JWT. It authenticates the caller
+# with a shared secret header instead (EMAIL_WEBHOOK_SECRET).
+verify_jwt = false

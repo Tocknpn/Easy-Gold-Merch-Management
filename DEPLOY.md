@@ -151,6 +151,87 @@ Your Excel users keep their same email + password (`easygold1234` default).
 2. Under **Realtime → supabase_realtime** click the **paper toggle** to enable all tables
    (`skus, cs_skus, tickets, ticket_items, stock_transactions, cs_transactions, categories, system_config`).
    (If your plan doesn't show this page, it's already enabled — the app handles it automatically.)
+
+---
+
+### 2.6 Email notifications (who gets told when a ticket moves)
+
+Nothing here is required for the app to work — every ticket action succeeds with
+or without email. This is what makes the workflow *tell* people.
+
+**How it decides who and when** — you never maintain a list in Google:
+
+| Ticket moves to | Goes to | Copy to |
+|---|---|---|
+| `pending` (just created) | every active **Warehouse** user | the requester (receipt) |
+| `reviewed` | every active **Line Manager** | the requester |
+| `lm_approved` | every active **Director** | the Line Managers |
+| `finalized` | the **requester** | the Warehouse |
+| `rejected` | the **requester** | whoever rejected it |
+| `returned` / `recalled` | the **requester** | the Warehouse |
+
+Add a new Line Manager in **System Settings → Users** and they start receiving
+Line Manager mail immediately.
+
+```bash
+npm run email:preview     # optional: render all 7 emails to email-preview/*.html
+```
+
+**Step 1 — the sending mailbox (Google, ~5 min)**
+1. Sign in to **https://script.google.com** *as the sending account*
+   (`tockppd@gmail.com`, or create a dedicated `Tock.easygold@gmail.com` one —
+   use an incognito window if several Google accounts are signed in).
+2. **New project** → name it `Easy Gold Mail Relay` → paste the whole of
+   **`apps-script/EmailRelay.gs`** over `Code.gs` → **Save**.
+3. ⚙ **Project Settings → Script properties → Add script property**:
+   `RELAY_SECRET` = a long random string (keep it — it goes into Supabase next).
+4. **Run → testSend** → approve the permission prompt → check that inbox.
+5. **Deploy → New deployment → Web app** — *Execute as: **Me***, *Who has access:
+   **Anyone*** → **Deploy** → copy the **`/exec`** URL.
+
+> ⚠️ A free `@gmail.com` account may send **100 recipients/day** (1,500 on Google
+> Workspace), counted per address in To + Cc. Every email reports how much is
+> left and it is stored in `email_log`, which **System Settings → Email** shows as
+> a warning. Google Workspace, a distribution group address, or switching
+> `EMAIL_PROVIDER` to Brevo/Resend/SendGrid removes the ceiling.
+
+**Step 2 — the database side (Supabase SQL editor, ~1 min)**
+1. Run `supabase/migrations/0020_email_notifications.sql` (creates `email_log`,
+   the trigger and the notification settings).
+2. Store the trigger's secret — **use the same string in both places**:
+   ```sql
+   select vault.create_secret('<any long random string>', 'email_webhook_secret');
+   ```
+3. Check the ⚠️ line in the migration's output: `email_notify_url` must be
+   `https://<your-project>.supabase.co/functions/v1/send-ticket-email`
+   (editable later in System Settings → Email, and in the migration it is
+   pre-filled with this repo's project).
+
+**Step 3 — deploy the function (terminal, ~2 min)**
+```bash
+npx supabase login
+npx supabase link --project-ref <your-project-ref>
+npm run functions:deploy
+
+npx supabase secrets set \
+  EMAIL_PROVIDER=relay \
+  EMAIL_FROM_NAME="Easy Gold Merch System" \
+  EMAIL_RELAY_URL="<the /exec URL from step 1>" \
+  EMAIL_RELAY_SECRET="<the RELAY_SECRET from step 1>" \
+  EMAIL_WEBHOOK_SECRET="<the same string you put in Vault>" \
+  APP_URL="https://easy-gold-merch.pages.dev"
+```
+
+**Step 4 — prove it (~1 min)**
+Open **System Settings → Email**: every line should be green. Press
+**Send test email** (arrives in your own inbox), then open **Open preview** to
+see exactly what a recipient sees. Finally create a real request — the Warehouse
+gets it within a second or two, and every attempt appears in **Delivery log**.
+
+> If a ticket moves but nobody is emailed, the reason is written in the Delivery
+> log (switch off, URL/secret missing, quota exhausted…). Emails never block a
+> ticket: the stock movement always completes.
+
 ---
 
 ## PART 3 — Cloudflare (host the website + automatic deploys)

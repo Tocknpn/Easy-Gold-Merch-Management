@@ -1,9 +1,9 @@
 // ── Ticket Tracking: your requests + every ticket + full stock-movement audit ──
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
   Search, Download, ListChecks, ArrowRightLeft, Clock3, CircleCheck, XCircle, Undo2, Loader2,
-  Package, FileX2, MoreHorizontal, FileText, PencilLine, Lock, PackageCheck,
+  Package, FileX2, MoreHorizontal, FileText, PencilLine, Lock, PackageCheck, Mail,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -14,6 +14,7 @@ import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
 import { EditMovementModal } from '@/components/EditMovementModal';
 import { fmt, money, cn, todayStr } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
+import { resendTicketEmail } from '@/lib/ticketNotify';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
 import { TYPE_LABELS } from '@/lib/types';
 
@@ -143,6 +144,21 @@ export function TicketTrackingPage() {
     setJumpToReturn(true);
   };
 
+  // Deep link from a notification email: /ticket-tracking?ticket=TKT-…
+  // A result email goes to the requester, but a warehouse/manager may open one
+  // too, so widen the scope when the ticket is not in "My Requests".
+  const [jumpToTicket, setJumpToTicket] = useState('');
+  const wanted = params.get('ticket') || '';
+  useEffect(() => {
+    if (!wanted) return;
+    const t = tickets.find((x) => x.id === wanted);
+    if (!t) return;
+    if (scope === 'mine' && !mine.some((x) => x.id === wanted) && canAll) {
+      setScope('all');
+    }
+    setJumpToTicket(wanted);
+  }, [wanted, tickets, mine, canAll, scope]);
+
   const card = (key: 'active' | 'toReturn' | 'done' | 'closed', onPick?: () => void) => {
     const defs = {
       active: { label: 'Active in pipeline', sub: 'pending · review · approved', tone: 'text-amber-600', bg: 'from-amber-50 to-orange-50', ring: 'ring-amber-200', icon: <Clock3 className="h-4 w-4 text-amber-500" />, chip: 'bg-amber-100 text-amber-700' },
@@ -222,6 +238,7 @@ export function TicketTrackingPage() {
           mineOnly={scope === 'mine'}
           jumpToReturn={jumpToReturn}
           onJumpHandled={() => setJumpToReturn(false)}
+          jumpToTicket={jumpToTicket}
         />
       )}
     </div>
@@ -230,11 +247,13 @@ export function TicketTrackingPage() {
 
 /* ── Tickets list (scope: mine or all) ──────────────────────────────────── */
 
-function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled }: {
+function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
   mineOnly: boolean;
   /** Set by the "To return to WH" stat card: jump the status filter to to-return. */
   jumpToReturn?: boolean;
   onJumpHandled?: () => void;
+  /** Ticket id from a notification email's button (?ticket=TKT-…). */
+  jumpToTicket?: string;
 }) {
   const { user } = useAuth();
   const { tickets, skus, updateTicketStatus, actions } = useData();
@@ -253,6 +272,35 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled }: {
     setStatus('to-return');
     onJumpHandled?.();
   }, [jumpToReturn, onJumpHandled]);
+
+  // Email deep link (?ticket=). Recorded so closing the modal does not reopen
+  // it — only a *different* ticket id opens a new one.
+  const openedJump = useRef('');
+  useEffect(() => {
+    if (!jumpToTicket || openedJump.current === jumpToTicket) return;
+    const t = tickets.find((x) => x.id === jumpToTicket);
+    if (!t) return;
+    openedJump.current = jumpToTicket;
+    setOpen(t);
+  }, [jumpToTicket, tickets]);
+
+  // Re-send this ticket's notification on demand (warehouse / admin).
+  const [emailBusy, setEmailBusy] = useState(false);
+  const resend = async (ticket: TicketWithItems) => {
+    setEmailBusy(true);
+    try {
+      const res = await resendTicketEmail(ticket.id);
+      if (res.ok && !res.error) {
+        toast(`Notification sent to ${res.to?.length || 0} recipient${res.to?.length === 1 ? '' : 's'}`);
+      } else {
+        toast(res.error || 'The notification could not be sent', 'error');
+      }
+    } catch (e: any) {
+      toast(e?.message || 'The notification could not be sent', 'error');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   const rows = useMemo(() => {
     let out = tickets;
@@ -486,6 +534,20 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled }: {
           wide
         >
           <TicketDetail ticket={open} skus={skus} actions={actions} />
+          {canProcessReturn && (
+            <div className="mt-3 flex justify-end">
+              <button
+                type="button"
+                className="btn btn-secondary btn-sm"
+                onClick={() => void resend(open)}
+                disabled={emailBusy}
+                title="Send this ticket's notification email again"
+              >
+                {emailBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
+                Email this notification again
+              </button>
+            </div>
+          )}
           {isPendingReturn(open) &&
             (canProcessReturn ? (
               <ProcessReturnPanel ticket={open} onDone={() => setOpen(null)} />

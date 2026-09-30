@@ -110,6 +110,13 @@ You can log in with any account from the demo chips on the login screen
      id then name. Section 2 re-stamps rows the old engine already mis-stamped (idempotent); `engine_version` stays
      `0014`.
 
+   - `supabase/migrations/0020_email_notifications.sql` — **ticket notification emails**: an `email_log`
+     trail, the `email_enabled` / `email_from_name` / `email_app_url` / `email_notify_url` settings, and a
+     trigger on `tickets` that hands every creation + status change to the `send-ticket-email` Edge Function
+     through `pg_net` (queued, so it fires only after the ticket action commits and never delays the screen).
+     Emails are sent from your own Gmail by the relay in `apps-script/EmailRelay.gs`. Setup:
+     **`DEPLOY.md` → 2.6**. Safe to re-run.
+
    > Every migration is **safe to re-run** (`if not exists` / `create or replace`), so paste the
    > whole file into the SQL Editor and press **Run** — even if it was already applied.
    > If you ever re-run `0006_ensure_reads.sql`, re-run `0009_user_management.sql` afterwards
@@ -157,6 +164,32 @@ Non-admins (Warehouse / Customer Service) still see the list but read-only.
 
 > ℹ️ Already have users from the Excel seed? Run **`npm run seed:auth`** once after applying 0009 to
 > back-fill `public.users.password` from `data/Users.csv`.
+### 2c. Email notifications (sent from your own Gmail)
+
+Every ticket action emails the next level automatically — no list to maintain, no
+script to babysit. Create a request → the **Warehouse** is told; it is reviewed →
+the **Line Manager**; approved → the **Director**; finalized or rejected → the
+**requester** gets the result. Recipients come straight from `public.users`, so
+adding a Line Manager in System Settings is all it takes to include them.
+
+| Where | What lives there |
+|---|---|
+| `supabase/migrations/0020_email_notifications.sql` | `email_log` (the old *Email_Debug* sheet), the notification settings, and the trigger that fires on every status change |
+| `supabase/functions/send-ticket-email/` | the Edge Function: **who** gets notified, the HTML, de-duplication, sending, logging |
+| `apps-script/EmailRelay.gs` | the ~5-minute Google relay that actually sends from your Gmail account |
+| **System Settings → Email** | on/off switch, sender name, app URL, **preview**, **send test**, delivery log + Gmail-quota warning |
+
+```bash
+npm run email:preview     # render all 7 emails from real data → email-preview/index.html
+npm run test:email        # unit-test the recipient rules + the template
+npm run functions:deploy  # publish the Edge Function (needs: npx supabase login)
+```
+
+> 📘 **Full setup (Gmail relay, Vault secret, function secrets): `DEPLOY.md` → 2.6.**
+> Emails are best-effort by design: if Gmail is down or the daily quota is used
+> up, the reason is recorded in **System Settings → Email → Delivery log** and the
+> ticket still moves — a notification problem can never block a stock movement.
+
 ### 3. Run the app live
 
 ```bash
@@ -237,6 +270,40 @@ RLS is enabled — authenticated users can read; all writes go through security-
   "approved qty: X -> Y".
 
 All open tabs update within ~1s via Supabase Realtime, so Action Center badges and stock numbers stay in sync.
+
+### Notification emails (0020 + the `send-ticket-email` function)
+
+The database does not "poll" anything. A trigger on `public.tickets` fires the
+instant a row is inserted or its status changes, hands the ticket id to the Edge
+Function through `pg_net`, and the function resolves the recipients, renders the
+mail and sends it — so the ticketing workflow and the email can never disagree:
+
+| Ticket moves to | To | Cc |
+|---|---|---|
+| `pending` (created) | every active **Warehouse** user | the requester |
+| `reviewed` | every active **Line Manager** | the requester |
+| `lm_approved` | every active **Director** | the Line Managers |
+| `finalized` | the **requester** | the Warehouse |
+| `rejected` | the **requester** | whoever rejected it |
+| `returned` / `recalled` | the **requester** | the Warehouse |
+
+- The matrix, the subject lines and the HTML live in **one** file
+  (`supabase/functions/send-ticket-email/ticketEmail.ts`) which is also copied into
+  the app by `npm run email:template`, so **System Settings → Email → Preview**
+  shows exactly what the reader receives (navy title bar, requester / department /
+  reason block, the 7-column item table, the **Review Ticket in App** button and the
+  “automated notification” footer). Lao item names pass through untouched.
+- The button deep-links to `/action-center?ticket=…` for approvers and
+  `/ticket-tracking?ticket=…` for results, and the ticket opens by itself.
+- **Sent once**: one success per `(ticket, stage)`, enforced server-side. Only an
+  explicit *Email this notification again* click (Action Center / Ticket Tracking,
+  warehouse + admin) can repeat one.
+- **Never blocking**: `pg_net` queues the request and only sends it after the
+  ticket transaction commits, and the trigger swallows its own errors — a mail
+  problem is recorded in `email_log` (visible in the Delivery log) while the stock
+  movement completes normally.
+- **Quota aware**: a free `@gmail.com` relay allows 100 recipients/day; every reply
+  reports what is left and the app warns you before it runs out.
 
 ### Editing an SKU (Manage Stock → SKU Setup)
 
@@ -349,7 +416,21 @@ supabase/
   migrations/0018_transfer_mkt_to_cs.sql          transfer_mkt_to_cs() / transfer_cs_to_mkt() RPCs
                                                   (RLS-safe atomic move + auto-create the destination item)
   migrations/0019_cs_genesis_opening.sql          cs_transfer genesis receipt stamped OPENING + data repair
+  migrations/0020_email_notifications.sql        email_log + ticket notification trigger (pg_net)
+                                                 + email settings (install: DEPLOY.md 2.6)
   seed.sql                              auto-generated from your Excel data
+supabase/
+  config.toml              links the project + marks send-ticket-email as secret-authenticated
+  functions/send-ticket-email/
+    index.ts               the notification Edge Function (recipients, send, log)
+    ticketEmail.ts         recipient matrix + HTML template (canonical copy)
+    README.md              deploy + secrets + troubleshooting
+apps-script/
+  EmailRelay.gs            paste into script.google.com on the SENDING Gmail account
+scripts/
+  email-preview.ts         renders all 7 emails from real data  [npm run email:preview]
+  email-test.ts            recipient-matrix + template unit tests [npm run test:email]
+  sync-email-template.mjs  keeps src/lib/ticketEmail.ts in step  [npm run email:template]
 scripts/
   export-csv.mjs           Excel → data/*.csv (UTF-8 BOM, Lao-safe)   [npm run csv:export]
   lib/csv.mjs              shared robust CSV parser

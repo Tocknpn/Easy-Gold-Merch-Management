@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import type { ReactNode } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
   Inbox, CheckCircle2, XCircle, Undo2, PackageCheck, MessageSquare,
   CalendarDays, User2, Users, Loader2, ChevronRight, Clock, ChevronDown,
-  AlertTriangle, Package, FileText, X, Search, Send, ArrowUpDown, Gift, MoreHorizontal, Eye,
+  AlertTriangle, Package, FileText, X, Search, Send, ArrowUpDown, Gift, MoreHorizontal, Eye, Mail,
 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
@@ -13,6 +14,7 @@ import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { ApprovalPipeline } from '@/components/ApprovalPipeline';
 import { ConfirmTicketAction, type ConfirmKind } from '@/components/ConfirmTicketAction';
 import { cn, fmt, money, lastActionWhen, todayStr, safeImageUrl } from '@/lib/utils';
+import { resendTicketEmail } from '@/lib/ticketNotify';
 import type { TicketWithItems, TicketStatus, SKU, TicketAction } from '@/lib/types';
 import { STATUS_LABELS } from '@/lib/types';
 
@@ -87,6 +89,16 @@ export function ActionCenterPage() {
   }, [searched, sort]);
 
   const selected = queue.find((t) => t.id === selectedId) || null;
+
+  // Deep link from a notification email: /action-center?ticket=TKT-…
+  // The mail is only ever sent to the role that has to act, so the ticket is
+  // already in this role's queue — we just open it.
+  const [params] = useSearchParams();
+  const wantedTicket = params.get('ticket') || '';
+  useEffect(() => {
+    if (!wantedTicket || wantedTicket === selectedId) return;
+    if (tickets.some((t) => t.id === wantedTicket)) setSelectedId(wantedTicket);
+  }, [wantedTicket, tickets, selectedId]);
 
   if (loading) return <Spinner label="Loading action center…" />;
   if (error) return <ErrorBanner msg={error} retry={refresh} />;
@@ -368,6 +380,26 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, canOverAppro
   const [pipeOpen, setPipeOpen] = useState(true);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [ask, setAsk] = useState<ConfirmKind | null>(null);
+  const [emailBusy, setEmailBusy] = useState(false);
+
+  // Re-send this ticket's notification on demand (the normal path is automatic,
+  // fired by the database trigger). `force` is the only way to repeat one.
+  const resendEmail = async () => {
+    setEmailBusy(true);
+    try {
+      const res = await resendTicketEmail(ticket.id);
+      if (res.ok && !res.error) {
+        toast(`Notification sent to ${res.to?.length || 0} recipient${res.to?.length === 1 ? '' : 's'}`
+          + (res.cc?.length ? ` + cc ${res.cc.length}` : ''));
+      } else {
+        toast(res.error || 'The notification could not be sent', 'error');
+      }
+    } catch (e: any) {
+      toast(e?.message || 'The notification could not be sent', 'error');
+    } finally {
+      setEmailBusy(false);
+    }
+  };
 
   // Keep the sheets in sync when a different ticket, a fresh status or new
   // quantities arrive (realtime refresh / switching selection). Keyed on
@@ -473,6 +505,17 @@ function DetailPanel({ ticket, actions, skus, role, busy, isReturn, canOverAppro
           <span className="grid h-8 w-8 place-items-center rounded-lg text-slate-300" title={ticket.type.replace('_', ' ')}>
             <MoreHorizontal className="h-4 w-4" />
           </span>
+          {(role === 'admin' || role === 'warehouse') && (
+            <button
+              className="flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:bg-slate-50 hover:text-brand-600 disabled:opacity-40"
+              onClick={resendEmail}
+              disabled={busy || emailBusy}
+              title="Email this notification again"
+              aria-label="Resend notification email"
+            >
+              {emailBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Mail className="h-4 w-4" />}
+            </button>
+          )}
           <button
             className="flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 bg-rose-50 text-rose-600 transition hover:bg-rose-100 hover:text-rose-700"
             onClick={onBack} title="Close" aria-label="Close panel"

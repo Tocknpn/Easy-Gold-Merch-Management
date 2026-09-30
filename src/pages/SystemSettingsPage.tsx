@@ -1,13 +1,18 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   Users, FolderTree, ToggleRight, UserPlus, Pencil, KeyRound, Eye, EyeOff,
   Copy, Power, Trash2, Search, ShieldCheck, Loader2,
+  Mail, Send, RefreshCw, AlertTriangle, ExternalLink, CheckCircle2, XCircle, Clock,
 } from 'lucide-react';
 import { useAuth, getUserRoleLabel } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, Badge, Modal, toast } from '@/components/ui/primitives';
-import { ROLE_LABELS, type AppUser, type NewUserInput, type UserRole } from '@/lib/types';
-import { cn } from '@/lib/utils';
+import { ROLE_LABELS, type AppUser, type NewUserInput, type TicketWithItems, type UserRole } from '@/lib/types';
+import { cn, whenStamp } from '@/lib/utils';
+import {
+  emailFunctionStatus, fetchEmailLog, previewTicketEmail, sendTestEmail,
+  summariseEmails, type EmailFunctionStatus, type EmailLogRow, type EmailPreview,
+} from '@/lib/ticketNotify';
 
 /** Every role the app understands, in ROLE_LABELS order (drives the dropdowns). */
 const ROLE_OPTIONS = Object.keys(ROLE_LABELS) as UserRole[];
@@ -29,11 +34,11 @@ const EMPTY_DRAFT: UserDraft = {
   role: 'staff', status: 'Active', password: '',
 };
 
-type Tab = 'users' | 'categories' | 'config';
+type Tab = 'users' | 'categories' | 'config' | 'email';
 
 export function SystemSettingsPage() {
   const { user } = useAuth();
-  const { users, categories, config, loading, error, refresh } = useData();
+  const { users, categories, config, tickets, loading, error, refresh } = useData();
   const [tab, setTab] = useState<Tab>('users');
 
   if (loading) return <Spinner label="Loading settings…" />;
@@ -43,6 +48,7 @@ export function SystemSettingsPage() {
     { key: 'users', label: 'Users', icon: <Users className="h-4 w-4" /> },
     { key: 'categories', label: 'Categories', icon: <FolderTree className="h-4 w-4" /> },
     { key: 'config', label: 'Configuration', icon: <ToggleRight className="h-4 w-4" /> },
+    { key: 'email', label: 'Email', icon: <Mail className="h-4 w-4" /> },
   ];
 
   return (
@@ -70,6 +76,7 @@ export function SystemSettingsPage() {
 
       {tab === 'categories' && <CategoriesTab categories={categories} />}
       {tab === 'config' && <ConfigTab config={config} />}
+      {tab === 'email' && <EmailTab config={config} tickets={tickets} users={users} />}
       <p className="text-[11px] text-slate-400 no-print">Signed in as {user?.fullName} · {getUserRoleLabel(user?.role || '')}</p>
     </div>
   );
@@ -674,3 +681,366 @@ function PasswordModal({
     </Modal>
   );
 }
+
+// ─ Email tab — notification settings, template preview and delivery log ──
+// The who/when/what is decided server-side (supabase/functions/send-ticket-email
+// + the trigger in migration 0020); this tab configures it, proves it works and
+// shows what actually went out.
+function EmailTab({ config, tickets, users }: {
+  config: Record<string, string>;
+  tickets: TicketWithItems[];
+  users: AppUser[];
+}) {
+  const { manageConfig, refresh } = useData();
+  const { user } = useAuth();
+  const isAdmin = user?.role === 'admin';
+  const [enabled, setEnabled] = useState(String(config.email_enabled ?? 'true') !== 'false');
+  const [fromName, setFromName] = useState(config.email_from_name || 'Easy Gold Merch System');
+  const [appUrl, setAppUrl] = useState(config.email_app_url || '');
+  const [notifyUrl, setNotifyUrl] = useState(config.email_notify_url || '');
+  const [dirty, setDirty] = useState(false);
+
+  const [fn, setFn] = useState<EmailFunctionStatus | null>(null);
+  const [log, setLog] = useState<EmailLogRow[]>([]);
+  const [busy, setBusy] = useState<'' | 'save' | 'test' | 'preview' | 'reload'>('');
+  const [preview, setPreview] = useState<EmailPreview | null>(null);
+  const [pickedId, setPickedId] = useState('');
+
+  // Newest first, and never more than we are willing to render in a dropdown.
+  const previewables = useMemo(
+    () => [...tickets].sort((a, b) => (b.createdAt || '').localeCompare(a.createdAt || '')).slice(0, 60),
+    [tickets],
+  );
+  const picked = previewables.find((t) => t.id === pickedId) || previewables[0] || null;
+
+  const reload = async (silent = false) => {
+    if (!silent) setBusy('reload');
+    try {
+      const [status, rows] = await Promise.all([
+        emailFunctionStatus(),
+        // email_log is admin-only by row level security, so nobody else asks.
+        isAdmin ? fetchEmailLog(25).catch(() => [] as EmailLogRow[]) : Promise.resolve([] as EmailLogRow[]),
+      ]);
+      setFn(status);
+      setLog(rows);
+    } finally {
+      if (!silent) setBusy('');
+    }
+  };
+
+  useEffect(() => { void reload(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
+
+  const save = async () => {
+    setBusy('save');
+    try {
+      await manageConfig('email_enabled', enabled ? 'true' : 'false');
+      await manageConfig('email_from_name', fromName.trim() || 'Easy Gold Merch System');
+      await manageConfig('email_app_url', appUrl.trim().replace(/\/+$/, ''));
+      await manageConfig('email_notify_url', notifyUrl.trim());
+      toast('Email settings saved');
+      setDirty(false);
+      await refresh();
+      await reload(true);
+    } catch (e: any) {
+      toast(e?.message || 'Could not save the email settings', 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const test = async () => {
+    setBusy('test');
+    try {
+      const res = await sendTestEmail();
+      if (res.ok && !res.error) {
+        toast(`Test email sent to you${res.quotaLeft !== undefined ? ` · ${res.quotaLeft} recipients left today` : ''}`);
+      } else {
+        toast(res.error || 'The test email could not be sent', 'error');
+      }
+      await reload(true);
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const showPreview = async () => {
+    if (!picked) { toast('There is no ticket to preview yet', 'error'); return; }
+    setBusy('preview');
+    try {
+      setPreview(await previewTicketEmail(picked.id, { ticket: picked, users, appUrl }));
+    } catch (e: any) {
+      toast(e?.message || 'Could not render the preview', 'error');
+    } finally {
+      setBusy('');
+    }
+  };
+
+  const newestQuota = log.find((r) => r.quotaLeft !== null)?.quotaLeft ?? null;
+  const failures = log.filter((r) => r.ok === false);
+
+  return (
+    <div className="space-y-4">
+      <StatusCard fn={fn} enabled={enabled} quota={newestQuota} busy={busy === 'reload'} onReload={() => void reload()} />
+
+      {failures.length > 0 && (
+        <div className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            <b>{failures.length}</b> recent {failures.length === 1 ? 'attempt' : 'attempts'} failed —
+            the newest reason: “{failures[0].error}”. A failure never blocks a ticket; the ticket still moves.
+          </span>
+        </div>
+      )}
+
+      <div className="card card-pad max-w-3xl space-y-4">
+        <h2 className="text-sm font-semibold text-slate-800">Notification settings</h2>
+
+        <label className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3.5 py-3 ring-1 ring-slate-100">
+          <span className="text-sm text-slate-700">
+            Send ticket emails
+            <span className="block text-[11px] text-slate-400">
+              Warehouse on a new request → Line Manager on review → Director on approval → requester on the result.
+            </span>
+          </span>
+          <input
+            type="checkbox"
+            className="h-5 w-5 shrink-0 accent-brand-600"
+            checked={enabled}
+            onChange={(e) => { setEnabled(e.target.checked); setDirty(true); }}
+          />
+        </label>
+
+        <div className="grid gap-3.5 sm:grid-cols-2">
+          <div>
+            <label className="label">Sender name</label>
+            <input className="input" value={fromName}
+              onChange={(e) => { setFromName(e.target.value); setDirty(true); }} />
+          </div>
+          <div>
+            <label className="label">App URL (the button in the email)</label>
+            <input className="input" value={appUrl} placeholder="https://easy-gold-merch.pages.dev"
+              onChange={(e) => { setAppUrl(e.target.value); setDirty(true); }} />
+          </div>
+        </div>
+
+        <div>
+          <label className="label">Notify function URL</label>
+          <input className="input font-mono text-[12px]" value={notifyUrl}
+            onChange={(e) => { setNotifyUrl(e.target.value); setDirty(true); }} />
+          <p className="mt-1 text-[11px] text-slate-400">
+            Supabase → Functions → <code>send-ticket-email</code>. The database trigger calls this
+            URL on every status change; the secret it sends is stored in Supabase Vault
+            (<code>email_webhook_secret</code>), never here.
+          </p>
+        </div>
+
+        {dirty && <p className="text-[11px] font-semibold text-amber-700">Unsaved changes</p>}
+
+        <div className="flex flex-wrap items-center gap-2">
+          <button className="btn btn-primary btn-sm" onClick={save} disabled={busy !== ''}>
+            {busy === 'save' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ToggleRight className="h-3.5 w-3.5" />}
+            Save settings
+          </button>
+          <button className="btn btn-secondary btn-sm" onClick={test} disabled={busy !== '' || !fn?.deployed}
+            title={fn?.deployed ? 'Send the current template to your own inbox' : 'Deploy the function first'}>
+            {busy === 'test' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
+            Send test email
+          </button>
+        </div>
+      </div>
+
+      <div className="card max-w-3xl overflow-hidden">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">Email preview</h2>
+            <p className="text-[11px] text-slate-400">Exactly what the recipient sees — rendered from a real ticket.</p>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <select
+              className="input h-9 w-full max-w-[220px] text-[12px]"
+              value={picked?.id || ''}
+              onChange={(e) => setPickedId(e.target.value)}
+            >
+              {previewables.length === 0 && <option value="">No tickets yet</option>}
+              {previewables.map((t) => (
+                <option key={t.id} value={t.id}>{t.id} · {t.status}</option>
+              ))}
+            </select>
+            <button className="btn btn-secondary btn-sm" onClick={showPreview} disabled={busy !== '' || !picked}>
+              {busy === 'preview' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Eye className="h-3.5 w-3.5" />}
+              Open preview
+            </button>
+          </div>
+        </div>
+        <p className="px-4 py-3 text-[11px] text-slate-400">
+          The preview is rendered by the same code that sends the real mail, so what you open here is
+          character-for-character what Gmail will show.
+        </p>
+      </div>
+
+      <div className="card max-w-3xl overflow-hidden">
+        <div className="flex items-center justify-between gap-2 border-b border-slate-100 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">Delivery log</h2>
+            <p className="text-[11px] text-slate-400">
+              {isAdmin
+                ? 'The last 25 notification attempts (the old “Email_Debug” sheet, now queryable).'
+                : 'Only an Admin can read the delivery log.'}
+            </p>
+          </div>
+          <button className="btn btn-secondary btn-sm" onClick={() => void reload()} disabled={busy !== ''}>
+            {busy === 'reload' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+            Refresh
+          </button>
+        </div>
+        {log.length === 0 ? (
+          <p className="px-4 py-6 text-center text-[12px] text-slate-400">
+            Nothing logged yet. Create a ticket (or press “Send test email”) and the attempts appear here.
+          </p>
+        ) : (
+          <div className="overflow-x-auto">
+            <table className="w-full text-[12px]">
+              <thead>
+                <tr className="border-b border-slate-100 text-left">
+                  <th className="table-head px-4 py-2">When</th>
+                  <th className="table-head px-4 py-2">Ticket</th>
+                  <th className="table-head px-4 py-2">Subject</th>
+                  <th className="table-head px-4 py-2">To</th>
+                  <th className="table-head px-4 py-2">Result</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-50">
+                {log.map((r) => (
+                  <tr key={r.id} className="hover:bg-slate-50/70">
+                    <td className="whitespace-nowrap px-4 py-2 text-slate-500">{whenStamp(r.at) || r.at}</td>
+                    <td className="px-4 py-2 font-medium text-slate-700">{r.ticketId || '—'}</td>
+                    <td className="max-w-[260px] truncate px-4 py-2 text-slate-600" title={r.subject}>{r.subject || '—'}</td>
+                    <td className="px-4 py-2 text-slate-500" title={[...r.to, ...r.cc].join(', ')}>
+                      {summariseEmails(r.to)}
+                      {r.cc.length > 0 && <span className="text-slate-400"> · cc {summariseEmails(r.cc)}</span>}
+                    </td>
+                    <td className="px-4 py-2">
+                      {r.ok === true && (
+                        <span className="inline-flex items-center gap-1 font-semibold text-emerald-700">
+                          <CheckCircle2 className="h-3.5 w-3.5" /> Sent
+                          {r.quotaLeft !== null && <span className="font-normal text-slate-400">· {r.quotaLeft} left</span>}
+                        </span>
+                      )}
+                      {r.ok === null && (
+                        <span className="inline-flex items-center gap-1 text-slate-500">
+                          <Clock className="h-3.5 w-3.5" /> Queued
+                        </span>
+                      )}
+                      {r.ok === false && (
+                        <span className="inline-flex items-start gap-1 text-rose-700" title={r.error || ''}>
+                          <XCircle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                          <span className="max-w-[220px]">{r.error || 'Failed'}</span>
+                        </span>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+      {preview && (
+        <Modal open onClose={() => setPreview(null)} title={`Email preview — ${picked?.id || ''}`} wide>
+          <div className="space-y-3">
+            <div className="rounded-xl bg-slate-50 px-3.5 py-2.5 text-[12px] ring-1 ring-slate-100">
+              <p className="text-slate-500">Subject</p>
+              <p className="font-semibold text-slate-800">{preview.subject}</p>
+              <p className="mt-2 text-slate-500">To</p>
+              <p className="text-slate-800">{preview.to.join(', ') || '—'}</p>
+              {preview.cc.length > 0 && (<>
+                <p className="mt-2 text-slate-500">Cc</p>
+                <p className="text-slate-800">{preview.cc.join(', ')}</p>
+              </>)}
+            </div>
+            <iframe
+              title="Ticket notification email"
+              srcDoc={preview.html}
+              className="h-[540px] w-full rounded-xl border border-slate-200 bg-white"
+              sandbox=""
+            />
+            <div className="flex justify-end gap-2">
+              <button className="btn btn-secondary btn-sm" onClick={() => setPreview(null)}>Close</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+    </div>
+  );
+}
+
+/** Health card: is the chain wired end-to-end, and how much Gmail quota is left? */
+function StatusCard({ fn, enabled, quota, busy, onReload }: {
+  fn: EmailFunctionStatus | null;
+  enabled: boolean;
+  quota: number | null;
+  busy: boolean;
+  onReload: () => void;
+}) {
+  const rows: { label: string; ok: boolean | null; note?: string }[] = [
+    { label: 'Notifications enabled', ok: enabled, note: enabled ? undefined : 'switched off above' },
+    { label: 'Edge Function deployed', ok: fn?.deployed ?? null, note: fn?.deployed ? fn.provider : fn?.error },
+    { label: 'Relay URL configured', ok: fn ? !!fn.relayUrl : null },
+    { label: 'Relay secret configured', ok: fn ? !!fn.relaySecret : null },
+    { label: 'Trigger secret configured', ok: fn ? !!fn.webhookSecret : null },
+    { label: 'Sending as', ok: fn?.fromEmail ? true : null, note: fn?.fromEmail || 'set on the relay (Google account)' },
+  ];
+
+  return (
+    <div className="card card-pad max-w-3xl">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div className="flex items-center gap-2">
+          <span className="grid h-9 w-9 place-items-center rounded-xl bg-brand-50 text-brand-600 ring-1 ring-brand-100">
+            <Mail className="h-4 w-4" />
+          </span>
+          <div>
+            <h2 className="text-sm font-semibold text-slate-800">Email notifications</h2>
+            <p className="text-[11px] text-slate-400">
+              Sent from the company Gmail through the Google Apps Script relay.
+            </p>
+          </div>
+        </div>
+        <button className="btn btn-secondary btn-sm" onClick={onReload} disabled={busy}>
+          {busy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
+          Re-check
+        </button>
+      </div>
+
+      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+        {rows.map((r) => (
+          <div key={r.label} className="flex items-center gap-2 rounded-lg bg-slate-50/70 px-3 py-2 text-[12px] ring-1 ring-slate-100">
+            {r.ok === true && <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />}
+            {r.ok === false && <XCircle className="h-4 w-4 shrink-0 text-rose-600" />}
+            {r.ok === null && <Clock className="h-4 w-4 shrink-0 text-slate-400" />}
+            <span className="text-slate-700">{r.label}</span>
+            {r.note && <span className="ml-auto truncate text-[11px] text-slate-400" title={r.note}>{r.note}</span>}
+          </div>
+        ))}
+      </div>
+
+      {quota !== null && quota <= 25 && (
+        <p className="mt-3 flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-900">
+          <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+          <span>
+            The sending Gmail account has <b>{quota}</b> recipients left today. A free @gmail.com
+            account allows 100 recipients per day (counted per address in To + Cc).
+          </span>
+        </p>
+      )}
+
+      <p className="mt-3 text-[11px] leading-relaxed text-slate-400">
+        Not receiving mail? Deploy the function (<code>npm run functions:deploy</code>), paste the relay
+        (<code>apps-script/EmailRelay.gs</code>) into the sending Gmail account and set its
+        <code> RELAY_SECRET</code>, then store the same value in Supabase Vault as
+        <code> email_webhook_secret</code>. Full checklist: <b>DEPLOY.md → Email notifications</b>.
+      </p>
+    </div>
+  );
+}
+
+

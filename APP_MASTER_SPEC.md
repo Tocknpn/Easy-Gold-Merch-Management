@@ -357,16 +357,62 @@ Fire inside `updateTicket` when new status is `finalized` **and** ticket `Type` 
   - The CS item is resolved by the shared SKU id first, then by trimmed-lowercased name (migration `0019`), so an
     item that only exists in CS under a hand-typed `CS-SKU-…` id is topped up instead of duplicated.
 
-### 5.6 Email notifications (`sendEmailNotification`)
-| ticket.status | recipients |
-|---|---|
-| `pending` | users with role `warehouse` |
-| `reviewed` | users with role `line_manager` |
-| `lm_approved` | users with role `director` |
-| `finalized` / `rejected` / `returned` / `recalled` | the requester (matched by `createdBy` id or email) |
+### 5.6 Email notifications — **implemented** (`supabase/functions/send-ticket-email`)
 
-Email body is an HTML table (No., Item Name, Qty Req, Qty Appr, Status, Comment, Est. Delivery) with gold accent
-header and an Approve button area; sent with `MailApp.sendEmail`.
+The legacy Apps Script sent these with `MailApp.sendEmail`. The rebuilt app keeps
+the same template and the same “sent from the company Gmail” behaviour but moves
+the decision-making into the database + one Edge Function:
+
+```
+tickets INSERT / status UPDATE
+  → trg_tickets_email_notify                  (supabase/migrations/0020_email_notifications.sql)
+     → dispatch_ticket_email()                (reads system_config + the Vault secret)
+        → net.http_post()                     (pg_net — queued, sent only after COMMIT)
+           → send-ticket-email (Edge Function)
+              ├─ recipients from public.users
+              ├─ HTML from ./ticketEmail.ts
+              ├─ delivery via the Google Apps Script relay (or Resend/Brevo/SendGrid)
+              └─ public.email_log                 (sent · queued · failed + remaining Gmail quota)
+```
+
+| ticket.status | To | Cc |
+|---|---|---|
+| `pending` (created) | all active `warehouse` | the requester (submission receipt) |
+| `reviewed` | all active `line_manager` | the requester |
+| `lm_approved` | all active `director` | all active `line_manager` |
+| `finalized` | the requester (`createdBy` = id *or* email) | all active `warehouse` |
+| `rejected` | the requester | the level that rejected |
+| `returned` / `recalled` | the requester | all active `warehouse` |
+
+Rules and invariants (all enforced server-side):
+
+- **Data-driven recipients** — nobody maintains a Google-side list: adding a Line
+  Manager in System Settings makes them receive Line Manager mail immediately.
+  Inactive accounts are skipped; the person who just acted is left off their own
+  notification; an address is never in both To and Cc (the relay counts every
+  address against the daily quota).
+- **Sent once** per `(ticket, stage)`; `force: true` (the app's *Email this
+  notification again* button) is the only way to repeat one.
+- **Never blocking** — `pg_net` queues the request (a rolled-back action mails
+  nobody) and the trigger swallows its own errors, so mail can never fail or slow
+  a stock movement. Failures land in `email_log` and surface in
+  **System Settings → Email → Delivery log** together with the Gmail quota left.
+- **One template** — `ticketEmail.ts` is canonical and is copied into the app as
+  `src/lib/ticketEmail.ts` (`npm run email:template`), so the in-app preview is
+  character-for-character what the recipient gets.
+- Body: `Merch Request Update — TKT-…` navy title bar, status chip, requester /
+  department / type / requested-on + reason, the item table (No., Item Name,
+  Qty Req, Qty Appr, Status, Comment, Est. Delivery), a *what happens next* line,
+  the **Review Ticket in App** button (deep link into `/action-center?ticket=…`
+  or `/ticket-tracking?ticket=…`) and the *“This is an automated notification.
+  Row data is now locked in the tracking system.”* footer. Table layout + inline
+  styles only, plus a plain-text alternative, and Lao text passes through as UTF-8.
+- Config keys: `email_enabled`, `email_from_name`, `email_app_url`,
+  `email_notify_url`, `email_dispatch_mode` (`trigger` | `client`).
+  The relay secret lives in **Vault** (`email_webhook_secret`), never in
+  `system_config` (every signed-in user can read that).
+- Install / troubleshooting: `DEPLOY.md` §2.6 and
+  `supabase/functions/send-ticket-email/README.md`.
 
 ### 5.7 SKU utilities
 - `addSku` records opening balance as a real `OPENING` addition tx so month-end/inventory reports are accurate.
