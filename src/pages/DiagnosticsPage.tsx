@@ -376,7 +376,7 @@ if (loading) return <Spinner label="Loading data…" />;
               The build includes a built-in fallback with your public Supabase keys, so this
               usually means you are viewing a <b>cached / preview</b> deployment. Try a hard
               refresh (<code>Ctrl+Shift+R</code>) or open the production URL
-              <code> https://easy-gold-merch.pages.dev</code>.
+              <code> https://easy-gold-merch-management.tockppd.workers.dev</code>.
             </p>
           </div>
         </div>

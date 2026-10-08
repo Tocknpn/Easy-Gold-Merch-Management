@@ -50,7 +50,7 @@ const users: EmailPerson[] = (data.users || []).map((u) => ({
   role: u.role, department: u.department, status: u.status,
 }));
 
-const APP_URL = (data.config?.email_app_url || 'https://easy-gold-merch.pages.dev').replace(/\/+$/, '');
+const APP_URL = (data.config?.email_app_url || 'https://easy-gold-merch-management.tockppd.workers.dev').replace(/\/+$/, '');
 
 const STAGES: TicketEmailStatus[] = ['pending', 'reviewed', 'lm_approved', 'finalized', 'rejected', 'returned', 'recalled'];
 

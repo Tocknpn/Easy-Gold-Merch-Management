@@ -296,10 +296,12 @@ export function subjectOf(ticket: EmailTicket, stage: TicketEmailStatus): string
   return `${meta.subjectPrefix} — ${ticket.id}${tail}`;
 }
 
+export const DEFAULT_APP_URL = 'https://easy-gold-merch-management.tockppd.workers.dev';
+
 /** Where the button sends the reader: approvers land on their queue, everyone
  *  else on the ticket itself (both pages auto-open `?ticket=`). */
 export function linkFor(ticket: EmailTicket, stage: TicketEmailStatus, appUrl?: string): string {
-  const base = clean(appUrl).replace(/\/+$/, '');
+  const base = clean(appUrl).replace(/\/+$/, '') || DEFAULT_APP_URL;
   const path = STAGE_META[stage].approverLink ? '/action-center' : '/ticket-tracking';
   return `${base}${path}?ticket=${encodeURIComponent(ticket.id)}`;
 }

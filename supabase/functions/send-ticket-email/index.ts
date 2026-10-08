@@ -30,7 +30,7 @@ const RELAY_SECRET = Deno.env.get('EMAIL_RELAY_SECRET') || '';
 const API_KEY = Deno.env.get('EMAIL_API_KEY') || '';
 const FROM_EMAIL = Deno.env.get('EMAIL_FROM') || '';
 const FROM_NAME = Deno.env.get('EMAIL_FROM_NAME') || 'Easy Gold Merch System';
-const APP_URL_ENV = Deno.env.get('APP_URL') || '';
+const APP_URL_ENV = Deno.env.get('APP_URL') || 'https://easy-gold-merch-management.tockppd.workers.dev';
 
 const CORS = {
   'Access-Control-Allow-Origin': '*',

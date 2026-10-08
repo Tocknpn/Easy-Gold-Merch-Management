@@ -38,7 +38,7 @@ npx supabase secrets set \
   EMAIL_RELAY_URL="https://script.google.com/macros/s/AKfy…/exec" \
   EMAIL_RELAY_SECRET="<same value as the relay's RELAY_SECRET>" \
   EMAIL_WEBHOOK_SECRET="<long random string — also stored in Vault>" \
-  APP_URL="https://easy-gold-merch.pages.dev"
+  APP_URL="https://easy-gold-merch-management.tockppd.workers.dev"
 ```
 
 Then, once, in the SQL editor (the trigger reads it from Vault):

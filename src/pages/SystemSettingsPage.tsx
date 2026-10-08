@@ -696,7 +696,7 @@ function EmailTab({ config, tickets, users }: {
   const isAdmin = user?.role === 'admin';
   const [enabled, setEnabled] = useState(String(config.email_enabled ?? 'true') !== 'false');
   const [fromName, setFromName] = useState(config.email_from_name || 'Easy Gold Merch System');
-  const [appUrl, setAppUrl] = useState(config.email_app_url || '');
+  const [appUrl, setAppUrl] = useState(config.email_app_url || 'https://easy-gold-merch-management.tockppd.workers.dev');
   const [notifyUrl, setNotifyUrl] = useState(config.email_notify_url || '');
   const [dirty, setDirty] = useState(false);
 
@@ -818,7 +818,7 @@ function EmailTab({ config, tickets, users }: {
           </div>
           <div>
             <label className="label">App URL (the button in the email)</label>
-            <input className="input" value={appUrl} placeholder="https://easy-gold-merch.pages.dev"
+            <input className="input" value={appUrl} placeholder="https://easy-gold-merch-management.tockppd.workers.dev"
               onChange={(e) => { setAppUrl(e.target.value); setDirty(true); }} />
           </div>
         </div>

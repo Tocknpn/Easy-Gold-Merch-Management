@@ -110,7 +110,7 @@ insert into public.system_config (key, value, description)
   on conflict (key) do nothing;
 
 insert into public.system_config (key, value, description)
-  values ('email_app_url', 'https://easy-gold-merch.pages.dev', 'Public app URL used by the email button')
+  values ('email_app_url', 'https://easy-gold-merch-management.tockppd.workers.dev', 'Public app URL used by the email button')
   on conflict (key) do nothing;
 
 insert into public.system_config (key, value, description)

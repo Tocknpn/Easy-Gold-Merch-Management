@@ -23,7 +23,7 @@ function check(name: string, condition: boolean, detail?: unknown): void {
 const eq = (name: string, actual: unknown, expected: unknown): void =>
   check(name, JSON.stringify(actual) === JSON.stringify(expected), { actual, expected });
 
-const APP = 'https://easy-gold-merch.pages.dev';
+const APP = 'https://easy-gold-merch-management.tockppd.workers.dev';
 
 // ── Fixture directory ────────────────────────────────────────────────────
 const users: EmailPerson[] = [
