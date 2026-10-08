@@ -99,6 +99,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <Menu className="h-5 w-5" />
         </button>
+        <button
+          className="hidden rounded-lg p-1.5 text-brand-200 transition hover:bg-white/10 hover:text-white lg:inline-flex"
+          onClick={() => setCollapsed((c) => !c)}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
+          {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
+        </button>
         <button onClick={() => go(activeKey)} className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
             <Crown className="h-4 w-4 text-gold-300" />
@@ -108,6 +116,24 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </button>
         <div className="flex-1" />
+
+        {/* Admin only: deploy version and git commit name */}
+        {user?.role === 'admin' && (
+          <div
+            className="hidden items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-xs text-brand-100 ring-1 ring-white/15 md:inline-flex max-w-[280px] xl:max-w-[420px] truncate"
+            title={`Deploy Version: ${__APP_VERSION__}\nCommit: ${__GIT_COMMIT_HASH__} - ${__GIT_COMMIT_MSG__}\nBranch: ${__GIT_BRANCH__}\nBuilt: ${__BUILD_TIME__}`}
+          >
+            <span className="font-semibold text-gold-300 shrink-0">{__APP_VERSION__}</span>
+            <span className="text-white/40 shrink-0">·</span>
+            <span className="rounded bg-black/25 px-1 py-0.5 font-mono text-[10px] text-brand-200 shrink-0">
+              {__GIT_COMMIT_HASH__}
+            </span>
+            <span className="truncate text-[11px] text-slate-200" title={__GIT_COMMIT_MSG__}>
+              {__GIT_COMMIT_MSG__ || 'latest commit'}
+            </span>
+          </div>
+        )}
+
         <span
           className={cn(
             'hidden items-center gap-1.5 rounded-full px-2 py-1 text-[10px] font-bold ring-1 ring-inset md:inline-flex',
@@ -149,25 +175,53 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         {/* Desktop sidebar — collapsible */}
         <aside
           className={cn(
-            'sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-4 transition-all duration-200 lg:flex',
+            'sticky top-14 hidden h-[calc(100vh-3.5rem)] shrink-0 flex-col border-r border-slate-200 bg-white px-3 py-3 transition-all duration-200 lg:flex',
             collapsed ? 'w-[68px]' : 'w-60',
           )}
         >
-          <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} go={go} collapsed={collapsed} />
-          <div className="mt-auto flex flex-col items-center gap-2 pt-3">
-            {!collapsed && (
-              <div className="w-full rounded-xl bg-gradient-to-br from-brand-50 to-accent-400/10 px-3.5 py-3 text-[11px] leading-relaxed text-slate-500 no-print">
-                <p className="font-semibold text-brand-700">Easy Gold By Khamphouvong</p>
-                <p className="mt-0.5">MIMS 2026 · {loading ? 'syncing…' : 'live'}</p>
-              </div>
-            )}
+          {/* Top header row with collapse button */}
+          <div className="mb-2 flex items-center justify-between border-b border-slate-100 pb-2">
+            {!collapsed ? (
+              <span className="px-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Menu</span>
+            ) : null}
             <button
               onClick={() => setCollapsed((c) => !c)}
-              className="flex h-8 w-full items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 no-print"
+              className={cn(
+                'flex h-7 w-7 items-center justify-center rounded-lg text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 no-print',
+                collapsed && 'mx-auto',
+              )}
               title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+              aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
             >
               {collapsed ? <PanelLeftOpen className="h-4 w-4" /> : <PanelLeftClose className="h-4 w-4" />}
             </button>
+          </div>
+
+          <SidebarNav visible={visible} activeKey={activeKey} count={actionableTicketCount} go={go} collapsed={collapsed} />
+
+          <div className="mt-auto flex flex-col items-center gap-2 pt-3">
+            {!collapsed && (
+              <div className="w-full rounded-xl bg-gradient-to-br from-brand-50 to-accent-400/10 px-3 py-2.5 text-[11px] leading-relaxed text-slate-500 no-print">
+                <p className="font-semibold text-brand-700">Easy Gold By Khamphouvong</p>
+                {user?.role === 'admin' ? (
+                  <div className="mt-1.5 space-y-1 border-t border-brand-200/50 pt-1.5 text-[10px]">
+                    <div className="flex items-center justify-between text-brand-900">
+                      <span className="font-semibold">Deploy:</span>
+                      <span className="font-mono font-bold text-brand-800">{__APP_VERSION__} ({__GIT_COMMIT_HASH__})</span>
+                    </div>
+                    <div className="text-slate-600" title={__GIT_COMMIT_MSG__}>
+                      <span className="font-semibold text-slate-500">Commit: </span>
+                      <span className="font-sans font-medium text-slate-700 break-words">{__GIT_COMMIT_MSG__}</span>
+                    </div>
+                    <div className="text-[9px] text-slate-400">
+                      {__BUILD_TIME__} · {loading ? 'syncing…' : 'live'}
+                    </div>
+                  </div>
+                ) : (
+                  <p className="mt-0.5">MIMS 2026 · {loading ? 'syncing…' : 'live'}</p>
+                )}
+              </div>
+            )}
           </div>
         </aside>
 
@@ -205,9 +259,6 @@ function SidebarNav({
 }) {
   return (
     <nav className="space-y-0.5">
-      {!collapsed && (
-        <p className="px-2.5 pb-2 pt-1 text-[10px] font-bold uppercase tracking-widest text-slate-400">Menu</p>
-      )}
       {visible.map((n) => (
         <button
           key={n.key}

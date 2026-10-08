@@ -4,6 +4,7 @@ import { Search, Plus, Minus, Trash2, Send, Loader2, ShoppingBag, Package, Arrow
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { toast } from '@/components/ui/primitives';
+import { safeGet, safeSet } from '@/lib/safeStorage';
 import { cn, fmt, money, safeImageUrl, todayStr } from '@/lib/utils';
 import type { SKU, TicketType } from '@/lib/types';
 
@@ -172,10 +173,15 @@ export function TicketForm({
   const [search, setSearch] = useState('');
   const [cat, setCat] = useState('All');
   const [sortBy, setSortBy] = useState('name-asc');
+  const [availableOnly, setAvailableOnly] = useState(() => safeGet('eg-req-available-only') === '1');
   const [delivery, setDelivery] = useState(todayStr());
   const [returnDate, setReturnDate] = useState('');
   const [remark, setRemark] = useState('');
   const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    safeSet('eg-req-available-only', availableOnly ? '1' : '0');
+  }, [availableOnly]);
 
   const categories = useMemo(
     () => ['All', ...Array.from(new Set(skus.map((s) => s.category).filter((c): c is string => Boolean(c))))],
@@ -185,6 +191,7 @@ export function TicketForm({
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase();
     const arr = [...skus]
+      .filter((s) => !availableOnly || s.currentStock > 0)
       .filter((s) => cat === 'All' || s.category === cat)
       .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
     switch (sortBy) {
@@ -211,16 +218,18 @@ export function TicketForm({
         arr.sort((a, b) => a.name.localeCompare(b.name, 'la'));
     }
     return arr;
-  }, [skus, search, cat, sortBy]);
+  }, [skus, search, cat, sortBy, availableOnly]);
 
-  // Per-category counts (respect the search so chips double as result preview)
+  // Per-category counts (respect the search and availableOnly so chips double as result preview)
   const catCounts = useMemo(() => {
     const q = search.trim().toLowerCase();
-    const base = skus.filter((s) => !q || s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
+    const base = skus
+      .filter((s) => !availableOnly || s.currentStock > 0)
+      .filter((s) => !q || s.name.toLowerCase().includes(q) || (s.category || '').toLowerCase().includes(q));
     const map: Record<string, number> = { All: base.length };
     for (const s of base) if (s.category) map[s.category] = (map[s.category] || 0) + 1;
     return map;
-  }, [skus, search]);
+  }, [skus, search, availableOnly]);
 
   const qtyOf = (id: string) => cart[id] || 0;
   const totalItems = Object.values(cart).reduce((a, b) => a + b, 0);
@@ -290,7 +299,7 @@ export function TicketForm({
         <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs text-slate-500 ring-1 ring-slate-200">
           <ShoppingBag className="h-4 w-4 text-brand-600" />
           <span>
-            <b className="text-slate-800">{totalItems}</b> item{totalItems === 1 ? '' : 's'} · <b className="text-slate-800">{skus.length}</b>
+            <b className="text-slate-800">{totalItems}</b> item{totalItems === 1 ? '' : 's'} · <b className="text-slate-800">{filtered.length}</b> {availableOnly ? 'avail' : 'items'}
           </span>
         </div>
       </div>
@@ -312,49 +321,73 @@ export function TicketForm({
         </div>
       )}
 
-      {/* Toolbar: search + sort + categories — pinned below the app header so it
-          stays visible while the item grid scrolls underneath */}
+      {/* Toolbar: 1 compact line with Search, Sort, Categories, and Avail Only to save vertical space */}
       <div className="sticky top-14 z-30 -mx-3 bg-surface/95 px-3 pb-2 pt-2 backdrop-blur-sm sm:-mx-5 sm:px-5">
-        <div className="card p-4 shadow-card-hover">
-        <div className="flex flex-col gap-3 lg:flex-row">
-          <div className="relative min-w-0 flex-1">
-            <Search className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              className="input h-11 rounded-xl pl-10"
-              placeholder="Search by item name, category, or keyword…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </div>
-          <div className="relative w-full shrink-0 lg:w-52">
-            <ArrowUpDown className="pointer-events-none absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <select className="input h-11 rounded-xl pl-10 pr-9" value={sortBy} onChange={(e) => setSortBy(e.target.value)}>
-              <option value="name-asc">Sort by : Name A – Z</option>
-              <option value="name-desc">Sort by : Name Z – A</option>
-              <option value="stock-low">Sort by : In stock first</option>
-              <option value="stock-high">Sort by : Most stock</option>
-              <option value="price-low">Sort by : Price low → high</option>
-              <option value="price-high">Sort by : Price high → low</option>
-            </select>
-          </div>
-        </div>
-        <div className="mt-3 flex flex-nowrap gap-2 overflow-x-auto pb-0.5">
-          {categories.map((c) => (
+        <div className="card p-2.5 shadow-card-hover sm:p-3">
+          <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
+            {/* Search name */}
+            <div className="relative min-w-[180px] flex-1">
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                className="input h-9.5 rounded-xl pl-9 text-xs sm:text-sm"
+                placeholder="Search by item name, category, or keyword…"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+              />
+            </div>
+
+            {/* Sort option */}
+            <div className="relative w-36 shrink-0 sm:w-44">
+              <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <select
+                className="input h-9.5 rounded-xl pl-8.5 pr-8 text-xs font-medium"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="name-asc">Sort : Name A – Z</option>
+                <option value="name-desc">Sort : Name Z – A</option>
+                <option value="stock-low">Sort : In stock first</option>
+                <option value="stock-high">Sort : Most stock</option>
+                <option value="price-low">Sort : Price low → high</option>
+                <option value="price-high">Sort : Price high → low</option>
+              </select>
+            </div>
+
+            {/* Filter All, Booth, Merch */}
+            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto py-0.5">
+              {categories.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCat(c)}
+                  className={cn(
+                    'shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                    cat === c
+                      ? 'bg-brand-600 text-white shadow-sm'
+                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                  )}
+                >
+                  {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
+                </button>
+              ))}
+            </div>
+
+            {/* Option to Show Avail Item only (hide OOS to save space) */}
             <button
-              key={c}
               type="button"
-              onClick={() => setCat(c)}
+              onClick={() => setAvailableOnly((v) => !v)}
               className={cn(
-                'shrink-0 whitespace-nowrap rounded-full px-3.5 py-1.5 text-xs font-semibold transition',
-                cat === c
-                  ? 'bg-brand-600 text-white shadow-sm'
+                'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition whitespace-nowrap',
+                availableOnly
+                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600'
                   : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
               )}
+              title={availableOnly ? 'Showing available items only (OOS hidden). Click to show all.' : 'Hide Out-of-Stock items to save space'}
             >
-              {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
+              <span className={cn('h-1.5 w-1.5 rounded-full', availableOnly ? 'bg-white' : 'bg-emerald-500')} />
+              <span>Avail only</span>
             </button>
-          ))}
-        </div>
+          </div>
         </div>
       </div>
 
