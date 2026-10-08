@@ -168,13 +168,13 @@ export function stageOf(status: string | null | undefined): TicketEmailStatus | 
 // Keep every list short: a free-Gmail relay allows 100 RECIPIENTS per day and
 // a Cc address costs exactly as much of that allowance as a To address.
 export const RECIPIENT_RULES: Record<TicketEmailStatus, { to: string[]; cc: string[] }> = {
-  pending: { to: ['warehouse'], cc: ['requester'] },
-  reviewed: { to: ['line_manager'], cc: ['requester'] },
-  lm_approved: { to: ['director'], cc: ['line_manager'] },
-  finalized: { to: ['requester'], cc: ['warehouse'] },
-  rejected: { to: ['requester'], cc: ['actor'] },
-  returned: { to: ['requester'], cc: ['warehouse'] },
-  recalled: { to: ['requester'], cc: ['warehouse'] },
+  pending: { to: ['warehouse'], cc: [] },
+  reviewed: { to: ['line_manager'], cc: [] },
+  lm_approved: { to: ['director'], cc: [] },
+  finalized: { to: ['requester'], cc: [] },
+  rejected: { to: ['requester'], cc: [] },
+  returned: { to: ['requester'], cc: [] },
+  recalled: { to: ['requester'], cc: [] },
 };
 
 const clean = (v: unknown): string => String(v ?? '').trim();

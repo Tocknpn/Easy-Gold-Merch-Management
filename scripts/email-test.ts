@@ -54,27 +54,23 @@ console.log('\n▸ Recipient matrix (who gets notified at each step)');
   const t = ticket();
   eq('pending → To: active Warehouse only', resolveRecipients(t, users, 'pending').to,
     ['wh1@easygold.com', 'wh2@easygold.com']);
-  eq('pending → Cc: the requester (receipt)', resolveRecipients(t, users, 'pending').cc,
-    ['requester@easygold.com']);
+  eq('pending → Cc: none (preserves quota)', resolveRecipients(t, users, 'pending').cc, []);
 
   eq('reviewed → To: Line Manager', resolveRecipients(t, users, 'reviewed').to, ['lm@easygold.com']);
-  // A ticket at the Line Manager was last touched by the warehouse, so that actor is off the Cc.
-  eq('reviewed → Cc: requester', resolveRecipients(ticket({ status: 'reviewed', lastActionBy: 'Warehouse One', whComment: 'Booked' }), users, 'reviewed').cc, ['requester@easygold.com']);
+  eq('reviewed → Cc: none', resolveRecipients(ticket({ status: 'reviewed', lastActionBy: 'Warehouse One', whComment: 'Booked' }), users, 'reviewed').cc, []);
 
   eq('lm_approved → To: Director', resolveRecipients(t, users, 'lm_approved').to, ['dir@easygold.com']);
-  eq('lm_approved → Cc: Line Manager (they acted)', resolveRecipients(t, users, 'lm_approved').cc, ['lm@easygold.com']);
+  eq('lm_approved → Cc: none', resolveRecipients(t, users, 'lm_approved').cc, []);
 
   eq('finalized → To: requester (the result)', resolveRecipients(t, users, 'finalized').to, ['requester@easygold.com']);
-  eq('finalized → Cc: warehouse so they release the stock',
-    resolveRecipients(t, users, 'finalized').cc, ['wh1@easygold.com', 'wh2@easygold.com']);
+  eq('finalized → Cc: none', resolveRecipients(t, users, 'finalized').cc, []);
 
   const rejected = ticket({ status: 'rejected', lastActionBy: 'Line Manager' });
   eq('rejected → To: requester', resolveRecipients(rejected, users, 'rejected').to, ['requester@easygold.com']);
-  eq('rejected → Cc: whoever rejected', resolveRecipients(rejected, users, 'rejected').cc, ['lm@easygold.com']);
+  eq('rejected → Cc: none', resolveRecipients(rejected, users, 'rejected').cc, []);
 
   const returned = ticket({ status: 'returned', type: 'borrow', lastActionBy: 'Warehouse Two' });
-  eq('returned → Cc excludes the warehouse who processed it',
-    resolveRecipients(returned, users, 'returned').cc, ['wh1@easygold.com']);
+  eq('returned → Cc: none', resolveRecipients(returned, users, 'returned').cc, []);
 
   check('inactive accounts are never notified',
     !resolveRecipients(ticket(), users, 'pending').to.includes('wh3@easygold.com'));
