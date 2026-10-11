@@ -97,10 +97,15 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 15 | `supabase/migrations/0015_edit_stock_movement.sql` | editable stock movements (`edit_stock_movement` RPC + audit metadata) |
    | 16 | `supabase/migrations/0016_audit_log.sql` | system-wide `audit_log` table with triggers and Admin view |
    | 17 | `supabase/migrations/0017_warehouse_self_request.sql` | **Warehouse Manager self-request routing** (auto-reviewed straight to Line Manager) |
+   | 18 | `supabase/migrations/0018_transfer_mkt_to_cs.sql` | **MKT → CS transfer** RPC (`transfer_mkt_to_cs`, atomic single transaction) |
+   | 19 | `supabase/migrations/0019_cs_genesis_opening.sql` | CS genesis item stamped as `OPENING` (no double count); CS item matched by id then name |
+   | 20 | `supabase/migrations/0020_email_notifications.sql` | email trigger, `email_log`, notification settings (see §2.6) |
+   | 21 | `supabase/migrations/0021_update_email_app_url.sql` | sets `email_app_url` to production |
+   | 22 | `supabase/migrations/0022_security_lockdown.sql` | **security lockdown**: revokes execute from anon on all public RPC functions |
 
    Each should show **"Success. No rows returned"** (or similar). All of them are safe to re-run
    (paste + **Run** again any time). If you re-run `0006`, re-run `0009` after it.
-   Always finish with `0010` → `0011` → `0012` → `0014` → `0017` — they re-assert the current ticket engine.
+   Always finish with `0010` → `0011` → `0012` → `0014` → `0017` → `0019` → `0022` — `0019` is the latest `update_ticket_status` engine and `0022` locks down permissions.
 
    > 👥 **User management in the app:** after step 9 an **Admin** can add/edit users, activate or
    > deactivate them and set (or look up) their password right from **System Settings → Users** —
@@ -112,6 +117,7 @@ The file **`supabase/seed.sql`** is pre-generated from your live database (**`Ac
 1. Open a **New query** in the Supabase **SQL Editor**.
 2. Open `supabase/seed.sql`, **select all**, copy, paste, and click **Run** (or `Ctrl/Cmd + Enter`).
    - The file is self-contained: it wipes the transactional tables in safe order, upserts the masters, applies all canonical roles, derives comment timestamps, and re-asserts `engine_version='0014'`.
+   - 🛑 **PRODUCTION WARNING — first-time load only.** This script DELETES every ticket and stock movement. It now refuses to run when tickets already exist. Never use it on a live system; if a full reset is truly intended, take a backup first and run `set app.allow_seed_wipe = 'yes';` before it.
    - You should see a green **"Success"** banner and a verification grid at the bottom showing exact row counts.
 
 3. **Verify it worked** → left menu → **Table Editor**:

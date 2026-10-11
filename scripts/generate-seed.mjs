@@ -120,6 +120,19 @@ lines.push('-- ============================================================');
 lines.push('');
 lines.push('begin;');
 lines.push('');
+lines.push('-- ── SAFETY GUARD: this file DELETES all tickets + stock history ──');
+lines.push('-- It refuses to run when real tickets already exist. For an intentional full reset,');
+lines.push("-- run `set app.allow_seed_wipe = 'yes';` as the first statement of the same run");
+lines.push('-- (and take a backup first: Supabase -> Database -> Backups).');
+lines.push('do $guard$');
+lines.push('begin');
+lines.push("  if exists (select 1 from public.tickets)");
+lines.push("     and coalesce(current_setting('app.allow_seed_wipe', true), '') <> 'yes' then");
+lines.push("    raise exception 'seed.sql REFUSED: database already contains tickets. This script wipes them. Back up first, then run set app.allow_seed_wipe = ''yes''; before it if you really intend a full reset.';");
+lines.push('  end if;');
+lines.push('end');
+lines.push('$guard$;');
+lines.push('');
 
 // 1. WIPE TRANSACTIONAL DATA (FK-safe order)
 lines.push('-- ── Step 1: Wipe transactional tables in FK-safe order ──');
