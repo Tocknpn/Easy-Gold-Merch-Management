@@ -11,11 +11,24 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Ping Supabase REST endpoint
+        env:
+          RAW_URL: ${{ secrets.SUPABASE_URL || secrets.VITE_SUPABASE_URL }}
+          API_KEY: ${{ secrets.SUPABASE_ANON_KEY || secrets.VITE_SUPABASE_ANON_KEY }}
         run: |
-          curl -f -sS -X POST "${{ secrets.SUPABASE_URL }}/rest/v1/project_heartbeat" \
-            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}" \
-            -H "Authorization: Bearer ${{ secrets.SUPABASE_ANON_KEY }}" \
+          if [ -z "$RAW_URL" ] || [ -z "$API_KEY" ]; then
+            echo "::error::Missing Supabase URL or Anon Key secrets!"
+            exit 1
+          fi
+
+          # Strip trailing slash if present
+          CLEAN_URL="${RAW_URL%/}"
+
+          echo "Pinging ${CLEAN_URL}/rest/v1/project_heartbeat ..."
+          curl -f -sS -X POST "${CLEAN_URL}/rest/v1/project_heartbeat" \
+            -H "apikey: ${API_KEY}" \
+            -H "Authorization: Bearer ${API_KEY}" \
             -H "Content-Type: application/json" \
             -H "Prefer: return=minimal" \
             -d '{"source": "github_actions"}'
+
 
