@@ -166,6 +166,29 @@ export function getMonthMovement(
   return { opening, stockIn, stockOut, closing, usagePct, lossQty, firstDate, variance };
 }
 
+/**
+ * Closing quantity for a SKU as of an arbitrary date — the same rollback
+ * technique as `getMonthMovement`'s `afterEnd`/`closing` (current stock minus
+ * every reportable movement dated AFTER `asOf`), generalised to a non-month
+ * boundary. Pass transactions already filtered by `reportableTransactions()`
+ * so cancelled bookings and dead-ticket rows never count.
+ */
+export function closingQtyAsOf(
+  sku: SKU | CS_SKU,
+  reportableTx: StockTransaction[],
+  asOf: string,
+): number {
+  const current = castNumber(sku.currentStock);
+  let afterEnd = 0;
+  for (const tx of reportableTx) {
+    if (tx.skuId !== sku.id) continue;
+    const date = tx.date || '';
+    if (!date || date <= asOf) continue;
+    afterEnd += tx.type === 'addition' ? castNumber(tx.qty) : -castNumber(tx.qty);
+  }
+  return current - afterEnd;
+}
+
 /** Day part of an ISO timestamp / date (`2026-09-10T00:00:00Z` → `2026-09-10`). */
 const dayOf = (v?: string | null): string | null => {
   const d = String(v || '').slice(0, 10);

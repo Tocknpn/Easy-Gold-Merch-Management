@@ -39,6 +39,7 @@ const RequestPage = lazyNamed(() => import('@/pages/RequestPage'), 'RequestPage'
 const TicketTrackingPage = lazyNamed(() => import('@/pages/TicketTrackingPage'), 'TicketTrackingPage');
 const ActionCenterPage = lazyNamed(() => import('@/pages/ActionCenterPage'), 'ActionCenterPage');
 const ReportingPage = lazyNamed(() => import('@/pages/ReportingPage'), 'ReportingPage');
+const StockAnalyticsPage = lazyNamed(() => import('@/pages/StockAnalyticsPage'), 'StockAnalyticsPage');
 const ManageStockPage = lazyNamed(() => import('@/pages/ManageStockPage'), 'ManageStockPage');
 const SystemSettingsPage = lazyNamed(() => import('@/pages/SystemSettingsPage'), 'SystemSettingsPage');
 const DiagnosticsPage = lazyNamed(() => import('@/pages/DiagnosticsPage'), 'DiagnosticsPage');
@@ -57,6 +58,7 @@ const ROUTES: { path: string; pageKey: string; roles: string[] }[] = [
   { path: '/manage-stock', pageKey: 'manage-stock', roles: ['warehouse', 'customer_service', 'director', 'admin'] },
   { path: '/action-center', pageKey: 'action-center', roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { path: '/reporting', pageKey: 'reporting', roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
+  { path: '/stock-analytics', pageKey: 'stock-analytics', roles: ['warehouse', 'admin'] },
   { path: '/settings', pageKey: 'settings', roles: ['admin', 'warehouse', 'customer_service'] },
   { path: '/audit', pageKey: 'audit', roles: ['admin'] },
   { path: '/diagnostics', pageKey: 'diagnostics', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
@@ -129,6 +131,7 @@ function PageFor({ pageKey }: { pageKey: string }) {
     case 'ticket-tracking': Page = TicketTrackingPage; break;
     case 'action-center': Page = ActionCenterPage; break;
     case 'reporting': Page = ReportingPage; break;
+    case 'stock-analytics': Page = StockAnalyticsPage; break;
     case 'manage-stock': Page = ManageStockPage; break;
     case 'settings': Page = SystemSettingsPage; break;
     case 'audit': Page = AuditLogPage; break;

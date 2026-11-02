@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import {
   LayoutDashboard, PlusCircle, Warehouse, Crown,
-  Ticket, Inbox, FileBarChart, Settings2, HeartPulse,
+  Ticket, Inbox, FileBarChart, BarChart3, Settings2, HeartPulse,
   RefreshCw, LogOut, Menu, X, PanelLeftClose, PanelLeftOpen, ScrollText,
 } from 'lucide-react';
 import { useAuth, getUserRoleLabel } from '@/contexts/AuthContext';
@@ -26,6 +26,7 @@ export const NAV_DEFS: NavDef[] = [
   { key: 'ticket-tracking', label: 'Ticket Tracking', icon: <Ticket className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
   { key: 'action-center', label: 'Action Center', icon: <Inbox className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { key: 'reporting', label: 'Reporting', icon: <FileBarChart className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
+  { key: 'stock-analytics', label: 'Stock Analytics', icon: <BarChart3 className="h-4 w-4" />, roles: ['warehouse', 'admin'] },
   { key: 'audit', label: 'Audit Trail', icon: <ScrollText className="h-4 w-4" />, roles: ['admin'] },
   { key: 'settings', label: 'System Settings', icon: <Settings2 className="h-4 w-4" />, roles: ['admin', 'warehouse', 'customer_service'] },
   { key: 'diagnostics', label: 'Diagnostics', icon: <HeartPulse className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
@@ -35,6 +36,7 @@ const ROLE_TO_PATH: Record<string, string> = {
   dashboard: 'dashboard', request: 'request',
   'manage-stock': 'manage-stock', 'ticket-tracking': 'ticket-tracking',
   'action-center': 'action-center', reporting: 'reporting',
+  'stock-analytics': 'stock-analytics',
   settings: 'settings', diagnostics: 'diagnostics', audit: 'audit',
 };
 
