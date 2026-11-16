@@ -179,9 +179,11 @@ begin
       from public.ticket_items ti where ti.ticket_id = p_ticket_id
   loop
     select e into v_e from jsonb_array_elements(p_items) e where e->>'sku_id' = v_item.sku_id;
+    -- the CASE is parenthesised: PL/pgSQL ends an IF condition at the first
+    -- top-level THEN, so a bare CASE…THEN would cut the condition short
     if v_e is null
-       or case when jsonb_typeof(v_e->'expected_qty') = 'number'
-               then (v_e->>'expected_qty')::numeric <> v_item.cur else true end then
+       or (case when jsonb_typeof(v_e->'expected_qty') = 'number'
+                then (v_e->>'expected_qty')::numeric <> v_item.cur else true end) then
       return jsonb_build_object('success', false,
         'error', 'This ticket was changed by someone else — please reload it and try again');
     end if;
