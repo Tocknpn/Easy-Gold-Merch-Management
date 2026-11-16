@@ -14,13 +14,19 @@ const row = (s: Partial<SKU | CS_SKU>) => ({
   ...(s.status ? { status: s.status } : {}),
 });
 
+/** 'add' only: the Add SKU modal's create date ('YYYY-MM-DD') — see 0025. */
+const addRow = (s: Partial<SKU | CS_SKU>) => ({
+  ...row(s),
+  ...(s.createdAt ? { created_at: String(s.createdAt).slice(0, 10) } : {}),
+});
+
 const ok = (d: any) => {
   if (!d || !d.success) throw new Error(d?.error || 'Operation failed');
 };
 
 export async function apiAddSku(sku: Partial<SKU>): Promise<string> {
   if (!isLive()) return demoData.demoAddSku(sku);
-  const { data, error } = await supabase!.rpc('manage_sku', { p_action: 'add', p_sku: row(sku) });
+  const { data, error } = await supabase!.rpc('manage_sku', { p_action: 'add', p_sku: addRow(sku) });
   if (error) throw new Error(error.message);
   ok(data);
   return (data as any).id;
@@ -99,7 +105,7 @@ export async function apiEditStockMovement(
 // ── CS SKU management ───────────────────────────────────────────────────
 export async function apiCsAddSku(sku: Partial<CS_SKU>): Promise<string> {
   if (!isLive()) return demoData.demoCsAddSku(sku);
-  const { data, error } = await supabase!.rpc('manage_cs_sku', { p_action: 'add', p_sku: row(sku) });
+  const { data, error } = await supabase!.rpc('manage_cs_sku', { p_action: 'add', p_sku: addRow(sku) });
   if (error) throw new Error(error.message);
   ok(data);
   return (data as any).id;

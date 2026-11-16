@@ -878,5 +878,34 @@ const audEdit = demoFetchAudit({ limit: 100000 });
 check('audit: the ticket edit shows in the Audit Trail with its remark',
   audEdit.some((e) => e.refTicket === tE && /edit/i.test(e.action) && (e.summary + ' ' + (e.comment || '')).includes('delivery note')));
 
+// ── SKU create date (Add SKU modal, migration 0025) ───────────────────────
+// A backdated create date dates the SKU and its OPENING row, so Month End
+// shows the item (with its opening) from the chosen month; a future date
+// falls back to today; no date = today (old behaviour).
+{
+  const t = todayStr();
+  const prevD = new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 2, 10);
+  const backDay = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}-10`;
+  const backMonth = backDay.slice(0, 7);
+  const bId = addSku({ name: 'WF Backdated', category: 'MKT', openingBalance: 40, createdAt: backDay });
+  const bSku = demoDB.skus.find((s) => s.id === bId)!;
+  check('create date: SKU createdAt starts with the picked day', String(bSku.createdAt).startsWith(backDay));
+  check('create date: OPENING row dated on the picked day',
+    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'OPENING' && tx.date === backDay && tx.qty === 40));
+  const bRows = getMonthEndRows({
+    month: backMonth, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(),
+  }).filter((r) => r.sku.id === bId);
+  check('create date: Month End shows the item in the backdated month', bRows.length === 1 && bRows[0].closingQty === 40);
+  const csB = addCsSku({ name: 'WF Backdated CS', category: 'MKT', openingBalance: 5, createdAt: backDay });
+  check('create date: CS SKU + OPENING row honour the picked day',
+    String(demoDB.csSkus.find((s) => s.id === csB)!.createdAt).startsWith(backDay) &&
+    demoDB.csTransactions.some((tx) => tx.skuId === csB && tx.ticketId === 'OPENING' && tx.date === backDay));
+  const fId = addSku({ name: 'WF Future', category: 'MKT', openingBalance: 1, createdAt: '2999-01-01' });
+  check('create date: a future date falls back to today', String(demoDB.skus.find((s) => s.id === fId)!.createdAt).startsWith(t));
+  const nId = addSku({ name: 'WF NoDate', category: 'MKT', openingBalance: 1 });
+  check('create date: no date = today', String(demoDB.skus.find((s) => s.id === nId)!.createdAt).startsWith(t));
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

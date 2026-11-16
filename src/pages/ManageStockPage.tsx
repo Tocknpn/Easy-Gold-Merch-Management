@@ -8,7 +8,7 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Modal, Spinner, ErrorBanner, toast } from '@/components/ui/primitives';
-import { fmt, money, cn, safeImageUrl } from '@/lib/utils';
+import { fmt, money, cn, safeImageUrl, todayStr } from '@/lib/utils';
 import type { SKU, CS_SKU } from '@/lib/types';
 
 type Wh = 'mkt' | 'cs';
@@ -705,6 +705,7 @@ interface SkuForm {
   lowStockThreshold: string;
   costPerUnit: string;
   status: string;
+  createdDate: string;           // 'YYYY-MM-DD' — Add SKU only (backdatable, never future)
   imageUrl?: string | null;      // existing saved photo URL
   photoFile?: File | null;       // newly selected photo (uploaded on save)
   photoPreview?: string | null;  // preview of the newly selected photo
@@ -713,7 +714,7 @@ interface SkuForm {
 const emptyForm = (wh: Wh): SkuForm => ({
   isNew: true, wh, name: '', category: '', unit: 'pcs',
   openingBalance: '0', currentStock: '0', lowStockThreshold: '0', costPerUnit: '0', status: 'active',
-  imageUrl: null, photoFile: null, photoPreview: null,
+  createdDate: todayStr(), imageUrl: null, photoFile: null, photoPreview: null,
 });
 
 function SkuTab() {
@@ -778,6 +779,7 @@ function SkuTab() {
       openingBalance: String(s.openingBalance ?? 0), currentStock: String(s.currentStock ?? 0),
       lowStockThreshold: String(s.lowStockThreshold ?? 0), costPerUnit: String(s.costPerUnit ?? 0),
       status: s.status || 'active',
+      createdDate: String(s.createdAt || '').slice(0, 10), // unused on edit — set on Add SKU only
       imageUrl: s.imageUrl || null, photoFile: null, photoPreview: null,
     });
 
@@ -799,6 +801,9 @@ function SkuTab() {
   const save = async () => {
     if (!form) return;
     if (!form.name.trim()) { toast('Item name is required', 'error'); return; }
+    if (form.isNew && (!/^\d{4}-\d{2}-\d{2}$/.test(form.createdDate) || form.createdDate > todayStr())) {
+      toast('Create date must be today or earlier', 'error'); return;
+    }
     setBusy(true);
     const prevUrl = form.isNew ? null : (list.find((s) => s.id === form.id)?.imageUrl || null);
     try {
@@ -825,6 +830,7 @@ function SkuTab() {
         payload.openingBalance = openNext;
         payload.currentStock = Number(form.currentStock) || openNext || undefined;
         payload.imageUrl = finalImageUrl; // new SKU → store the photo URL (or null)
+        payload.createdAt = form.createdDate; // dates created_at + the OPENING row (0025)
         if (form.wh === 'mkt') await addSku(payload);
         else await csAddSku(payload);
         toast(`SKU “${payload.name}” created (${form.wh === 'mkt' ? 'MKT' : 'CS'} warehouse)`);
@@ -1060,6 +1066,19 @@ function SkuTab() {
                 <option value="inactive">Inactive — hidden from request/borrow</option>
               </select>
             </div>
+            {form.isNew && (
+              <div>
+                <label className="label">Create date</label>
+                <input
+                  className="input"
+                  type="date"
+                  max={todayStr()}
+                  value={form.createdDate}
+                  onChange={(e) => setForm({ ...form, createdDate: e.target.value })}
+                />
+                <p className="mt-1 text-[11px] text-slate-400">Backdating changes past month reports.</p>
+              </div>
+            )}
           </div>
           {!form.isNew && (
             <p className="mt-3 rounded-xl bg-brand-50/60 px-3.5 py-2.5 text-[11px] leading-relaxed text-slate-600 ring-1 ring-brand-100">

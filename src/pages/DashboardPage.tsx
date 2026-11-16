@@ -9,6 +9,18 @@ import { getStockMovement, activeBorrows, overdueBorrows, reportableTransactions
 import type { SKU, StockTransaction } from '@/lib/types';
 import { SkuDetailModal } from '@/components/SkuDetailModal';
 import { safeGet, safeSet } from '@/lib/safeStorage';
+import { format } from 'date-fns';
+
+/** SKU create instant in ms, or null for legacy rows without `createdAt`. */
+const createdMs = (sku: SKU): number | null => {
+  const t = sku.createdAt ? Date.parse(sku.createdAt) : NaN;
+  return Number.isNaN(t) ? null : t;
+};
+/** "Created 12 Sep 2026" — empty when the SKU has no create date. */
+const createdLabel = (sku: SKU): string => {
+  const t = createdMs(sku);
+  return t === null ? '' : `Created ${format(new Date(t), 'd MMM yyyy')}`;
+};
 
 type Scope = 'all' | 'mkt' | 'cs';
 type ViewMode = 'list' | 'cards';
@@ -16,6 +28,7 @@ const VIEW_KEY = 'eg-dashboard-view';
 interface RowItem { sku: SKU; wh: 'mkt' | 'cs'; tx: StockTransaction[] }
 
 type SortField =
+  | 'created'
   | 'name'
   | 'category'
   | 'opening'
@@ -35,8 +48,9 @@ export function DashboardPage() {
     user?.role === 'customer_service' ? 'cs' : (['warehouse', 'line_manager'].includes(user?.role || '') ? 'mkt' : 'all'),
   );
   const [detail, setDetail] = useState<{ sku: SKU; wh: 'mkt' | 'cs' } | null>(null);
-  const [sortField, setSortField] = useState<SortField>('name');
-  const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // Default: newest SKU first (not remembered — every visit opens on it).
+  const [sortField, setSortField] = useState<SortField>('created');
+  const [sortDir, setSortDir] = useState<SortDir>('desc');
   // List is the default; a switch to Cards is remembered in this browser.
   const [view, setViewState] = useState<ViewMode>(() => (safeGet(VIEW_KEY) === 'cards' ? 'cards' : 'list'));
   const setView = (v: ViewMode) => { setViewState(v); safeSet(VIEW_KEY, v); };
@@ -47,7 +61,7 @@ export function DashboardPage() {
       setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'));
     } else {
       setSortField(field);
-      const defaultDesc = ['opening', 'stockIn', 'stockOut', 'current', 'costPerUnit', 'totalValue', 'usagePct'].includes(field);
+      const defaultDesc = ['created', 'opening', 'stockIn', 'stockOut', 'current', 'costPerUnit', 'totalValue', 'usagePct'].includes(field);
       setSortDir(defaultDesc ? 'desc' : 'asc');
     }
   };
@@ -65,7 +79,10 @@ export function DashboardPage() {
     for (const s of csSkus) {
       const match = rows.find((r) => r.sku.id === s.id || r.sku.name.toLowerCase() === s.name.toLowerCase());
       if (match) {
-        match.sku = { ...match.sku, currentStock: match.sku.currentStock + s.currentStock, totalInflow: match.sku.totalInflow + s.totalInflow };
+        // merged item: created = the earlier of the two warehouses' create dates
+        const mc = createdMs(match.sku), cc = createdMs(s);
+        const createdAt = cc !== null && (mc === null || cc < mc) ? s.createdAt : match.sku.createdAt;
+        match.sku = { ...match.sku, createdAt, currentStock: match.sku.currentStock + s.currentStock, totalInflow: match.sku.totalInflow + s.totalInflow };
         seen.add(match.sku.id);
       } else if (!seen.has(s.id)) {
         rows.push({ sku: s, wh: 'cs', tx: csTx });
@@ -87,6 +104,16 @@ export function DashboardPage() {
     });
 
     list.sort((a, b) => {
+      if (sortField === 'created') {
+        // undated (legacy) SKUs always last; same instant → Name A–Z, both directions
+        const ta = createdMs(a.sku), tb = createdMs(b.sku);
+        if (ta === null || tb === null) {
+          if (ta !== tb) return ta === null ? 1 : -1;
+        } else if (ta !== tb) {
+          return sortDir === 'asc' ? ta - tb : tb - ta;
+        }
+        return a.sku.name.localeCompare(b.sku.name, 'la');
+      }
       let cmp = 0;
       switch (sortField) {
         case 'name':
@@ -196,6 +223,8 @@ export function DashboardPage() {
                   setSortDir(d);
                 }}
               >
+                <option value="created-desc">Created (Newest)</option>
+                <option value="created-asc">Created (Oldest)</option>
                 <option value="name-asc">Name (A – Z)</option>
                 <option value="name-desc">Name (Z – A)</option>
                 <option value="category-asc">Category (A – Z)</option>
@@ -247,6 +276,7 @@ export function DashboardPage() {
                         <div className="mt-1 flex flex-wrap items-center gap-1">
                           <SkuBadges sku={sku} wh={wh} scope={scope} csSkus={csSkus} />
                         </div>
+                        {createdLabel(sku) && <p className="mt-0.5 text-[11px] text-slate-400">{createdLabel(sku)}</p>}
                       </div>
                     </div>
                     <div className="mt-3 grid grid-cols-4 divide-x divide-slate-100 rounded-lg bg-slate-50/80 py-2 text-center ring-1 ring-slate-100">
@@ -296,6 +326,7 @@ export function DashboardPage() {
                         <span className="font-medium text-slate-800">{sku.name}</span>
                         <SkuBadges sku={sku} wh={wh} scope={scope} csSkus={csSkus} />
                       </div>
+                      {createdLabel(sku) && <p className="text-[11px] text-slate-400">{createdLabel(sku)}</p>}
                     </td>
                     <td className="py-2.5 pr-2 text-slate-500">{sku.category || '—'}</td>
                     <td className="py-2.5 pr-2 text-right text-slate-600">{fmt(sku.openingBalance)} {sku.unit}</td>

@@ -70,19 +70,31 @@ function syncOpeningTx(
   });
 }
 
+/**
+ * Create date picked in the Add SKU modal ('YYYY-MM-DD', defaults to today):
+ * `day` dates the OPENING row, `at` = that day + the current local clock time
+ * (keeps same-day creation order) — mirrors manage_sku 0025.
+ */
+function createDateOf(v?: string | null): { day: string; at: string } {
+  const picked = String(v || '').slice(0, 10);
+  const day = /^\d{4}-\d{2}-\d{2}$/.test(picked) && picked <= todayStr() ? picked : todayStr();
+  return { day, at: `${day}T${new Date().toTimeString().slice(0, 8)}` };
+}
+
 export function demoAddSku(sku: Partial<SKU>): string {
   const id = sku.id || nextId('sku-');
   const opening = castNumber(sku.openingBalance);
   const name = sku.name || 'Untitled';
+  const { day, at } = createDateOf(sku.createdAt);
   demoDB.skus.push({
     id, name, category: sku.category || '', unit: sku.unit || 'pcs',
     openingBalance: opening, currentStock: sku.currentStock !== undefined ? castNumber(sku.currentStock) : opening,
     totalInflow: opening, imageUrl: sku.imageUrl || null,
     lowStockThreshold: castNumber(sku.lowStockThreshold), costPerUnit: castNumber(sku.costPerUnit),
-    createdAt: todayStr(), status: sku.status || 'active',
+    createdAt: at, status: sku.status || 'active',
   });
   if (opening > 0)
-    demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionBy: '', status: 'Opening', comment: 'Opening balance on SKU creation' });
+    demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: day, actionBy: '', status: 'Opening', comment: 'Opening balance on SKU creation' });
   pushAudit({
     module: 'master', action: 'create', entity: 'skus', entityId: id, entityName: name, warehouse: 'MKT',
     summary: `Added MKT item "${name}"` + (opening > 0 ? ` · opening ${opening}` : ''),
@@ -144,15 +156,16 @@ export function demoCsAddSku(sku: Partial<CS_SKU>): string {
   const id = sku.id || nextId('CS-SKU-');
   const opening = castNumber(sku.openingBalance);
   const name = sku.name || 'Untitled';
+  const { day, at } = createDateOf(sku.createdAt);
   demoDB.csSkus.push({
     id, name, category: sku.category || '', unit: sku.unit || 'pcs',
     openingBalance: opening, currentStock: sku.currentStock !== undefined ? castNumber(sku.currentStock) : opening,
     totalInflow: opening, imageUrl: sku.imageUrl || null,
     lowStockThreshold: castNumber(sku.lowStockThreshold), costPerUnit: castNumber(sku.costPerUnit),
-    createdAt: todayStr(), status: sku.status || 'active',
+    createdAt: at, status: sku.status || 'active',
   });
   if (opening > 0)
-    demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy: '', comment: 'Opening balance on SKU creation' });
+    demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'OPENING', skuId: id, skuName: sku.name, qty: opening, type: 'addition', date: day, actionAt: new Date().toISOString(), actionBy: '', comment: 'Opening balance on SKU creation' });
   pushAudit({
     module: 'master', action: 'create', entity: 'cs_skus', entityId: id, entityName: name, warehouse: 'CS',
     summary: `Added CS item "${name}"` + (opening > 0 ? ` · opening ${opening}` : ''),
