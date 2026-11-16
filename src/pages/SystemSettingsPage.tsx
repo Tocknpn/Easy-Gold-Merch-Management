@@ -730,10 +730,33 @@ function EmailTab({ config, tickets, users }: {
 
   useEffect(() => { void reload(true); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, []);
 
+  // Keep the switch in step when another admin flips it (realtime refresh).
+  useEffect(() => {
+    setEnabled(String(config.email_enabled ?? 'true') !== 'false');
+  }, [config.email_enabled]);
+
+  // The on/off switch applies immediately — it is the one setting people
+  // reach for in a hurry, so it must not wait for "Save settings".
+  const [toggling, setToggling] = useState(false);
+  const toggleEnabled = async () => {
+    const next = !enabled;
+    setToggling(true);
+    setEnabled(next);
+    try {
+      await manageConfig('email_enabled', next ? 'true' : 'false');
+      toast(next ? 'Email notifications enabled' : 'Email notifications disabled — no ticket emails will be sent');
+      await refresh();
+    } catch (e: any) {
+      setEnabled(!next);
+      toast(e?.message || 'Could not change the email notification switch', 'error');
+    } finally {
+      setToggling(false);
+    }
+  };
+
   const save = async () => {
     setBusy('save');
     try {
-      await manageConfig('email_enabled', enabled ? 'true' : 'false');
       await manageConfig('email_from_name', fromName.trim() || 'Easy Gold Merch System');
       await manageConfig('email_app_url', appUrl.trim().replace(/\/+$/, ''));
       await manageConfig('email_notify_url', notifyUrl.trim());
@@ -795,20 +818,53 @@ function EmailTab({ config, tickets, users }: {
       <div className="card card-pad max-w-3xl space-y-4">
         <h2 className="text-sm font-semibold text-slate-800">Notification settings</h2>
 
-        <label className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3.5 py-3 ring-1 ring-slate-100">
+        <div className={cn(
+          'flex items-center justify-between gap-4 rounded-xl px-3.5 py-3 ring-1',
+          enabled ? 'bg-emerald-50/60 ring-emerald-100' : 'bg-slate-50 ring-slate-200',
+        )}>
           <span className="text-sm text-slate-700">
-            Send ticket emails
-            <span className="block text-[11px] text-slate-400">
+            <span className="font-semibold">Email notifications</span>
+            <span className={cn(
+              'ml-2 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide',
+              enabled ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-200 text-slate-600',
+            )}>
+              {enabled ? 'Enabled' : 'Disabled'}
+            </span>
+            <span className="mt-0.5 block text-[11px] text-slate-400">
               Warehouse on a new request → Line Manager on review → Director on approval → requester on the result.
+              Applies immediately.
             </span>
           </span>
-          <input
-            type="checkbox"
-            className="h-5 w-5 shrink-0 accent-brand-600"
-            checked={enabled}
-            onChange={(e) => { setEnabled(e.target.checked); setDirty(true); }}
-          />
-        </label>
+          <button
+            type="button"
+            role="switch"
+            aria-checked={enabled}
+            aria-label={enabled ? 'Disable email notifications' : 'Enable email notifications'}
+            onClick={() => void toggleEnabled()}
+            disabled={toggling}
+            className={cn(
+              'relative inline-flex h-6 w-11 shrink-0 items-center rounded-full transition-colors',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400 focus-visible:ring-offset-2',
+              'disabled:opacity-60',
+              enabled ? 'bg-emerald-500' : 'bg-slate-300',
+            )}
+          >
+            <span className={cn(
+              'inline-block h-5 w-5 rounded-full bg-white shadow transition-transform',
+              enabled ? 'translate-x-[22px]' : 'translate-x-0.5',
+            )} />
+          </button>
+        </div>
+
+        {!enabled && (
+          <p className="flex items-start gap-2 rounded-xl border border-amber-200 bg-amber-50 px-3.5 py-2.5 text-[12px] text-amber-900">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>
+              Notifications are off. Tickets still move normally, but nobody is emailed about new
+              requests, approvals or results until you switch this back on.
+            </span>
+          </p>
+        )}
 
         <div className="grid gap-3.5 sm:grid-cols-2">
           <div>
@@ -983,7 +1039,7 @@ function StatusCard({ fn, enabled, quota, busy, onReload }: {
   onReload: () => void;
 }) {
   const rows: { label: string; ok: boolean | null; note?: string }[] = [
-    { label: 'Notifications enabled', ok: enabled, note: enabled ? undefined : 'switched off above' },
+    { label: 'Notifications enabled', ok: enabled, note: enabled ? undefined : 'switched off below' },
     { label: 'Edge Function deployed', ok: fn?.deployed ?? null, note: fn?.deployed ? fn.provider : fn?.error },
     { label: 'Relay URL configured', ok: fn ? !!fn.relayUrl : null },
     { label: 'Relay secret configured', ok: fn ? !!fn.relaySecret : null },
