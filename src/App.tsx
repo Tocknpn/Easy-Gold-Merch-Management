@@ -54,14 +54,14 @@ const queryClient = new QueryClient({
 const ROUTES: { path: string; pageKey: string; roles: string[] }[] = [
   { path: '/dashboard', pageKey: 'dashboard', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
   { path: '/request', pageKey: 'request', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service'] },
-  { path: '/ticket-tracking', pageKey: 'ticket-tracking', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
+  { path: '/ticket-tracking', pageKey: 'ticket-tracking', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service', 'hr', 'pa'] },
   { path: '/manage-stock', pageKey: 'manage-stock', roles: ['warehouse', 'customer_service', 'director', 'admin'] },
   { path: '/action-center', pageKey: 'action-center', roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { path: '/reporting', pageKey: 'reporting', roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
   { path: '/stock-analytics', pageKey: 'stock-analytics', roles: ['warehouse', 'admin'] },
   { path: '/settings', pageKey: 'settings', roles: ['admin', 'warehouse', 'customer_service'] },
   { path: '/audit', pageKey: 'audit', roles: ['admin'] },
-  { path: '/diagnostics', pageKey: 'diagnostics', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
+  { path: '/diagnostics', pageKey: 'diagnostics', roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service', 'hr', 'pa'] },
 ];
 
 function Protected() {

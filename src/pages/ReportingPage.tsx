@@ -4,6 +4,7 @@
 // Shared filter bar: Date from→to · Part (MKT/CS/All) · Merch Type (category) ·
 //       VAT (visible only on Month End tab).
 // Export Excel → 7 sheets in one .xlsx. Print PDF → only Month End tab (screen match).
+// Finance role: only the first 4 tabs (FINANCE_TABS) and the matching 4 sheets.
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -30,13 +31,16 @@ const cellCls = 'border border-slate-200 px-3 py-1.5';
 
 const TAB_DEFS: { key: TabKey; label: string; icon: React.ReactNode }[] = [
   { key: 'month-end', label: 'Month End Report', icon: <CalendarRange className="h-4 w-4" /> },
-  { key: 'stock-out', label: 'Item Stock Out', icon: <ArrowDownToLine className="h-4 w-4" /> },
-  { key: 'stock-in', label: 'Stock In Details', icon: <ArrowUpFromLine className="h-4 w-4" /> },
+  { key: 'stock-out', label: 'Item Stock Out', icon: <ArrowUpFromLine className="h-4 w-4" /> },
+  { key: 'stock-in', label: 'Stock In Details', icon: <ArrowDownToLine className="h-4 w-4" /> },
   { key: 'stock-remain', label: 'Stock Remain', icon: <Boxes className="h-4 w-4" /> },
   { key: 'borrow', label: 'Borrow Item', icon: <Repeat className="h-4 w-4" /> },
   { key: 'delivery', label: 'Ticket Delivery', icon: <CalendarDays className="h-4 w-4" /> },
   { key: 'balance', label: 'Stock Balance', icon: <Scale className="h-4 w-4" /> },
 ];
+
+// Finance sees only these tabs (and only these sheets in the Excel export).
+const FINANCE_TABS: TabKey[] = ['month-end', 'stock-out', 'stock-in', 'stock-remain'];
 
 function Panel({ title, tone, children }: { title: string; tone: Tone; children: React.ReactNode }) {
   return (
@@ -51,7 +55,10 @@ export function ReportingPage() {
   const { user } = useAuth();
   const { skus, csSkus, transactions, csTransactions, tickets, loading, error, refresh } = useData();
   const [params, setParams] = useSearchParams();
-  const tab = (params.get('tab') as TabKey) || 'month-end';
+  const isFinance = user?.role === 'finance';
+  const visibleTabs = isFinance ? TAB_DEFS.filter((t) => FINANCE_TABS.includes(t.key)) : TAB_DEFS;
+  const requestedTab = params.get('tab') as TabKey | null;
+  const tab: TabKey = requestedTab && visibleTabs.some((t) => t.key === requestedTab) ? requestedTab : 'month-end';
   const setTab = (k: TabKey) => {
     const p = new URLSearchParams(params);
     p.set('tab', k);
@@ -268,6 +275,7 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       ...remainRows.map((r) => [r.skuName, r.qty, r.cpu, r.qty * r.cpu]),
       ['TOTAL VALUE', '', '', tRemain.v],
     ]), 'Stock Remain');
+    if (!isFinance) {
     // Sheet 5: Borrow Item
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['BORROW ITEMS'],
@@ -288,8 +296,9 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       ['TICKET', 'ITEM(S)', 'REQUESTER', 'DEPARTMENT', 'DELIVERY DATE', 'ACTUAL DELIVERY', 'STATUS'],
       ...deliveryRows.map((r) => [r.ticket, r.items, r.requester, r.dept, r.neededBy, r.actual, r.status]),
     ]), 'Ticket Delivery');
+    }
     XLSX.writeFile(wb, `report-${wh}-${from}-to-${to}.xlsx`);
-    toast('Report exported — 7 sheets (Excel)');
+    toast(`Report exported — ${wb.SheetNames.length} sheets (Excel)`);
     } finally {
       setExporting(false);
     }
@@ -444,7 +453,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
 
       {/* tabs */}
       <div className="flex flex-wrap gap-1.5 rounded-2xl bg-slate-50 p-1.5 no-print">
-        {TAB_DEFS.map((t) => (
+        {visibleTabs.map((t) => (
           <button key={t.key} onClick={() => setTab(t.key)}
             className={cn('flex items-center gap-1.5 rounded-xl px-3.5 py-2 text-sm font-semibold transition',
               tab === t.key ? 'bg-white text-brand-700 shadow-sm ring-1 ring-brand-200' : 'text-slate-500 hover:bg-white/60 hover:text-slate-700')}>

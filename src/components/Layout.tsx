@@ -23,13 +23,13 @@ export const NAV_DEFS: NavDef[] = [
   { key: 'dashboard', label: 'Dashboard', icon: <LayoutDashboard className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
   { key: 'request', label: 'Request', icon: <PlusCircle className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service'] },
   { key: 'manage-stock', label: 'Manage Stock', icon: <Warehouse className="h-4 w-4" />, roles: ['warehouse', 'customer_service', 'director', 'admin'] },
-  { key: 'ticket-tracking', label: 'Ticket Tracking', icon: <Ticket className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
+  { key: 'ticket-tracking', label: 'Ticket Tracking', icon: <Ticket className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service', 'hr', 'pa'] },
   { key: 'action-center', label: 'Action Center', icon: <Inbox className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin'] },
   { key: 'reporting', label: 'Reporting', icon: <FileBarChart className="h-4 w-4" />, roles: ['warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service'] },
   { key: 'stock-analytics', label: 'Stock Analytics', icon: <BarChart3 className="h-4 w-4" />, roles: ['warehouse', 'admin'] },
   { key: 'audit', label: 'Audit Trail', icon: <ScrollText className="h-4 w-4" />, roles: ['admin'] },
   { key: 'settings', label: 'System Settings', icon: <Settings2 className="h-4 w-4" />, roles: ['admin', 'warehouse', 'customer_service'] },
-  { key: 'diagnostics', label: 'Diagnostics', icon: <HeartPulse className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'finance', 'customer_service', 'hr', 'pa'] },
+  { key: 'diagnostics', label: 'Diagnostics', icon: <HeartPulse className="h-4 w-4" />, roles: ['staff', 'warehouse', 'line_manager', 'director', 'admin', 'customer_service', 'hr', 'pa'] },
 ];
 
 const ROLE_TO_PATH: Record<string, string> = {
