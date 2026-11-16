@@ -122,8 +122,9 @@ export function ReportingPage() {
   const inRange = (d?: string | null) => !!d && d >= from && d <= to;
 
   // Month End Report rows — see "Month End Report.md". Opening rolls every
-  // movement back from the month start (so a brand-new item's OPENING genesis
-  // row lands in Stock In and its Opening is 0), Closing rolls back only what
+  // movement back from the month start (an item's starting stock shows as
+  // Opening in its creation month, never as Stock In; ticket movements are
+  // dated on the ticket's delivery date — 0026), Closing rolls back only what
   // happened AFTER the month end, and "All" merges MKT + CS per SKU summing
   // quantity AND value (each warehouse keeps its own cost per unit).
   // Items are never listed before they were created, and rows with no balance

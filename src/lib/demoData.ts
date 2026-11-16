@@ -162,7 +162,7 @@ function moveDateOf(
 }
 
 /** Lowest end-of-day balance from `from` to today (counted rows only). */
-function minBalanceFrom(sku: SKU | CS_SKU, ledger: StockTransaction[], from: string): { min: number; at: string } {
+export function minBalanceFrom(sku: SKU | CS_SKU, ledger: StockTransaction[], from: string): { min: number; at: string } {
   const dead = new Set(demoDB.tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id));
   const rows = ledger.filter((t) => t.skuId === sku.id && t.date && !isCancelledStatus(t.status) && !(t.ticketId && dead.has(t.ticketId)));
   const days = [from, ...rows.map((t) => t.date as string).filter((d) => d > from)];

@@ -3,6 +3,24 @@ import { demoDB, nextId, nextLedgerId } from './demoStore';
 import type { SKU, CS_SKU, TicketStatus, TicketType, TicketEditChange, TicketEditLine } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
+import { minBalanceFrom } from './demoData';
+
+/** Ledger date of a ticket's movements = its delivery date, else its created
+ *  day (mirrors ticket_ledger_date in migration 0026). */
+export const ticketLedgerDate = (t: { deliveryDate?: string | null; createdAt?: string | null }): string =>
+  String(t.deliveryDate || '').slice(0, 10) || String(t.createdAt || '').slice(0, 10) || todayStr();
+
+/** A deduction of `qty` dated `day` must not push any day's balance below zero
+ *  (mirrors dated_out_error in 0026). `sku.currentStock` = stock BEFORE it. */
+function assertTicketDatedOut(sku: SKU | CS_SKU, cs: boolean, day: string, qty: number): void {
+  if (!(qty > 0)) return;
+  const { min, at } = minBalanceFrom(sku, cs ? demoDB.csTransactions : demoDB.transactions, day);
+  if (min < qty) {
+    throw new Error(
+      `Not enough stock of "${sku.name}" on ${at}: only ${min} left that day — ${qty} dated ${day} (delivery date) would make it negative`,
+    );
+  }
+}
 
 /** Comment written when a Warehouse Manager's own request skips warehouse review
  *  (mirrored by create_ticket in migration 0017). */
@@ -37,6 +55,7 @@ export function demoCreateTicket(p: {
   // except for legacy pending tickets created before booking-at-creation.
   const hasBooking = (ticketId: string, skuId: string) =>
     demoDB.transactions.some((tx) => tx.ticketId === ticketId && tx.skuId === skuId && tx.type === 'deduction' && tx.status === 'Booked');
+  const ledgerDay = String(p.deliveryDate || '').slice(0, 10) || todayStr();
   const need = new Map<string, number>();
   for (const i of items) need.set(i.skuId, (need.get(i.skuId) || 0) + i.qtyRequested);
   for (const [skuId, qty] of need) {
@@ -55,6 +74,8 @@ export function demoCreateTicket(p: {
         'Someone may have just booked it — please refresh and try again.',
       );
     }
+    // 0026: a PAST delivery date puts this Stock Out in an earlier month.
+    if (ledgerDay < todayStr()) assertTicketDatedOut(sku, false, ledgerDay, qty);
   }
 
   const id = nextId('TKT-');
@@ -91,7 +112,7 @@ export function demoCreateTicket(p: {
     demoDB.transactions.unshift({
       id: nextLedgerId(),
       ticketId: id, skuId: i.skuId, skuName: i.skuName, qty: i.qtyRequested, type: 'deduction',
-      date: todayStr(), actionAt: new Date().toISOString(), actionBy: p.createdByName,
+      date: ledgerDay, actionAt: new Date().toISOString(), actionBy: p.createdByName,
       status: 'Booked', comment: 'Stock booked on ticket submission',
     });
   }
@@ -180,6 +201,7 @@ export function demoUpdateTicketStatus(
       if (booking) {
         // booking exists: true-up only the difference (never deduct twice)
         if (qty !== bookedQty) {
+          if (sku && qty > bookedQty) assertTicketDatedOut(sku, false, ticketLedgerDate(t), qty - bookedQty);
           if (sku) sku.currentStock = Math.max(0, sku.currentStock - (qty - bookedQty));
           booking.qty = qty;
           booking.comment = 'Stock booked - confirmed at review';
@@ -191,7 +213,7 @@ export function demoUpdateTicketStatus(
         demoDB.transactions.unshift({
           id: nextLedgerId(),
           ticketId: t.id, skuId: it.skuId, skuName: it.skuName, qty, type: 'deduction',
-          date: todayStr(), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
+          date: ticketLedgerDate(t), actionAt: new Date().toISOString(), actionBy: actor, status: 'Booked', comment: 'Stock booked on review',
         });
         qtyNotes.push(`${it.skuName}: ${bookedQty} → ${qty}`);
       }
@@ -227,7 +249,7 @@ export function demoUpdateTicketStatus(
         id: nextLedgerId(),
         ticketId: genesis ? 'OPENING' : t.id,
         skuId: cs ? cs.id : it.skuId, skuName: it.skuName, qty, type: 'addition',
-        date: todayStr(), actionAt: new Date().toISOString(), actionBy: 'MKT Warehouse',
+        date: ticketLedgerDate(t), actionAt: new Date().toISOString(), actionBy: 'MKT Warehouse',
         comment: 'Auto-transferred from MKT WH - Ticket: ' + t.id,
       });
     }
@@ -410,10 +432,13 @@ export function demoEditTicket(
       throw new Error(`"${sku.name}" is inactive and cannot be added`);
     if (delta > 0 && sku.currentStock < delta)
       throw new Error(`Not enough stock for "${name}": need ${delta}, available ${sku.currentStock}`);
+    // 0026: the extra Stock Out is dated on the delivery date
+    if (delta > 0) assertTicketDatedOut(sku, false, ticketLedgerDate(t), delta);
     if (t.type === 'cs_transfer' && delta < 0) {
       const cs = findCs(l.skuId, name);
       if (!cs || cs.currentStock < -delta)
         throw new Error(`CS warehouse has only ${cs?.currentStock ?? 0} of "${name}" — cannot take back ${-delta}`);
+      assertTicketDatedOut(cs, true, ticketLedgerDate(t), -delta);
     }
     changes.push({
       skuId: l.skuId, skuName: name, from: cur, to: l.qty, delta,
@@ -426,6 +451,8 @@ export function demoEditTicket(
   const editId = demoDB.ticketEdits.reduce((m, e) => Math.max(m, e.id), 0) + 1;
   const nowIso = new Date().toISOString();
   const today = todayStr();
+  // 0026: edit rows land on the ticket's delivery date (not today)
+  const ledgerDay = ticketLedgerDate(t);
   demoDB.ticketEdits.unshift({
     id: editId, ticketId: t.id, at: nowIso, actorName: actor, actorRole: 'admin',
     remark: note, changes: changes.map((c) => ({ ...c })),
@@ -453,13 +480,13 @@ export function demoEditTicket(
       sku.currentStock -= qty;
       demoDB.transactions.unshift({
         id: nextLedgerId(), ticketId: t.id, skuId: c.skuId, skuName: c.skuName, qty, type: 'deduction',
-        date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Issue', comment: rowNote,
+        date: ledgerDay, actionAt: nowIso, actionBy: actor, status: 'Edit Issue', comment: rowNote,
       });
     } else {
       sku.currentStock += qty;
       demoDB.transactions.unshift({
         id: nextLedgerId(), ticketId: t.id, skuId: c.skuId, skuName: c.skuName, qty, type: 'addition',
-        date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
+        date: ledgerDay, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
       });
     }
 
@@ -481,14 +508,14 @@ export function demoEditTicket(
         cs.totalInflow += qty;
         demoDB.csTransactions.unshift({
           id: nextLedgerId(), ticketId: t.id, skuId: cs.id, skuName: c.skuName, qty, type: 'addition',
-          date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Receipt', comment: rowNote,
+          date: ledgerDay, actionAt: nowIso, actionBy: actor, status: 'Edit Receipt', comment: rowNote,
         });
       } else if (cs) {
         cs.currentStock -= qty;
         cs.totalInflow -= qty;
         demoDB.csTransactions.unshift({
           id: nextLedgerId(), ticketId: t.id, skuId: cs.id, skuName: c.skuName, qty, type: 'deduction',
-          date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
+          date: ledgerDay, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
         });
       }
     }

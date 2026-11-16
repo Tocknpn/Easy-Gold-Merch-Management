@@ -102,10 +102,11 @@ Cloudflare Pages  →  https://your-site.pages.dev
    | 20 | `supabase/migrations/0020_email_notifications.sql` | email trigger, `email_log`, notification settings (see §2.6) |
    | 21 | `supabase/migrations/0021_update_email_app_url.sql` | sets `email_app_url` to production |
    | 22 | `supabase/migrations/0022_security_lockdown.sql` | **security lockdown**: revokes execute from anon on all public RPC functions |
+   | 26 | `supabase/migrations/0026_ticket_delivery_date_ledger.sql` | **ticket movements dated on the delivery date** (`create_ticket`, `update_ticket_status`, `edit_ticket` re-issued; backfill of existing ticket rows; final SELECT lists any SKU/day that went negative — fix those by hand) |
 
    Each should show **"Success. No rows returned"** (or similar). All of them are safe to re-run
    (paste + **Run** again any time). If you re-run `0006`, re-run `0009` after it.
-   Always finish with `0010` → `0011` → `0012` → `0014` → `0017` → `0019` → `0022` — `0019` is the latest `update_ticket_status` engine and `0022` locks down permissions.
+   Always finish with `0010` → `0011` → `0012` → `0014` → `0017` → `0019` → `0022` → `0024` → `0025` → `0026` — `0026` holds the latest `create_ticket` / `update_ticket_status` / `edit_ticket` (re-running `0017`, `0019` or `0024` alone puts back the old create-day dating, so always re-run `0026` after them).
 
    > 👥 **User management in the app:** after step 9 an **Admin** can add/edit users, activate or
    > deactivate them and set (or look up) their password right from **System Settings → Users** —

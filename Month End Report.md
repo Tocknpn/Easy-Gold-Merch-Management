@@ -30,17 +30,18 @@ Since there is no saved snapshot, the system uses the **Current Stock** as the a
 *   **Calculation**: Starts with the `Current Stock` and **rolls back** (reverses) every single transaction that occurred *on or after* the `startDate`.
     *   If a deduction occurred after the start date, it adds the quantity back.
     *   If an addition occurred after the start date, it subtracts the quantity out.
-*   **The "Genesis" Rule**: If a brand-new item was added to the system during this month, its very first initial stock entry (tagged as an "OPENING" transaction) is also rolled back. This ensures that the Opening Balance for a newly created item is correctly shown as `0` in its birth month. This satisfies the strict finance rule: *Previous Month's Closing Balance must equal Current Month's Opening Balance*.
+*   **The Starting-Stock Rule**: If an item was created during this month, the stock it was created with (its "OPENING" transaction) is shown as its **Opening Balance** — not as Stock In. Example: a hat created in June with 500 pcs and issued 500 in June reads Opening 500 / Stock In 0 / Stock Out 500 / Closing 0. The item is not listed in the months before it was created.
 
 ### B. Stock In
 **Definition**: Total quantity added to the inventory during the selected month.
 *   **Calculation**: Sums the quantities of all transactions explicitly marked as `addition` that fall strictly between the `startDate` and `endDate` (inclusive).
-*   **What it includes**: Normal restocks, returned items, items transferred from another warehouse, and importantly, the initial "OPENING" genesis stock when an item is first created. This ensures the initial stock appears as an influx during that month rather than magically appearing in the Opening Balance.
+*   **What it includes**: Normal restocks, returned items and items transferred from another warehouse. The starting stock an item is created with is NOT Stock In — it is the Opening Balance of its creation month.
 
 ### C. Stock Out
 **Definition**: Total quantity removed from the inventory during the selected month.
 *   **Calculation**: Sums the quantities of all transactions explicitly marked as `deduction` that fall strictly between the `startDate` and `endDate` (inclusive).
 *   **What it includes**: Dispatched tickets, items consumed, or items transferred out.
+*   **Which month a ticket counts in**: the ticket's **delivery date** — not the day it was created, approved or finalized. The booking (accrual) counts as Stock Out from the moment the ticket is submitted, also while it is still pending; a rejected or recalled ticket is removed. Because the delivery date never changes, a month reads the same whenever you look at it.
 
 ### D. Closing Balance
 **Definition**: The exact stock quantity at the very end of the selected period.
@@ -62,11 +63,11 @@ To help illustrate how this works in practice, here are a few scenarios showing 
 *   **Action**: On October 15th, you create a new item "Lanyard" and set the initial stock to 100 pcs.
 *   **Behind the Scenes**: The system logs an `addition` transaction tagged as "OPENING" for 100 pcs on Oct 15th.
 *   **October Month End Report**:
-    *   **Opening Balance**: 0 (The system rolls back the Oct 15th genesis transaction, respecting the rule that new items start at 0).
-    *   **Stock In**: +100 (The genesis transaction is counted as stock in).
+    *   **Opening Balance**: 100 (The stock the item was created with is its opening balance).
+    *   **Stock In**: 0 (Only real restocks / receipts are Stock In).
     *   **Stock Out**: 0
     *   **Closing Balance**: 100
-*   **Why?**: This ensures that October's Opening Balance matches September's Closing Balance (which was 0, as the item didn't exist).
+*   **Why?**: The item starts its life with 100 pcs on hand, so that is what October opens with. September does not list the item at all (it did not exist yet).
 
 ### Scenario B: Generating a Past Month's Report
 *   **Current Date**: December 5th. Current stock of "T-Shirts" is 50.

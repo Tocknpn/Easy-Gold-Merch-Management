@@ -379,14 +379,16 @@ Existing Google Drive image links from the legacy app keep working unchanged.
 
 Report formulas (spec §7): Stock In = Σ addition, Stock Out = Σ deduction, Usage % =
 max(0,(Inflow−Current)/Inflow×100). The **Month End Report** works on one whole month (`YYYY-MM`): Stock In
-includes the item's initial `OPENING` genesis row, Opening = Current rolled back over every movement from the
-1st of the month (so a brand-new item opens at 0), Closing = Current rolled back over the movements *after* the
+covers real restocks / receipts only, Opening = Current rolled back over every movement from the
+1st of the month, Closing = Current rolled back over the movements *after* the
 month end (so a past month never shows today's stock), and **All stock** merges the MKT + CS rows, summing
 quantities *and* values (each warehouse keeps its own cost per unit). An item is **never listed before its
 creation date** (`createdAt`, else its first movement), and rows with no balance and no movement in the month
 are hidden unless you tick **Show items with no movement** (Finance/audit view). In the month an item first
-exists, its initial stock — even an imported baseline that has no `OPENING` ledger row — is reported as
-**Stock In** with Opening 0, so the previous month's Closing always equals this month's Opening.
+exists, its starting stock — its `OPENING` row, or an imported baseline with no ledger row — is reported as
+**Opening Balance** (e.g. created in June with 500, issued 500 in June → Opening 500 / Out 500 / Closing 0).
+Ticket movements are dated on the ticket's **delivery date** (migration 0026), so a past month always reads
+the same.
 
 ---
 

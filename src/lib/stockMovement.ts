@@ -5,8 +5,12 @@
 //   * `getMonthMovement` / `getMonthEndRows` — the month-snapshot math of the
 //                           Month End Report (opening rolls every movement back
 //                           from the month start, closing rolls back only the
-//                           movements AFTER the month end, the initial OPENING
-//                           genesis row counts as Stock In).
+//                           movements AFTER the month end; an item's starting
+//                           stock — its OPENING row — is shown as Opening in
+//                           the month it was created, never as Stock In).
+// Ticket ledger rows are dated on the ticket's delivery date (migration 0026),
+// so every month is a stable roll-back of dated rows: looking at June in
+// November shows exactly what June showed in July.
 import type { CS_SKU, SKU, StockTransaction, Ticket, WarehouseScope } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
@@ -147,14 +151,16 @@ export interface MonthMovement {
   firstDate: string | null;
   /** `(Opening + Stock In − Stock Out) − Closing` — 0 unless the SKU baseline drifted from the ledger. */
   variance: number;
+  /** Σ OPENING (starting-stock) additions dated inside the month — already counted in `stockIn`. */
+  genesisIn: number;
 }
 
 /**
  * Month End Report maths (see `Month End Report.md`). There are no stored
  * snapshots, so the figures are rolled back from the live `currentStock`:
  *
- *   Stock In  = Σ addition qty  in [from, to] — INCLUDING the initial OPENING
- *               genesis row, so a brand-new item shows In = its opening stock
+ *   Stock In  = Σ addition qty  in [from, to] — including the OPENING row; the
+ *               Month End rows (`valueRow`) move that `genesisIn` part to Opening
  *   Stock Out = Σ deduction qty in [from, to]
  *   Opening   = current − Σ(additions − deductions) for every tx with date >= from
  *               (later months included → a new item's OPENING row rolls back to 0)
@@ -175,6 +181,7 @@ export function getMonthMovement(
   let stockIn = 0;
   let stockOut = 0;
   let lossQty = 0;
+  let genesisIn = 0;
   let firstDate: string | null = null;
 
   for (const tx of transactions) {
@@ -193,6 +200,7 @@ export function getMonthMovement(
       stockIn += f.in;
       stockOut += f.out;
       lossQty += castNumber(tx.qtyBroken);
+      if (tx.type === 'addition' && tx.ticketId === 'OPENING') genesisIn += qty;
     }
   }
 
@@ -201,7 +209,7 @@ export function getMonthMovement(
   const variance = opening + stockIn - stockOut - closing;
   const inflow = castNumber(sku.totalInflow) || castNumber(sku.openingBalance);
   const usagePct = inflow > 0 ? Math.max(0, ((inflow - current) / inflow) * 100) : 0;
-  return { opening, stockIn, stockOut, closing, usagePct, lossQty, firstDate, variance };
+  return { opening, stockIn, stockOut, closing, usagePct, lossQty, firstDate, variance, genesisIn };
 }
 
 /**
@@ -322,14 +330,14 @@ interface ValuedRow {
 function valueRow(sku: SKU | CS_SKU, transactions: StockTransaction[], month: string): ValuedRow {
   const mv = getMonthMovement(sku, transactions, month);
   const cpu = castNumber(sku.costPerUnit);
-  // Birth month: an Opening the ledger cannot explain is the item's INITIAL
-  // stock — an imported baseline with no OPENING row. The spec's genesis rule
-  // says that arrives as Stock In and never as a carry-over Opening Balance, so
-  // the previous month's Closing always equals the birth month's Opening (0).
-  const birth = skuBirthDate(sku, mv.firstDate);
-  const bornHere = !!birth && birth.slice(0, 7) === month && mv.opening > 0;
-  const opening = bornHere ? 0 : mv.opening;
-  const stockIn = bornHere ? mv.stockIn + mv.opening : mv.stockIn;
+  // Starting stock = Opening. The OPENING row entered at SKU creation is the
+  // item's starting balance, so in its creation month it shows as Opening
+  // Balance (not Stock In): a hat created in June with 500 and issued 500 in
+  // June reads Opening 500 / In 0 / Out 500 / Closing 0. An imported baseline
+  // with no OPENING row already rolls back into `mv.opening`. Only real
+  // restocks / receipts are Stock In. Opening + In − Out = Closing still holds.
+  const opening = mv.opening + mv.genesisIn;
+  const stockIn = mv.stockIn - mv.genesisIn;
   return {
     id: String(sku.id),
     name: sku.name || '',
