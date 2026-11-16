@@ -114,6 +114,36 @@ export interface MovementEditPatch {
   actionBy?: string;
 }
 
+/** One line of an Admin ticket edit (migration 0024 `ticket_edits.changes`). */
+export interface TicketEditChange {
+  skuId: string;
+  skuName: string;
+  from: number;
+  to: number;
+  delta: number;
+  action: 'added' | 'removed' | 'adjusted';
+}
+
+/** One Admin "Edit Ticket" save — one remark, one or more line changes. */
+export interface TicketEdit {
+  id: number;
+  ticketId: string;
+  at: string;
+  actorName?: string | null;
+  actorRole?: string | null;
+  remark: string;
+  changes: TicketEditChange[];
+}
+
+/** A line of the Edit Ticket payload: the FULL desired item list, each line
+ *  carrying the qty the editor saw (`expectedQty`, null for a new line) so the
+ *  engine can refuse a stale edit. */
+export interface TicketEditLine {
+  skuId: string;
+  qty: number;
+  expectedQty: number | null;
+}
+
 export interface TicketAction {
   id?: number;
   ticketId?: string | null;

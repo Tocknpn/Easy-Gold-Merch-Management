@@ -2,7 +2,7 @@
 import demo from './demo-data.json';
 import type {
   AppUser, SKU, CS_SKU, Ticket, TicketWithItems, StockTransaction, CS_Transaction,
-  TicketAction, SkuRemark, UserRole, AuditEntry, AuditModule,
+  TicketAction, SkuRemark, UserRole, AuditEntry, AuditModule, TicketEdit,
 } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
@@ -20,6 +20,8 @@ export interface DemoDB {
   categories: string[];
   config: Record<string, string>;
   remarks: SkuRemark[];
+  /** Admin ticket edits (mirror of `ticket_edits`, migration 0024), newest first. */
+  ticketEdits: TicketEdit[];
   /** Explicit audit rows (master data / settings / user accounts). The
    *  ticket + ledger + remark history is derived on read in demoAudit.ts. */
   audit: AuditEntry[];
@@ -59,6 +61,7 @@ export const demoDB: DemoDB = {
   categories: [...(raw.categories || [])],
   config: { ...(raw.config || {}) },
   remarks: (raw.remarks || []).map((r: any) => ({ ...r })),
+  ticketEdits: [],
   audit: [],
 };
 

@@ -12,8 +12,9 @@ import { StatusBadge, TypeBadge } from '@/components/StatusBadge';
 import { TicketDetail } from '@/components/TicketDetail';
 import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
 import { EditMovementModal } from '@/components/EditMovementModal';
+import { EditTicketModal, isEditableTicket } from '@/components/EditTicketModal';
 import { fmt, money, cn, todayStr } from '@/lib/utils';
-import { isCancelledStatus } from '@/lib/stockMovement';
+import { flowOf, isCancelledStatus, isTicketEditRow } from '@/lib/stockMovement';
 import { resendTicketEmail } from '@/lib/ticketNotify';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
 import { TYPE_LABELS } from '@/lib/types';
@@ -22,15 +23,16 @@ type Scope = 'mine' | 'all' | 'moves';
 
 const STATUS_CHIPS = ['all', 'pending', 'reviewed', 'lm_approved', 'finalized', 'to-return', 'returned', 'rejected', 'recalled'] as const;
 
-const CAT_ORDER = ['issue', 'returned', 'in', 'out', 'loss', 'transfer', 'opening', 'cancelled'] as const;
+const CAT_ORDER = ['issue', 'returned', 'edit', 'in', 'out', 'loss', 'transfer', 'opening', 'cancelled'] as const;
 type CatKey = (typeof CAT_ORDER)[number];
 const CAT_LABEL: Record<CatKey, string> = {
-  issue: 'Ticket issue', returned: 'Ticket return', in: 'Stock in', out: 'Stock out',
+  issue: 'Ticket issue', returned: 'Ticket return', edit: 'Ticket edit', in: 'Stock in', out: 'Stock out',
   loss: 'Loss / Broken', transfer: 'Transfer', opening: 'Opening',
   cancelled: 'Cancelled / Rejected',
 };
 const CAT_STYLE: Record<CatKey, string> = {
   issue: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
+  edit: 'bg-amber-50 text-amber-700 ring-amber-600/20',
   returned: 'bg-cyan-50 text-cyan-700 ring-cyan-600/20',
   in: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
   out: 'bg-slate-100 text-slate-600 ring-slate-400/20',
@@ -80,6 +82,8 @@ function catOf(tx: StockTransaction, deadTickets?: Set<string>): CatKey {
   // reversal rows of rejected/recalled tickets are audit-only — they must
   // never be read as a real Stock In / Stock Out.
   if (isCancelledStatus(tx.status) || (ref && deadTickets?.has(ref))) return 'cancelled';
+  // Admin ticket edits (0024) — adjustments of a finalized ticket's quantities
+  if (isTicketEditRow(tx)) return 'edit';
   if (st === 'opening') return 'opening';
   if (ref.startsWith('TKT-')) return tx.type === 'deduction' ? 'issue' : 'returned';
   if (st.includes('loss') || st.includes('broken')) return 'loss';
@@ -256,8 +260,17 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
   jumpToTicket?: string;
 }) {
   const { user } = useAuth();
-  const { tickets, skus, updateTicketStatus, actions } = useData();
+  const { tickets, skus, updateTicketStatus, actions, ticketEdits } = useData();
   const [open, setOpen] = useState<TicketWithItems | null>(null);
+  // Admin "Edit Ticket" (0024): only an Admin, only a finalized ticket.
+  const [editing, setEditing] = useState<TicketWithItems | null>(null);
+  const isAdmin = user?.role === 'admin';
+  const canEditTicket = (t: TicketWithItems) => isAdmin && isEditableTicket(t);
+  const editCount = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const e of ticketEdits) m.set(e.ticketId, (m.get(e.ticketId) || 0) + 1);
+    return m;
+  }, [ticketEdits]);
   const [status, setStatus] = useState<string>('all');
   const [type, setType] = useState('all');
   const [q, setQ] = useState('');
@@ -489,16 +502,21 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
                               <Undo2 className="h-3 w-3" /> Return due
                             </span>
                           )}
+                          {(editCount.get(t.id) || 0) > 0 && (
+                            <span
+                              className="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-600/20"
+                              title="Quantities corrected by an Admin after finalize — see Edit history in the ticket"
+                            >
+                              <PencilLine className="h-3 w-3" /> Edited ×{editCount.get(t.id)}
+                            </span>
+                          )}
                         </div>
                       </td>
-                      <td className="px-2 text-right">
-                        <button
-                          onClick={(e) => { e.stopPropagation(); setOpen(t); }}
-                          className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
-                          title="Open ticket"
-                        >
-                          <MoreHorizontal className="h-4 w-4" />
-                        </button>
+                      <td className="px-2 text-right" onClick={(e) => e.stopPropagation()}>
+                        <RowMenu
+                          onOpen={() => setOpen(t)}
+                          onEdit={canEditTicket(t) ? () => setEditing(t) : undefined}
+                        />
                       </td>
                     </tr>
                   );
@@ -533,9 +551,25 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
           }
           wide
         >
-          <TicketDetail ticket={open} skus={skus} actions={actions} />
-          {canProcessReturn && (
-            <div className="mt-3 flex justify-end">
+          <TicketDetail
+            ticket={tickets.find((x) => x.id === open.id) || open}
+            skus={skus}
+            actions={actions}
+            edits={ticketEdits.filter((e) => e.ticketId === open.id)}
+          />
+          {(canProcessReturn || canEditTicket(open)) && (
+            <div className="mt-3 flex flex-wrap justify-end gap-2">
+              {canEditTicket(open) && (
+                <button
+                  type="button"
+                  className="btn btn-outline btn-sm"
+                  onClick={() => { const t = tickets.find((x) => x.id === open.id) || open; setOpen(null); setEditing(t); }}
+                  title="Adjust, add or remove items on this finalized ticket"
+                >
+                  <PencilLine className="h-3.5 w-3.5" /> Edit ticket
+                </button>
+              )}
+              {canProcessReturn && (
               <button
                 type="button"
                 className="btn btn-secondary btn-sm"
@@ -546,6 +580,7 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
                 {emailBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Mail className="h-3.5 w-3.5" />}
                 Email this notification again
               </button>
+              )}
             </div>
           )}
           {isPendingReturn(open) &&
@@ -562,6 +597,62 @@ function TicketsTab({ mineOnly, jumpToReturn, onJumpHandled, jumpToTicket }: {
             <CreatorRecall ticket={open} skus={skus} onDone={() => setOpen(null)} />
           )}
         </Modal>
+      )}
+
+      {editing && (
+        <EditTicketModal
+          ticket={tickets.find((x) => x.id === editing.id) || editing}
+          onClose={() => setEditing(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+/* ── Row ⋯ menu: Open (everyone) · Edit ticket (Admin, finalized only) ───── */
+function RowMenu({ onOpen, onEdit }: { onOpen: () => void; onEdit?: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!menuOpen) return;
+    const close = (e: MouseEvent) => { if (!ref.current?.contains(e.target as Node)) setMenuOpen(false); };
+    const esc = (e: KeyboardEvent) => { if (e.key === 'Escape') setMenuOpen(false); };
+    document.addEventListener('mousedown', close);
+    document.addEventListener('keydown', esc);
+    return () => { document.removeEventListener('mousedown', close); document.removeEventListener('keydown', esc); };
+  }, [menuOpen]);
+
+  const item = 'flex w-full items-center gap-2 px-3 py-2 text-left text-[13px] font-medium transition';
+  return (
+    <div ref={ref} className="relative inline-block">
+      <button
+        type="button"
+        onClick={() => setMenuOpen((v) => !v)}
+        className="rounded-lg p-1.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+        title="Ticket actions"
+        aria-haspopup="menu"
+        aria-expanded={menuOpen}
+      >
+        <MoreHorizontal className="h-4 w-4" />
+      </button>
+      {menuOpen && (
+        <div
+          role="menu"
+          // Opens to the LEFT of the button, centred on the row, so it is never
+          // clipped by the table card's overflow on the last row of a page.
+          className="absolute right-full top-1/2 z-20 mr-1 w-44 -translate-y-1/2 overflow-hidden rounded-xl bg-white py-1 shadow-lg ring-1 ring-slate-200"
+        >
+          <button type="button" role="menuitem" className={cn(item, 'text-slate-700 hover:bg-slate-50')}
+            onClick={() => { setMenuOpen(false); onOpen(); }}>
+            <FileText className="h-4 w-4 text-slate-400" /> Open ticket
+          </button>
+          {onEdit && (
+            <button type="button" role="menuitem" className={cn(item, 'text-amber-700 hover:bg-amber-50')}
+              onClick={() => { setMenuOpen(false); onEdit(); }}>
+              <PencilLine className="h-4 w-4" /> Edit ticket
+            </button>
+          )}
+        </div>
       )}
     </div>
   );
@@ -822,8 +913,10 @@ function MovementsTab() {
 
   const sums = useMemo(
     () => ({
-      in: rows.filter((r) => r.tx.type === 'addition' && !['returned', 'transfer', 'cancelled'].includes(r.cat)).reduce((a, r) => a + (r.tx.qty || 0), 0),
-      out: rows.filter((r) => r.tx.type === 'deduction' && !['loss', 'cancelled'].includes(r.cat)).reduce((a, r) => a + (r.tx.qty || 0), 0),
+      // flowOf(): an Admin edit's 'Edit Return' row reduces the opposite column
+      // (less stock out on MKT, less stock in on CS) instead of adding to it.
+      in: rows.filter((r) => !['returned', 'transfer', 'cancelled'].includes(r.cat)).reduce((a, r) => a + flowOf(r.tx).in, 0),
+      out: rows.filter((r) => !['loss', 'cancelled'].includes(r.cat)).reduce((a, r) => a + flowOf(r.tx).out, 0),
       loss: rows.filter((r) => r.cat === 'loss').reduce((a, r) => a + (r.tx.qty || 0), 0),
       transfer: rows.filter((r) => r.cat === 'transfer').reduce((a, r) => a + (r.tx.qty || 0), 0),
     }),
@@ -857,10 +950,16 @@ function MovementsTab() {
   // admin → both warehouses; warehouse → MKT rows; customer_service → CS rows.
   // OPENING rows follow the SKU opening balance (Manage Stock → SKU Setup) and
   // cancelled bookings are audit-only, so those are never editable here.
+  // Ticket-linked rows are NOT editable here: a ticket's quantities change only
+  // through All Tickets → ⋯ → Edit ticket (0024), which keeps ticket_items and
+  // the ledger in step. Editing the row alone would make them disagree.
+  const ticketIds = useMemo(() => new Set(tickets.map((t) => t.id)), [tickets]);
+  const isTicketRow = (r: MoveRow) => !!r.tx.ticketId && ticketIds.has(r.tx.ticketId);
   const mayEdit = ['admin', 'warehouse', 'customer_service'].includes(user?.role || '');
   const canEdit = (r: MoveRow) =>
     mayEdit &&
     r.tx.ticketId !== 'OPENING' &&
+    !isTicketRow(r) &&
     !isCancelledStatus(r.tx.status) &&
     (user?.role === 'admin' ||
       (user?.role === 'warehouse' && r.wh === 'MKT') ||
@@ -989,7 +1088,9 @@ function MovementsTab() {
                             title={
                               r.tx.ticketId === 'OPENING'
                                 ? 'Opening rows are edited via Manage Stock → SKU Setup'
-                                : isCancelledStatus(r.tx.status)
+                                : isTicketRow(r)
+                                  ? 'Ticket quantities are changed via All Tickets → ⋯ → Edit ticket (Admin)'
+                                  : isCancelledStatus(r.tx.status)
                                   ? 'Cancelled bookings are audit-only'
                                   : 'Your role cannot edit this row'
                             }

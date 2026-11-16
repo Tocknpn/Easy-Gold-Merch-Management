@@ -38,6 +38,44 @@ export function isCountedMovement(tx: StockTransaction): boolean {
   return !isCancelledStatus(tx.status);
 }
 
+// ── Admin ticket edits (migration 0024) ───────────────────────────────────
+// An edit writes NEW ledger rows dated the edit day:
+//   MKT 'Edit Issue'   (deduction) — more issued on the ticket   → Stock Out
+//   MKT 'Edit Return'  (addition)  — less issued on the ticket   → LESS Stock Out
+//   CS  'Edit Receipt' (addition)  — more received on a transfer → Stock In
+//   CS  'Edit Return'  (deduction) — less received on a transfer → LESS Stock In
+// An 'Edit Return' row therefore OFFSETS the opposite flow instead of showing
+// up as a phantom Stock In (MKT) / Stock Out (CS). The net effect on the
+// balance is still +qty for an addition and −qty for a deduction, so every
+// roll-back (opening / closing) stays exactly the same.
+export const EDIT_STATUSES = {
+  issue: 'Edit Issue',
+  receipt: 'Edit Receipt',
+  reversal: 'Edit Return',
+} as const;
+
+/** A row written by an Admin ticket edit. */
+export function isTicketEditRow(tx: StockTransaction): boolean {
+  return String(tx.status || '').toLowerCase().startsWith('edit ');
+}
+
+/** An edit row that reverses part of the ticket's original movement. */
+export function isEditReversal(tx: StockTransaction): boolean {
+  return String(tx.status || '').toLowerCase() === EDIT_STATUSES.reversal.toLowerCase();
+}
+
+/**
+ * Signed contribution of ONE ledger row to the Stock In / Stock Out columns.
+ * Normal rows: addition → in, deduction → out. An 'Edit Return' reversal
+ * subtracts from the opposite column (see above). `in − out` always equals the
+ * row's net effect on the balance.
+ */
+export function flowOf(tx: StockTransaction): { in: number; out: number } {
+  const q = castNumber(tx.qty);
+  if (isEditReversal(tx)) return tx.type === 'addition' ? { in: 0, out: -q } : { in: -q, out: 0 };
+  return tx.type === 'addition' ? { in: q, out: 0 } : { in: 0, out: q };
+}
+
 /**
  * Reporting view of the ledger: drop rows that must not appear in
  * Stock In / Stock Out totals —
@@ -75,12 +113,11 @@ export function getStockMovement(
     if (!isCountedMovement(tx)) continue;
     if (from && tx.date && tx.date < from) continue;
     if (to && tx.date && tx.date > to) continue;
-    if (tx.type === 'addition') {
-      // OPENING additions are not counted as stock-in (they are the starting balance)
-      if (tx.ticketId !== 'OPENING') stockIn += castNumber(tx.qty);
-    } else if (tx.type === 'deduction') {
-      stockOut += castNumber(tx.qty);
-    }
+    // OPENING additions are not counted as stock-in (they are the starting balance)
+    if (tx.type === 'addition' && tx.ticketId === 'OPENING') continue;
+    const f = flowOf(tx);
+    stockIn += f.in;
+    stockOut += f.out;
     lossQty += castNumber(tx.qtyBroken);
   }
   const current = castNumber(sku.currentStock);
@@ -152,8 +189,9 @@ export function getMonthMovement(
     if (date >= from) fromStart += tx.type === 'addition' ? qty : -qty;
     if (date > to) afterEnd += tx.type === 'addition' ? qty : -qty;
     if (date >= from && date <= to) {
-      if (tx.type === 'addition') stockIn += qty;
-      else stockOut += qty;
+      const f = flowOf(tx);
+      stockIn += f.in;
+      stockOut += f.out;
       lossQty += castNumber(tx.qtyBroken);
     }
   }

@@ -43,6 +43,8 @@ export function stepIndexForAction(a: TicketAction, steps: PipelineStep[]): numb
   const has = (...tokens: string[]) =>
     tokens.some((t) => s === t || act === t || s.startsWith(t) || act.startsWith(t));
 
+  // Admin ticket edits (0024) are corrections, never a pipeline step.
+  if (has('edit')) return -1;
   if (has('reject', 'recall')) return STOPPED;
   const returned = steps.findIndex((st) => st.status === 'returned');
   if (returned >= 0 && has('return')) return returned;

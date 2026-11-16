@@ -3,7 +3,7 @@
 // exposes (identical shape in demo and live mode) — no I/O, no branching.
 import type { CS_SKU, SKU, StockTransaction, Ticket } from './types';
 import { castNumber } from './types';
-import { closingQtyAsOf, reportableTransactions } from './stockMovement';
+import { closingQtyAsOf, flowOf, reportableTransactions } from './stockMovement';
 import { shiftDay } from './utils';
 
 type AnySku = SKU | CS_SKU;
@@ -24,17 +24,19 @@ export function topStockOutBySku(args: {
   const { skus, transactions, tickets, from, to, topN = 20 } = args;
   const rows = new Map<string, StockOutRow>();
   for (const tx of reportableTransactions(transactions, tickets)) {
-    if (tx.type !== 'deduction' || !inRange(tx.date, from, to)) continue;
+    // Stock Out per row — an Admin edit's 'Edit Return' row is a NEGATIVE out.
+    const out = flowOf(tx).out;
+    if (out === 0 || !inRange(tx.date, from, to)) continue;
     const skuId = tx.skuId || tx.skuName || '';
     if (!skuId) continue;
     const skuName = tx.skuName || skuId;
     const cpu = cpuOf(skus, tx.skuId, tx.skuName);
     const existing = rows.get(skuId) || { skuId, skuName, qty: 0, value: 0 };
-    existing.qty += castNumber(tx.qty);
-    existing.value += castNumber(tx.qty) * cpu;
+    existing.qty += out;
+    existing.value += out * cpu;
     rows.set(skuId, existing);
   }
-  return [...rows.values()].sort((a, b) => b.qty - a.qty).slice(0, topN);
+  return [...rows.values()].filter((r) => r.qty > 0).sort((a, b) => b.qty - a.qty).slice(0, topN);
 }
 
 // ── Period-over-period stock-out VALUE comparison (header stat) ──────────
@@ -54,8 +56,9 @@ export function priorPeriod(from: string, to: string): { from: string; to: strin
 function stockOutValue(skus: AnySku[], tx: StockTransaction[], tickets: Ticket[], from: string, to: string): number {
   let total = 0;
   for (const t of reportableTransactions(tx, tickets)) {
-    if (t.type !== 'deduction' || !inRange(t.date, from, to)) continue;
-    total += castNumber(t.qty) * cpuOf(skus, t.skuId, t.skuName);
+    const out = flowOf(t).out;
+    if (out === 0 || !inRange(t.date, from, to)) continue;
+    total += out * cpuOf(skus, t.skuId, t.skuName);
   }
   return total;
 }
@@ -88,13 +91,15 @@ export function stockOutValueByDept(args: {
   const byDept = new Map<string, number>();
   let total = 0;
   for (const tx of reportableTransactions(transactions, tickets)) {
-    if (tx.type !== 'deduction' || !inRange(tx.date, from, to)) continue;
+    const out = flowOf(tx).out;
+    if (out === 0 || !inRange(tx.date, from, to)) continue;
     const dept = (tx.ticketId && ticketById.get(tx.ticketId)?.department) || 'Unassigned';
-    const value = castNumber(tx.qty) * cpuOf(skus, tx.skuId, tx.skuName);
+    const value = out * cpuOf(skus, tx.skuId, tx.skuName);
     byDept.set(dept, (byDept.get(dept) || 0) + value);
     total += value;
   }
   return [...byDept.entries()]
+    .filter(([, value]) => value > 0)
     .map(([department, value]) => ({ department, value, pct: total > 0 ? (value / total) * 100 : 0 }))
     .sort((a, b) => b.value - a.value);
 }

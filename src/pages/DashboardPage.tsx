@@ -5,7 +5,7 @@ import { useData } from '@/contexts/DataContext';
 import { StatCard, Spinner, ErrorBanner, EmptyState, Segmented } from '@/components/ui/primitives';
 import { OutBadge, LowBadge, CsOnlyBadge, MktOnlyBadge } from '@/components/StatusBadge';
 import { cn, fmt, money, safeImageUrl } from '@/lib/utils';
-import { getStockMovement, activeBorrows, overdueBorrows, reportableTransactions } from '@/lib/stockMovement';
+import { getStockMovement, activeBorrows, overdueBorrows, reportableTransactions, flowOf } from '@/lib/stockMovement';
 import type { SKU, StockTransaction } from '@/lib/types';
 import { SkuDetailModal } from '@/components/SkuDetailModal';
 import { safeGet, safeSet } from '@/lib/safeStorage';
@@ -125,7 +125,7 @@ export function DashboardPage() {
 
   const stats = useMemo(() => {
     const low = visible.filter((r) => r.sku.currentStock <= r.sku.lowStockThreshold);
-    const totalOut = [...mktTx, ...csTx].filter((t) => t.type === 'deduction').reduce((a, t) => a + Number(t.qty || 0), 0);
+    const totalOut = [...mktTx, ...csTx].reduce((a, t) => a + flowOf(t).out, 0);
     const borrows = activeBorrows(tickets);
     // Total unique SKUs (deduplicated by ID)
     const uniqueIds = new Set<string>();

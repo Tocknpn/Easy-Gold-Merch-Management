@@ -4,9 +4,10 @@ import {
 import type {
   AppUser, SKU, CS_SKU, TicketWithItems, StockTransaction, CS_Transaction,
   TicketAction, SkuRemark, SystemConfig, TicketStatus, TicketType, NewUserInput,
+  TicketEdit, TicketEditLine,
 } from '@/lib/types';
 import {
-  apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus,
+  apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus, apiEditTicket,
   apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku, apiEditStockMovement,
   apiCsAddSku, apiCsUpdateSku, apiCsDeleteSku, apiCsRestockSku, apiCsDestockSku,
   apiMktDestockSku, apiTransferMktToCs,
@@ -34,6 +35,8 @@ interface DataCtx {
   categories: string[];
   config: SystemConfig;
   remarks: SkuRemark[];
+  /** Admin ticket edits (migration 0024), newest first. */
+  ticketEdits: TicketEdit[];
   isDemo: boolean;
   // derived
   actionableTicketCount: number;
@@ -50,6 +53,11 @@ interface DataCtx {
     returns?: { skuId: string; qtyReturned: number; qtyBroken: number }[] | null;
     forceFinalize?: boolean;
   }) => Promise<void>;
+  /** Admin: adjust / add / remove items on a finalized ticket (one remark per save). */
+  editTicket: (
+    ticketId: string, lines: TicketEditLine[], remark: string,
+    editor?: { name?: string | null; role?: string | null },
+  ) => Promise<{ editId: number }>;
   addSku: typeof apiAddSku;
   updateSku: typeof apiUpdateSku;
   deleteSku: typeof apiDeleteSku;
@@ -121,6 +129,8 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
         run(apiCreateTicket(p)).then((r) => r.id),
       updateTicketStatus: (id: string, status: TicketStatus, meta: Parameters<DataCtx['updateTicketStatus']>[2]) =>
         run(apiUpdateTicketStatus(id, status, meta)),
+      editTicket: (id: string, lines: TicketEditLine[], remark: string, editor?: { name?: string | null; role?: string | null }) =>
+        run(apiEditTicket(id, lines, remark, editor)),
       addSku: (sku: Partial<SKU>) => run(apiAddSku(sku)),
       updateSku: (id: string, u: Partial<SKU>) => run(apiUpdateSku(id, u)),
       deleteSku: (id: string) => run(apiDeleteSku(id)),
@@ -168,6 +178,7 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
     categories: data?.categories || [],
     config: data?.config || {},
     remarks: data?.remarks || [],
+    ticketEdits: data?.ticketEdits || [],
     isDemo: data?.mode === 'demo',
     actionableTicketCount: actionCount,
     ...actions,

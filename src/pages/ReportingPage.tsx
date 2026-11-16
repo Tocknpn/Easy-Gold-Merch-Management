@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
-import { getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
+import { flowOf, getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
@@ -142,14 +142,17 @@ export function ReportingPage() {
     [monthRows],
   );
 
+  // Stock Out / Stock In lists use the same signed flow as the totals: an Admin
+  // ticket edit's 'Edit Return' row is listed as a NEGATIVE line of the
+  // opposite column (it reduces what went out / came in), never a phantom flow.
   const stockOutRows = useMemo(() =>
-    merged.tx.filter((t) => t.type === 'deduction' && inRange(t.date))
-      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: Number(t.qty) || 0, cpu: cpuOf(t.skuId, t.skuName) }))
+    merged.tx.filter((t) => flowOf(t).out !== 0 && inRange(t.date))
+      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: flowOf(t).out, cpu: cpuOf(t.skuId, t.skuName) }))
       .sort((a, b) => b.date.localeCompare(a.date)), [merged, from, to]);
 
   const stockInRows = useMemo(() =>
-    merged.tx.filter((t) => t.type === 'addition' && t.ticketId !== 'OPENING' && inRange(t.date))
-      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: Number(t.qty) || 0, cpu: cpuOf(t.skuId, t.skuName) }))
+    merged.tx.filter((t) => t.ticketId !== 'OPENING' && flowOf(t).in !== 0 && inRange(t.date))
+      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: flowOf(t).in, cpu: cpuOf(t.skuId, t.skuName) }))
       .sort((a, b) => a.date.localeCompare(b.date)), [merged, from, to]);
 
   const remainRows = useMemo(() =>

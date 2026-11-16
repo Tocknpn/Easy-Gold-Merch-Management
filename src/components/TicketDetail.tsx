@@ -1,18 +1,21 @@
 import type { ReactNode } from 'react';
 import {
   ArrowRightLeft, Building2, CalendarClock, CalendarDays, CheckCircle2, Clock, FileText,
-  Flag, Info, Package, Tag, Truck, Undo2, User, UserRound, Workflow, XCircle,
+  Flag, Info, Package, PencilLine, Tag, Truck, Undo2, User, UserRound, Workflow, XCircle,
 } from 'lucide-react';
-import type { TicketWithItems, SKU, TicketAction } from '@/lib/types';
+import type { TicketWithItems, SKU, TicketAction, TicketEdit } from '@/lib/types';
 import { STATUS_LABELS, type TicketStatus, type TicketType } from '@/lib/types';
 import { cn, fmt, money, whenStamp, safeImageUrl } from '@/lib/utils';
 import { ApprovalPipeline, pipelineSteps } from './ApprovalPipeline';
 import { StatusBadge, TypeBadge } from './StatusBadge';
 import { Badge } from './ui/primitives';
 
-export function TicketDetail({ ticket, skus, actions = [] }: {
+export function TicketDetail({ ticket, skus, actions = [], edits = [] }: {
   ticket: TicketWithItems; skus: SKU[]; actions?: TicketAction[];
+  /** Admin edits of THIS ticket (migration 0024) — shown as "Edit history". */
+  edits?: TicketEdit[];
 }) {
+  const editLog = [...edits].sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const skuOf = (skuId: string) => skus.find((s) => s.id === skuId);
   const costOf = (skuId: string) => skuOf(skuId)?.costPerUnit || 0;
   const total = ticket.items.reduce(
@@ -143,7 +146,14 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
                         )}
                         <div className="min-w-0">
                           <p className="truncate font-medium text-slate-800">{it.skuName}</p>
-                          {sku?.category && <p className="truncate text-[11px] text-slate-400">{sku.category}</p>}
+                          <p className="flex items-center gap-1.5 truncate text-[11px] text-slate-400">
+                            {sku?.category}
+                            {it.qtyRequested === 0 && (it.qtyApproved || 0) > 0 && (
+                              <span className="rounded-full bg-amber-50 px-1.5 py-0.5 text-[10px] font-bold text-amber-700 ring-1 ring-amber-600/20">
+                                Added by Admin
+                              </span>
+                            )}
+                          </p>
                         </div>
                       </div>
                     </td>
@@ -168,6 +178,49 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
           </table>
         </div>
       </section>
+
+      {/* 2b — Edit history: Admin corrections after finalize (0024) */}
+      {editLog.length > 0 && (
+        <section className="overflow-hidden rounded-xl border border-amber-200 bg-white">
+          <h3 className="flex items-center gap-2 border-b border-amber-100 bg-amber-50/50 px-4 py-3 text-[13px] font-bold text-slate-800">
+            <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-amber-50 text-amber-600 ring-1 ring-amber-200">
+              <PencilLine className="h-4 w-4" />
+            </span>
+            Edit history ({editLog.length})
+          </h3>
+          <ol className="divide-y divide-slate-100">
+            {editLog.map((e) => (
+              <li key={e.id} className="px-4 py-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[13px] font-semibold text-slate-800">Edit #{e.id}</span>
+                  <span className="truncate text-xs text-slate-500">by {e.actorName || 'Admin'}</span>
+                  <span className="ml-auto shrink-0 whitespace-nowrap text-[10px] tabular-nums text-slate-400">{whenStamp(e.at)}</span>
+                </div>
+                <p className="mt-1 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-600">
+                  <span className="font-semibold text-slate-700">Remark:</span> {e.remark}
+                </p>
+                <ul className="mt-1.5 space-y-0.5">
+                  {e.changes.map((c) => (
+                    <li key={c.skuId} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                      <span className="font-medium text-slate-700">{c.skuName}</span>
+                      <span className="tabular-nums text-slate-500">
+                        {c.action === 'added'
+                          ? `added × ${fmt(c.to)}`
+                          : c.action === 'removed'
+                            ? `removed (was ${fmt(c.from)})`
+                            : `${fmt(c.from)} → ${fmt(c.to)}`}
+                      </span>
+                      <span className={cn('font-semibold tabular-nums', c.delta < 0 ? 'text-emerald-600' : 'text-rose-600')}>
+                        {c.delta < 0 ? `+${fmt(-c.delta)} back to stock` : `−${fmt(c.delta)} from stock`}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            ))}
+          </ol>
+        </section>
+      )}
 
       {/* 3 — Approval Pipeline */}
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
@@ -269,6 +322,7 @@ const TRAIL_TONES: Record<string, string> = {
   rejected: 'bg-rose-50 text-rose-700 ring-rose-600/20',
   recalled: 'bg-slate-100 text-slate-600 ring-slate-500/20',
   returned: 'bg-blue-50 text-blue-700 ring-blue-600/20',
+  edited: 'bg-amber-50 text-amber-700 ring-amber-600/20',
 };
 
 const initialsOf = (name: string): string => {

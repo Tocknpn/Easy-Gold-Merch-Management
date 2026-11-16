@@ -5,7 +5,7 @@
 // reporting math on transaction dates.
 // Run: npx tsx scripts/workflow-test.ts
 import { demoDB, demoLogin, demoTicketsWithItems } from '../src/lib/demoStore';
-import { demoCreateTicket, demoUpdateTicketStatus } from '../src/lib/demoMutations';
+import { demoCreateTicket, demoUpdateTicketStatus, demoEditTicket } from '../src/lib/demoMutations';
 import {
   demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku, demoCsRestockSku,
   demoEditStockMovement, demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
@@ -703,6 +703,180 @@ check('audit: today still returns events',
   demoFetchAudit({ from: todayStr(), to: todayStr(), limit: 100000 }).length > 0);
 check('audit: the limit is honoured',
   demoFetchAudit({ limit: 5 }).length <= 5);
+
+console.log('\n── 16) Admin Edit Ticket — adjust / add / remove (0024)');
+// Invariant: for every (ticket, sku) the net non-cancelled MKT ledger equals the
+// approved qty on the ticket (deductions − additions, before any borrow return).
+const netIssued = (ticketId: string, skuId: string) =>
+  demoDB.transactions
+    .filter((tx) => tx.ticketId === ticketId && tx.skuId === skuId && !/cancel/i.test(tx.status || ''))
+    .reduce((a, tx) => a + (tx.type === 'deduction' ? tx.qty : -tx.qty), 0);
+const itemsOf = (id: string) => demoTicketsWithItems().find((t) => t.id === id)!.items;
+const approvedOf = (id: string, skuId: string) => {
+  const it = itemsOf(id).find((i) => i.skuId === skuId);
+  return it ? (it.qtyApproved ?? it.qtyRequested) : 0;
+};
+const invariantHolds = (id: string, skuIds: string[]) => skuIds.every((s) => netIssued(id, s) === approvedOf(id, s));
+const lineOf = (id: string) => (skuId: string, qty: number) => {
+  const it = itemsOf(id).find((i) => i.skuId === skuId);
+  return { skuId, qty, expectedQty: it ? (it.qtyApproved ?? it.qtyRequested) : null };
+};
+const finalize = (id: string) => {
+  demoUpdateTicketStatus(id, 'reviewed', { actorName: wh.fullName, actorRole: wh.role });
+  demoUpdateTicketStatus(id, 'lm_approved', { actorName: lm.fullName, actorRole: lm.role });
+  demoUpdateTicketStatus(id, 'finalized', { actorName: dir.fullName, actorRole: dir.role });
+};
+
+const eA = addSku({ name: 'WF Edit A', openingBalance: 100, costPerUnit: 10 });
+const eB = addSku({ name: 'WF Edit B', openingBalance: 50, costPerUnit: 10 });
+const eC = addSku({ name: 'WF Edit C', openingBalance: 30, costPerUnit: 10 });
+const tE = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [
+    { skuId: eA, skuName: 'WF Edit A', qtyRequested: 10, unit: 'pcs' },
+    { skuId: eB, skuName: 'WF Edit B', qtyRequested: 5, unit: 'pcs' },
+  ],
+});
+finalize(tE);
+check('edit setup: finalized, A 90 / B 45', skuStock(eA) === 90 && skuStock(eB) === 45);
+check('edit setup: invariant holds before any edit', invariantHolds(tE, [eA, eB]));
+const tEBefore = { ...demoDB.tickets.find((t) => t.id === tE)! };
+const L = lineOf(tE);
+
+// guards
+check('edit gate: warehouse cannot edit a ticket',
+  throws(() => demoEditTicket(tE, [L(eA, 8), L(eB, 5)], 'wrong count', wh.fullName, wh.role), /only an admin/i));
+check('edit gate: staff cannot edit a ticket',
+  throws(() => demoEditTicket(tE, [L(eA, 8), L(eB, 5)], 'wrong count', staff.fullName, staff.role), /only an admin/i));
+check('edit guard: remark required (≥5 chars)',
+  throws(() => demoEditTicket(tE, [L(eA, 8), L(eB, 5)], ' ok ', adm.fullName, adm.role), /remark/i));
+const tPend = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
+  items: [{ skuId: eA, skuName: 'WF Edit A', qtyRequested: 1, unit: 'pcs' }],
+});
+check('edit guard: a pending ticket cannot be edited',
+  throws(() => demoEditTicket(tPend, [lineOf(tPend)(eA, 2)], 'not yet final', adm.fullName, adm.role), /only finalized/i));
+demoUpdateTicketStatus(tPend, 'recalled', { actorName: wh.fullName, actorRole: wh.role });
+check('edit guard: a recalled ticket cannot be edited',
+  throws(() => demoEditTicket(tPend, [lineOf(tPend)(eA, 2)], 'recalled one', adm.fullName, adm.role), /only finalized/i));
+check('edit guard: stale expected qty → reload',
+  throws(() => demoEditTicket(tE, [{ skuId: eA, qty: 8, expectedQty: 9 }, L(eB, 5)], 'stale screen', adm.fullName, adm.role), /changed by someone else/i));
+check('edit guard: a line missing from the payload → reload',
+  throws(() => demoEditTicket(tE, [L(eA, 8)], 'missing line', adm.fullName, adm.role), /changed by someone else/i));
+check('edit guard: removing every item is refused',
+  throws(() => demoEditTicket(tE, [L(eA, 0), L(eB, 0)], 'cancel all', adm.fullName, adm.role), /at least one item/i));
+check('edit guard: duplicate line refused',
+  throws(() => demoEditTicket(tE, [L(eA, 8), L(eA, 7), L(eB, 5)], 'dup lines', adm.fullName, adm.role), /twice/i));
+check('edit guard: nothing changed refused',
+  throws(() => demoEditTicket(tE, [L(eA, 10), L(eB, 5)], 'no change', adm.fullName, adm.role), /nothing changed/i));
+
+// all-or-nothing: a valid A change + an impossible C add → nothing is applied
+const ledgerLen = demoDB.transactions.length;
+check('edit guard: insufficient stock refused with need/available',
+  throws(() => demoEditTicket(tE, [L(eA, 8), L(eB, 5), L(eC, 31)], 'too many C', adm.fullName, adm.role), /need 31, available 30/i));
+check('all-or-nothing: nothing written after a refused edit',
+  skuStock(eA) === 90 && skuStock(eC) === 30 && approvedOf(tE, eA) === 10 &&
+  demoDB.transactions.length === ledgerLen && !demoDB.ticketEdits.some((e) => e.ticketId === tE));
+
+// mixed edit: A 10→8, B removed, C added ×5
+const edit1 = demoEditTicket(tE, [L(eA, 8), L(eB, 0), L(eC, 5)], 'delivery note: 8 A, no B, +5 C', adm.fullName, adm.role);
+check('mixed edit: stock A 92 / B 50 / C 25', skuStock(eA) === 92 && skuStock(eB) === 50 && skuStock(eC) === 25);
+check('mixed edit: A approved 8', approvedOf(tE, eA) === 8);
+check('mixed edit: B removed from the ticket', !itemsOf(tE).some((i) => i.skuId === eB));
+const cLine = itemsOf(tE).find((i) => i.skuId === eC);
+check('mixed edit: C added with requested 0 / approved 5', !!cLine && cLine.qtyRequested === 0 && cLine.qtyApproved === 5);
+check('mixed edit: invariant holds for A, B, C', invariantHolds(tE, [eA, eB, eC]));
+check('mixed edit: ledger rows appended (A Edit Return 2, B Edit Return 5, C Edit Issue 5)',
+  demoDB.transactions.some((tx) => tx.ticketId === tE && tx.skuId === eA && tx.status === 'Edit Return' && tx.type === 'addition' && tx.qty === 2) &&
+  demoDB.transactions.some((tx) => tx.ticketId === tE && tx.skuId === eB && tx.status === 'Edit Return' && tx.qty === 5) &&
+  demoDB.transactions.some((tx) => tx.ticketId === tE && tx.skuId === eC && tx.status === 'Edit Issue' && tx.type === 'deduction' && tx.qty === 5));
+check('mixed edit: original ledger rows untouched (append-only)',
+  demoDB.transactions.some((tx) => tx.ticketId === tE && tx.skuId === eA && tx.status === 'Deducted' && tx.qty === 10));
+check('mixed edit: edit rows dated today and carry the remark',
+  demoDB.transactions.filter((tx) => tx.ticketId === tE && /^Edit /.test(tx.status || ''))
+    .every((tx) => tx.date === todayStr() && (tx.comment || '').includes(`Ticket edit #${edit1}`) && (tx.comment || '').includes('delivery note')));
+const ed1 = demoDB.ticketEdits.find((e) => e.id === edit1)!;
+check('mixed edit: one edit event with 3 line changes + remark',
+  !!ed1 && ed1.ticketId === tE && ed1.changes.length === 3 && ed1.remark.includes('delivery note'));
+check('mixed edit: change actions added / removed / adjusted',
+  ['added', 'removed', 'adjusted'].every((a) => ed1.changes.some((c) => c.action === a)));
+const tEAfter = demoDB.tickets.find((t) => t.id === tE)!;
+check('mixed edit: ticket status / created / delivery / last action untouched',
+  tEAfter.status === 'finalized' && tEAfter.createdAt === tEBefore.createdAt &&
+  tEAfter.deliveryDate === tEBefore.deliveryDate && tEAfter.lastActionAt === tEBefore.lastActionAt &&
+  tEAfter.lastActionStatus === tEBefore.lastActionStatus);
+check('mixed edit: an "Edited" trail row is written',
+  demoDB.actions.some((a) => a.ticketId === tE && a.action === 'Edited' && a.status === 'edited' && (a.comment || '').includes('delivery note')));
+
+// reporting: an Edit Return is LESS stock out — never a phantom stock in
+const repTx = reportableTransactions(demoDB.transactions, demoDB.tickets);
+const mvA = getStockMovement(demoDB.skus.find((s) => s.id === eA)!, repTx, todayStr(), todayStr());
+check('report: A stock in today = 0 (edit return is not stock in)', mvA.stockIn === 0);
+check('report: A stock out today = 10 − 2 = 8', mvA.stockOut === 8);
+check('report: A opening 100 → closing 92 (= current)', mvA.opening === 100 && mvA.closing === 92);
+const mvB = getStockMovement(demoDB.skus.find((s) => s.id === eB)!, repTx, todayStr(), todayStr());
+check('report: removed B nets to stock out 0, closing 50', mvB.stockOut === 0 && mvB.stockIn === 0 && mvB.closing === 50);
+const monA = getMonthMovement(demoDB.skus.find((s) => s.id === eA)!, repTx, todayStr().slice(0, 7));
+check('report: month end A has no variance and closing 92', monA.variance === 0 && monA.closing === 92);
+
+// a second edit on top of the first
+L(eA, 0); // (helper re-reads the live items each call)
+const edit2 = demoEditTicket(tE, [lineOf(tE)(eA, 12), lineOf(tE)(eC, 5)], 'A short-shipped, top up to 12', adm.fullName, adm.role);
+check('second edit: A 8 → 12 takes 4 more (stock 88)', skuStock(eA) === 88 && approvedOf(tE, eA) === 12);
+check('second edit: invariant still holds', invariantHolds(tE, [eA, eB, eC]));
+check('second edit: edit ids increase and both are kept', edit2 > edit1 && demoDB.ticketEdits.filter((e) => e.ticketId === tE).length === 2);
+
+// borrow: edit before return → the return uses the edited qty
+const eD = addSku({ name: 'WF Edit Borrow', openingBalance: 20 });
+const tBw = demoCreateTicket({
+  createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'borrow', returnDate: '2099-01-01',
+  items: [{ skuId: eD, skuName: 'WF Edit Borrow', qtyRequested: 6, unit: 'pcs' }],
+});
+finalize(tBw);
+demoEditTicket(tBw, [lineOf(tBw)(eD, 4)], 'only 4 left the WH', adm.fullName, adm.role);
+check('borrow edit: stock 20 − 6 + 2 = 16', skuStock(eD) === 16);
+check('borrow edit: invariant holds', invariantHolds(tBw, [eD]));
+demoUpdateTicketStatus(tBw, 'returned', { actorName: wh.fullName, actorRole: wh.role, returns: [{ skuId: eD, qtyReturned: 6, qtyBroken: 0 }] });
+check('borrow edit: return is capped at the edited 4 → stock back to 20', skuStock(eD) === 20);
+check('borrow edit: a returned borrow can no longer be edited',
+  throws(() => demoEditTicket(tBw, [lineOf(tBw)(eD, 3)], 'after return', adm.fullName, adm.role), /only finalized/i));
+
+// cs_transfer: both warehouses move together
+const eE = addSku({ name: 'WF Edit Transfer', openingBalance: 40 });
+const tT = demoCreateTicket({
+  createdBy: cs.email, createdByName: cs.fullName, department: 'CS', type: 'cs_transfer',
+  items: [{ skuId: eE, skuName: 'WF Edit Transfer', qtyRequested: 10, unit: 'pcs' }],
+});
+finalize(tT);
+check('transfer setup: MKT 30 / CS 10', skuStock(eE) === 30 && csStock(eE) === 10);
+demoEditTicket(tT, [lineOf(tT)(eE, 7)], 'only 7 arrived at CS', adm.fullName, adm.role);
+check('transfer edit down: MKT 33 / CS 7', skuStock(eE) === 33 && csStock(eE) === 7);
+check('transfer edit down: CS ledger has an Edit Return deduction of 3',
+  demoDB.csTransactions.some((tx) => tx.ticketId === tT && tx.skuId === eE && tx.type === 'deduction' && tx.status === 'Edit Return' && tx.qty === 3));
+demoEditTicket(tT, [lineOf(tT)(eE, 15)], 'second box found, 15 total', adm.fullName, adm.role);
+check('transfer edit up: MKT 25 / CS 15', skuStock(eE) === 25 && csStock(eE) === 15);
+check('transfer edit: invariant holds on MKT', invariantHolds(tT, [eE]));
+demoCsDestockSku(eE, 14, 'CS Person', 'handed out');
+check('transfer guard: CS cannot give back what it already used',
+  throws(() => demoEditTicket(tT, [lineOf(tT)(eE, 1)], 'too late to take back', adm.fullName, adm.role), /cs warehouse has only 1/i));
+check('transfer guard: refused edit left both warehouses untouched', skuStock(eE) === 25 && csStock(eE) === 1);
+const csE = demoDB.csSkus.find((s) => s.id === eE)!;
+const mvCs = getStockMovement(csE, reportableTransactions(demoDB.csTransactions, demoDB.tickets), todayStr(), todayStr());
+check('cs report: edit return lowers stock IN (not stock out); stock out = the 14 handed out', mvCs.stockOut === 14);
+check('cs report: closing = current CS stock (1)', mvCs.closing === 1);
+
+// every SKU the edits touched still reconciles: opening + in − out = closing = current
+const allRep = reportableTransactions(demoDB.transactions, demoDB.tickets);
+check('reconcile: every edited MKT SKU closes at its current stock with zero variance',
+  [eA, eB, eC, eD, eE].every((id) => {
+    const s = demoDB.skus.find((x) => x.id === id)!;
+    const m = getMonthMovement(s, allRep, todayStr().slice(0, 7));
+    return m.variance === 0 && m.closing === s.currentStock && s.currentStock >= 0;
+  }));
+
+const audEdit = demoFetchAudit({ limit: 100000 });
+check('audit: the ticket edit shows in the Audit Trail with its remark',
+  audEdit.some((e) => e.refTicket === tE && /edit/i.test(e.action) && (e.summary + ' ' + (e.comment || '')).includes('delivery note')));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 process.exit(fail > 0 ? 1 : 0);

@@ -1,6 +1,6 @@
 // ── In-memory demo engine: mutations (mirrors the SQL engine) ────────────
 import { demoDB, nextId, nextLedgerId } from './demoStore';
-import type { SKU, CS_SKU, TicketStatus, TicketType } from './types';
+import type { SKU, CS_SKU, TicketStatus, TicketType, TicketEditChange, TicketEditLine } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
 
@@ -338,4 +338,165 @@ export function demoUpdateTicketStatus(
   if (meta.actualDeliveryDate) t.actualDeliveryDate = meta.actualDeliveryDate;
   if (status === 'returned') t.actualReturnDate = todayStr();
   demoDB.actions.unshift({ ticketId: t.id, action: status, status, actionAt: nowIso, actionBy: actor, role: meta.actorRole, comment: effectiveComment });
+}
+
+// ── Admin "Edit Ticket" (mirrors edit_ticket in migration 0024) ───────────
+// Adjust / add / remove items on a FINALIZED ticket. Phase 1 validates every
+// line and builds the change list without touching anything; phase 2 applies
+// it — so a refused edit never leaves a half-applied ticket (all-or-nothing).
+// Ledger rows are APPENDED, dated today (closed months stay frozen):
+//   MKT more/added → deduction 'Edit Issue'   · less/removed → addition 'Edit Return'
+//   CS mirror (cs_transfer): addition 'Edit Receipt' · deduction 'Edit Return'
+// The ticket's status, dates and last-action stamp are never touched.
+export function demoEditTicket(
+  ticketId: string,
+  lines: TicketEditLine[],
+  remark: string,
+  editorName?: string,
+  editorRole?: string,
+): number {
+  // Resolve the caller's REAL role from the user directory (demo has no JWT).
+  let role = String(editorRole || '').toLowerCase();
+  const u = demoDB.users.find(
+    (x) => x.fullName && x.fullName.toLowerCase() === String(editorName || '').trim().toLowerCase(),
+  );
+  if (u) role = u.role;
+  if (role !== 'admin') throw new Error('Not authorized: only an Admin can edit a ticket');
+  const actor = editorName || 'Admin';
+
+  const note = String(remark || '').trim();
+  if (note.length < 5) throw new Error('A remark (at least 5 characters) is required to edit a ticket');
+  if (!Array.isArray(lines) || lines.length === 0) throw new Error('The edit has no items');
+  for (const l of lines) {
+    if (!l.skuId || typeof l.qty !== 'number' || !Number.isFinite(l.qty) || l.qty < 0)
+      throw new Error('Every line needs an item and a quantity of 0 or more');
+  }
+  if (new Set(lines.map((l) => l.skuId)).size !== lines.length)
+    throw new Error('The same item appears twice in the edit');
+
+  const t = demoDB.tickets.find((x) => x.id === ticketId);
+  if (!t) throw new Error('Ticket not found');
+  if (t.status !== 'finalized')
+    throw new Error(`Only finalized tickets can be edited (this ticket is ${t.status})`);
+
+  const items = demoDB.items[t.id] || (demoDB.items[t.id] = []);
+  const curOf = (it: { qtyApproved: number | null; qtyRequested: number }) => it.qtyApproved ?? it.qtyRequested ?? 0;
+  const stale = () => new Error('This ticket was changed by someone else — please reload it and try again');
+  for (const it of items) {
+    const l = lines.find((x) => x.skuId === it.skuId);
+    if (!l || l.expectedQty === null || l.expectedQty === undefined || l.expectedQty !== curOf(it)) throw stale();
+  }
+  for (const l of lines) {
+    const isNew = !items.some((it) => it.skuId === l.skuId);
+    if (isNew && l.expectedQty !== null && l.expectedQty !== undefined && l.expectedQty !== 0) throw stale();
+  }
+  if (!lines.some((l) => l.qty > 0))
+    throw new Error('A ticket must keep at least one item — use Reject / Recall to cancel a ticket');
+
+  const findCs = (skuId: string, name: string) =>
+    demoDB.csSkus.find((s) => s.id === skuId) || demoDB.csSkus.find((s) => normName(s.name) === normName(name));
+
+  // ═══ PHASE 1: validate + build the change list (no writes) ═══
+  const changes: TicketEditChange[] = [];
+  for (const l of [...lines].sort((a, b) => a.skuId.localeCompare(b.skuId))) {
+    const it = items.find((x) => x.skuId === l.skuId);
+    const cur = it ? curOf(it) : 0;
+    const delta = l.qty - cur;
+    if (delta === 0) continue;
+    const sku = demoDB.skus.find((s) => s.id === l.skuId);
+    if (!sku) throw new Error(`Unknown item: ${l.skuId}`);
+    const name = it?.skuName || sku.name;
+    if (!it && String(sku.status || 'active').toLowerCase() !== 'active')
+      throw new Error(`"${sku.name}" is inactive and cannot be added`);
+    if (delta > 0 && sku.currentStock < delta)
+      throw new Error(`Not enough stock for "${name}": need ${delta}, available ${sku.currentStock}`);
+    if (t.type === 'cs_transfer' && delta < 0) {
+      const cs = findCs(l.skuId, name);
+      if (!cs || cs.currentStock < -delta)
+        throw new Error(`CS warehouse has only ${cs?.currentStock ?? 0} of "${name}" — cannot take back ${-delta}`);
+    }
+    changes.push({
+      skuId: l.skuId, skuName: name, from: cur, to: l.qty, delta,
+      action: !it ? 'added' : l.qty === 0 ? 'removed' : 'adjusted',
+    });
+  }
+  if (changes.length === 0) throw new Error('Nothing changed — adjust a quantity first');
+
+  // ═══ PHASE 2: apply ═══
+  const editId = demoDB.ticketEdits.reduce((m, e) => Math.max(m, e.id), 0) + 1;
+  const nowIso = new Date().toISOString();
+  const today = todayStr();
+  demoDB.ticketEdits.unshift({
+    id: editId, ticketId: t.id, at: nowIso, actorName: actor, actorRole: 'admin',
+    remark: note, changes: changes.map((c) => ({ ...c })),
+  });
+
+  const parts: string[] = [];
+  for (const c of changes) {
+    const qty = Math.abs(c.delta);
+    const rowNote = `Ticket edit #${editId} by ${actor} — ${note} · qty ${c.from} → ${c.to}`;
+    const sku = demoDB.skus.find((s) => s.id === c.skuId)!;
+
+    // (a) the ticket line
+    if (c.action === 'added') {
+      items.push({ skuId: c.skuId, skuName: c.skuName, qtyRequested: 0, qtyApproved: c.to, unit: sku.unit || 'pcs' });
+    } else if (c.action === 'removed') {
+      const i = items.findIndex((x) => x.skuId === c.skuId);
+      if (i >= 0) items.splice(i, 1);
+    } else {
+      items.find((x) => x.skuId === c.skuId)!.qtyApproved = c.to;
+    }
+    parts.push(`${c.skuName} ${c.from} → ${c.to}${c.action === 'added' ? ' (added)' : c.action === 'removed' ? ' (removed)' : ''}`);
+
+    // (b) MKT stock + ledger
+    if (c.delta > 0) {
+      sku.currentStock -= qty;
+      demoDB.transactions.unshift({
+        id: nextLedgerId(), ticketId: t.id, skuId: c.skuId, skuName: c.skuName, qty, type: 'deduction',
+        date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Issue', comment: rowNote,
+      });
+    } else {
+      sku.currentStock += qty;
+      demoDB.transactions.unshift({
+        id: nextLedgerId(), ticketId: t.id, skuId: c.skuId, skuName: c.skuName, qty, type: 'addition',
+        date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
+      });
+    }
+
+    // (c) cs_transfer → mirror on the CS warehouse
+    if (t.type === 'cs_transfer') {
+      let cs = findCs(c.skuId, c.skuName);
+      if (c.delta > 0) {
+        if (!cs) {
+          // first arrival through an edit: created empty, then received (Stock In)
+          cs = {
+            id: c.skuId, name: c.skuName, category: sku.category || 'General', unit: sku.unit || 'pcs',
+            openingBalance: 0, currentStock: 0, totalInflow: 0, imageUrl: sku.imageUrl || null,
+            lowStockThreshold: sku.lowStockThreshold || 0, costPerUnit: sku.costPerUnit || 0,
+            createdAt: today, status: 'active',
+          };
+          demoDB.csSkus.push(cs);
+        }
+        cs.currentStock += qty;
+        cs.totalInflow += qty;
+        demoDB.csTransactions.unshift({
+          id: nextLedgerId(), ticketId: t.id, skuId: cs.id, skuName: c.skuName, qty, type: 'addition',
+          date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Receipt', comment: rowNote,
+        });
+      } else if (cs) {
+        cs.currentStock -= qty;
+        cs.totalInflow -= qty;
+        demoDB.csTransactions.unshift({
+          id: nextLedgerId(), ticketId: t.id, skuId: cs.id, skuName: c.skuName, qty, type: 'deduction',
+          date: today, actionAt: nowIso, actionBy: actor, status: 'Edit Return', comment: rowNote,
+        });
+      }
+    }
+  }
+
+  demoDB.actions.unshift({
+    ticketId: t.id, action: 'Edited', status: 'edited', actionAt: nowIso, actionBy: actor, role: 'admin',
+    comment: `Edit #${editId} — ${note} · ${parts.join('; ')}`,
+  });
+  return editId;
 }

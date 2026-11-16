@@ -8,6 +8,7 @@ import * as demoAudit from './demoAudit';
 import type {
   AppUser, SKU, CS_SKU, Ticket, TicketWithItems, StockTransaction, CS_Transaction,
   TicketAction, SkuRemark, TicketStatus, TicketType, SystemConfig, AuditEntry,
+  TicketEdit, TicketEditChange, TicketEditLine,
 } from './types';
 import { castNumber } from './types';
 import { shiftDay } from './utils';
@@ -23,6 +24,8 @@ export interface DataBundle {
   categories: string[];
   config: SystemConfig;
   remarks: SkuRemark[];
+  /** Admin ticket edits (migration 0024), newest first. */
+  ticketEdits: TicketEdit[];
   mode: 'demo' | 'supabase';
 }
 
@@ -75,13 +78,14 @@ export async function apiFetchBundle(): Promise<DataBundle> {
       categories: [...demoRead.demoDB.categories],
       config: { ...demoRead.demoDB.config },
       remarks: [...demoRead.demoDB.remarks],
+      ticketEdits: demoRead.demoDB.ticketEdits.map((e) => ({ ...e, changes: e.changes.map((c) => ({ ...c })) })),
       mode: 'demo',
     };
   }
 
   const [
     usersRes, skusRes, csSkusRes, ticketsRes, itemsRes,
-    txRes, csTxRes, actionsRes, catsRes, cfgRes, remarksRes,
+    txRes, csTxRes, actionsRes, catsRes, cfgRes, remarksRes, editsRes,
   ] = await Promise.all([
     supabase!.from('users').select('id,username,email,full_name,department,role,status'),
     supabase!.from('skus').select('*').order('name'),
@@ -94,7 +98,11 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     supabase!.from('categories').select('name'),
     supabase!.from('system_config').select('key,value,description'),
     supabase!.from('sku_remarks').select('*').order('created_at', { ascending: false }),
+    supabase!.from('ticket_edits').select('*').order('at', { ascending: false }),
   ]);
+  // ticket_edits is optional: before migration 0024 is applied the table does
+  // not exist — the app still loads, it just has no edit history to show.
+  const ticketEdits: TicketEdit[] = editsRes.error ? [] : (editsRes.data as any[]).map(mapTicketEdit);
   for (const r of [usersRes, skusRes, csSkusRes, ticketsRes, itemsRes, txRes, csTxRes, actionsRes, catsRes, cfgRes, remarksRes]) {
     if (r.error) throw new Error(r.error.message);
   }
@@ -135,6 +143,7 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     csTransactions: (csTxRes.data as any[]).map((t: any) => ({
       id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: t.sku_name, qty: castNumber(t.qty),
       type: t.type, date: t.date, actionAt: t.action_at, actionBy: t.action_by, comment: t.comment,
+      status: t.status ?? null,
       editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
     })),
     actions: (actionsRes.data as any[]).map((a: any) => ({
@@ -146,9 +155,24 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     remarks: (remarksRes.data as any[]).map((r: any) => ({
       skuId: r.sku_id, remark: r.remark, userName: r.user_name, userRole: r.user_role, createdAt: r.created_at,
     })),
+    ticketEdits,
     mode: 'supabase',
   };
 }
+
+const mapTicketEdit = (r: any): TicketEdit => ({
+  id: Number(r.id),
+  ticketId: r.ticket_id,
+  at: r.at,
+  actorName: r.actor_name ?? null,
+  actorRole: r.actor_role ?? null,
+  remark: r.remark || '',
+  changes: (Array.isArray(r.changes) ? r.changes : []).map((c: any): TicketEditChange => ({
+    skuId: c.sku_id, skuName: c.sku_name || c.sku_id,
+    from: castNumber(c.from), to: castNumber(c.to), delta: castNumber(c.delta),
+    action: c.action,
+  })),
+});
 
 const rowToSku = (r: any): SKU => ({
   id: r.id, name: r.name, category: r.category || '', unit: r.unit || 'pcs',
@@ -273,6 +297,37 @@ export async function apiUpdateTicketStatus(
   if (error) throw new Error(error.message);
   const res = data as any;
   if (!res.success) throw new Error(res.error || 'Update failed');
+}
+
+// ── Admin "Edit Ticket" (migration 0024) ─────────────────────────────────
+// Adjust / add / remove items on a finalized ticket. The engine validates every
+// line before writing anything (all-or-nothing), refuses stale edits via the
+// per-line expectedQty, writes append-only ledger rows dated today and records
+// one ticket_edits row + an 'Edited' ticket_actions row. Admin is enforced from
+// the JWT; the editor identity is passed only for the demo engine.
+export async function apiEditTicket(
+  ticketId: string,
+  lines: TicketEditLine[],
+  remark: string,
+  editor?: { name?: string | null; role?: string | null },
+): Promise<{ editId: number }> {
+  if (!isLive()) {
+    return { editId: demoWrite.demoEditTicket(ticketId, lines, remark, editor?.name || '', editor?.role || '') };
+  }
+  const { data, error } = await supabase!.rpc('edit_ticket', {
+    p_ticket_id: ticketId,
+    p_items: lines.map((l) => ({ sku_id: l.skuId, qty: l.qty, expected_qty: l.expectedQty })),
+    p_remark: remark,
+  });
+  if (error) {
+    if (/edit_ticket/.test(error.message) && /(not find|does not exist)/i.test(error.message)) {
+      throw new Error('Edit Ticket is not installed on the database yet — apply migration 0024_edit_ticket.sql');
+    }
+    throw new Error(error.message);
+  }
+  const res = data as any;
+  if (!res?.success) throw new Error(res?.error || 'Edit failed');
+  return { editId: Number(res.edit_id) };
 }
 // ── re-exports of the mutation API (single import point for callers) ────
 export {
