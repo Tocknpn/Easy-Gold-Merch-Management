@@ -243,8 +243,8 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
     // Sheet 1: Month End (Stock Movement)
     XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
       ['STOCK MOVEMENT', `${monthRange.from} TO ${monthRange.to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
-      ['ITEM', 'CPU', 'OPENING QTY', 'OPENING VALUE', 'STOCK IN QTY', 'STOCK IN VALUE', 'STOCK OUT QTY', 'STOCK OUT VALUE', 'CLOSING QTY', 'CLOSING VALUE'],
-      ...monthRows.map((r) => [r.sku.name, r.cpu, r.openingQty, Math.round(r.openingVal), r.stockInQty, Math.round(r.stockInVal),
+      ['NO', 'ITEM', 'CPU', 'OPENING QTY', 'OPENING VALUE', 'STOCK IN QTY', 'STOCK IN VALUE', 'STOCK OUT QTY', 'STOCK OUT VALUE', 'CLOSING QTY', 'CLOSING VALUE'],
+      ...monthRows.map((r, i) => [i + 1, r.sku.name, r.cpu, r.openingQty, Math.round(r.openingVal), r.stockInQty, Math.round(r.stockInVal),
         r.stockOutQty, Math.round(r.stockOutVal), r.closingQty, Math.round(r.closingVal)]),
     ]), 'Month End');
     // Sheet 2: Item Stock Out
@@ -475,7 +475,8 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
               <table className="w-full text-sm">
                 <thead>
                   <tr>
-                    <th rowSpan={2} className="rounded-tl-xl border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Item</th>
+                    <th rowSpan={2} className="w-12 rounded-tl-xl border border-slate-200 bg-slate-50 px-2 py-2 text-center text-xs font-bold uppercase tracking-wider text-slate-600">No</th>
+                    <th rowSpan={2} className="border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs font-bold uppercase tracking-wider text-slate-600">Item</th>
                     <th rowSpan={2} className="border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs font-bold uppercase tracking-wider text-slate-600">CPU</th>
                     <th colSpan={2} className="border border-slate-500 bg-slate-700 px-3 py-2 text-center text-xs font-bold uppercase tracking-wider text-white">Opening Balance</th>
                     <th colSpan={2} className="border border-emerald-800 bg-emerald-600 px-3 py-2 text-center text-xs font-bold uppercase tracking-wider text-white">Stock In</th>
@@ -489,8 +490,9 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                   </tr>
                 </thead>
                 <tbody>
-                  {monthRows.map((r) => (
+                  {monthRows.map((r, idx) => (
                     <tr key={r.key} className="transition hover:bg-slate-50/70">
+                      <td className="border border-slate-200 px-2 py-1.5 text-center tabular-nums text-slate-500">{idx + 1}</td>
                       <td className={`${cellCls} font-medium text-slate-800`}>
                         {r.sku.name}
                         {r.warehouses === 2 && (
@@ -511,7 +513,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                 </tbody>
                 <tfoot>
                   <tr className="bg-slate-50">
-                    <td colSpan={2} className="border border-slate-200 px-3 py-2 text-right font-bold uppercase text-slate-600">Total</td>
+                    <td colSpan={3} className="border border-slate-200 px-3 py-2 text-right font-bold uppercase text-slate-600">Total</td>
                     <td className="border border-slate-200 px-3 py-2 text-right font-bold tabular-nums text-slate-800">{fmt(monthRows.reduce((a, r) => a + r.openingQty, 0))}</td>
                     <td className="border border-slate-200 px-3 py-2 text-right font-semibold tabular-nums text-slate-700">{money(monthRows.reduce((a, r) => a + r.openingVal, 0))}</td>
                     <td className="border border-slate-200 px-3 py-2 text-right font-bold tabular-nums text-emerald-700">{fmt(monthRows.reduce((a, r) => a + r.stockInQty, 0))}</td>

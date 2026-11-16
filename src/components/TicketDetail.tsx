@@ -4,8 +4,8 @@ import {
   Flag, Info, Package, Tag, Truck, Undo2, User, UserRound, Workflow, XCircle,
 } from 'lucide-react';
 import type { TicketWithItems, SKU, TicketAction } from '@/lib/types';
-import { ROLE_LABELS, STATUS_LABELS, type TicketStatus, type TicketType } from '@/lib/types';
-import { fmt, money, whenStamp, safeImageUrl } from '@/lib/utils';
+import { STATUS_LABELS, type TicketStatus, type TicketType } from '@/lib/types';
+import { cn, fmt, money, whenStamp, safeImageUrl } from '@/lib/utils';
 import { ApprovalPipeline, pipelineSteps } from './ApprovalPipeline';
 import { StatusBadge, TypeBadge } from './StatusBadge';
 import { Badge } from './ui/primitives';
@@ -199,8 +199,8 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
           <ol className="p-4">
             {trail.map((a, i) => {
               const label = STATUS_LABELS[(a.status || '') as TicketStatus] || a.action || a.status || 'Action';
-              const role = a.role ? ROLE_LABELS[String(a.role).toLowerCase()] || a.role : '';
               const name = a.actionBy || 'System';
+              const comment = (a.comment || '').trim();
               return (
                 <li key={a.id ?? `${a.actionAt}-${i}`} className="relative flex gap-3 pb-3 last:pb-0">
                   {i < trail.length - 1 && (
@@ -209,16 +209,17 @@ export function TicketDetail({ ticket, skus, actions = [] }: {
                   <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-slate-100 text-[10px] font-bold text-slate-500 ring-1 ring-slate-200">
                     {initialsOf(name)}
                   </span>
-                  <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-2 gap-y-0.5 pt-0.5">
-                    <span className="text-[13px] font-semibold text-slate-800">{name}</span>
-                    {role && (
-                      <span className="rounded-full bg-white px-2 py-0.5 text-[10px] font-semibold text-slate-500 ring-1 ring-slate-200">
-                        {role}
-                      </span>
+                  <div className="min-w-0 flex-1 pt-0.5">
+                    {/* Line 1: who + result, time pinned right */}
+                    <div className="flex items-center gap-2">
+                      <span className="min-w-0 truncate text-[13px] font-semibold text-slate-800" title={name}>{name}</span>
+                      <Badge className={cn('shrink-0', TRAIL_TONES[a.status || ''] || 'bg-slate-100 text-slate-600 ring-slate-400/20')}>{label}</Badge>
+                      <span className="ml-auto shrink-0 whitespace-nowrap pl-2 text-[10px] tabular-nums text-slate-400">{whenStamp(a.actionAt)}</span>
+                    </div>
+                    {/* Line 2: the comment wraps full width, never into the time */}
+                    {comment && (
+                      <p className="mt-0.5 whitespace-pre-wrap break-words text-xs leading-relaxed text-slate-500">{comment}</p>
                     )}
-                    <Badge className={TRAIL_TONES[a.status || ''] || 'bg-slate-100 text-slate-600 ring-slate-400/20'}>{label}</Badge>
-                    <span className="min-w-0 flex-1 break-words text-xs text-slate-500">{a.comment || '-'}</span>
-                    <span className="text-[10px] tabular-nums text-slate-400">{whenStamp(a.actionAt)}</span>
                   </div>
                 </li>
               );

@@ -8,8 +8,11 @@ import { cn, fmt, money, safeImageUrl } from '@/lib/utils';
 import { getStockMovement, activeBorrows, overdueBorrows, reportableTransactions } from '@/lib/stockMovement';
 import type { SKU, StockTransaction } from '@/lib/types';
 import { SkuDetailModal } from '@/components/SkuDetailModal';
+import { safeGet, safeSet } from '@/lib/safeStorage';
 
 type Scope = 'all' | 'mkt' | 'cs';
+type ViewMode = 'list' | 'cards';
+const VIEW_KEY = 'eg-dashboard-view';
 interface RowItem { sku: SKU; wh: 'mkt' | 'cs'; tx: StockTransaction[] }
 
 type SortField =
@@ -34,6 +37,9 @@ export function DashboardPage() {
   const [detail, setDetail] = useState<{ sku: SKU; wh: 'mkt' | 'cs' } | null>(null);
   const [sortField, setSortField] = useState<SortField>('name');
   const [sortDir, setSortDir] = useState<SortDir>('asc');
+  // List is the default; a switch to Cards is remembered in this browser.
+  const [view, setViewState] = useState<ViewMode>(() => (safeGet(VIEW_KEY) === 'cards' ? 'cards' : 'list'));
+  const setView = (v: ViewMode) => { setViewState(v); safeSet(VIEW_KEY, v); };
   const canToggle = ['admin', 'director', 'customer_service', 'warehouse', 'line_manager'].includes(user?.role || '');
 
   const toggleSort = (field: SortField) => {
@@ -170,13 +176,19 @@ export function DashboardPage() {
             </span>
           </div>
 
-          {/* Sort option dropdown */}
-          <div className="flex items-center gap-2 text-xs">
+          {/* View toggle + sort option dropdown */}
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <Segmented<ViewMode>
+              value={view}
+              onChange={setView}
+              options={[{ value: 'list', label: 'List' }, { value: 'cards', label: 'Cards' }]}
+            />
             <span className="text-slate-400 hidden sm:inline">Sort:</span>
             <div className="relative">
               <ArrowUpDown className="pointer-events-none absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              {/* py-0: `.input` carries py-2.5, which clipped the text inside h-8 */}
               <select
-                className="input h-8 rounded-lg pl-7 pr-8 text-xs font-medium"
+                className="input h-8 rounded-lg py-0 pl-7 pr-8 text-xs font-medium leading-none"
                 value={`${sortField}-${sortDir}`}
                 onChange={(e) => {
                   const [f, d] = e.target.value.split('-') as [SortField, SortDir];
@@ -207,6 +219,48 @@ export function DashboardPage() {
           </div>
         </div>
 
+        {view === 'cards' ? (
+          sortedVisible.length === 0 ? (
+            <EmptyState icon={<Archive className="h-6 w-6" />} title="No stock in this view" />
+          ) : (
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4">
+              {sortedVisible.map(({ sku, wh, mv }) => {
+                const out = sku.currentStock <= 0;
+                const clickable = !isStaff;
+                return (
+                  <div
+                    key={sku.id + ':' + wh}
+                    role={clickable ? 'button' : undefined}
+                    tabIndex={clickable ? 0 : undefined}
+                    onClick={() => { if (clickable) setDetail({ sku, wh }); }}
+                    onKeyDown={(e) => { if (clickable && (e.key === 'Enter' || e.key === ' ')) { e.preventDefault(); setDetail({ sku, wh }); } }}
+                    className={cn(
+                      'flex flex-col rounded-xl border bg-white p-3 transition',
+                      out ? 'border-slate-200 bg-slate-50 opacity-60 grayscale' : 'border-slate-200',
+                      clickable && 'cursor-pointer hover:border-brand-300 hover:shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-400',
+                    )}
+                  >
+                    <div className="flex items-start gap-2.5">
+                      <SkuThumb sku={sku} size="lg" />
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-sm font-semibold leading-snug text-slate-800" title={sku.name}>{sku.name}</p>
+                        <div className="mt-1 flex flex-wrap items-center gap-1">
+                          <SkuBadges sku={sku} wh={wh} scope={scope} csSkus={csSkus} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid grid-cols-4 divide-x divide-slate-100 rounded-lg bg-slate-50/80 py-2 text-center ring-1 ring-slate-100">
+                      <CardStat label="Opening" value={fmt(sku.openingBalance)} className="text-slate-700" />
+                      <CardStat label="In" value={inText(mv.stockIn)} className="text-emerald-600" />
+                      <CardStat label="Out" value={outText(mv.stockOut)} className="text-rose-500" />
+                      <CardStat label="Current" value={fmt(sku.currentStock)} sub={sku.unit} className="font-bold text-slate-900" />
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
@@ -228,8 +282,6 @@ export function DashboardPage() {
                 <tr><td colSpan={10}><EmptyState icon={<Archive className="h-6 w-6" />} title="No stock in this view" /></td></tr>
               )}
               {sortedVisible.map(({ sku, wh, mv, totalValue }) => {
-                const out = sku.currentStock <= 0;
-                const low = sku.currentStock <= sku.lowStockThreshold;
                 return (
                   <tr
                     key={sku.id + ':' + wh}
@@ -237,23 +289,18 @@ export function DashboardPage() {
                     onClick={() => { if (!isStaff) setDetail({ sku, wh }); }}
                   >
                     <td className="py-2.5 pr-2">
-                      {sku.imageUrl
-                        ? <img src={safeImageUrl(sku.imageUrl)} alt="" className="h-8 w-8 rounded-lg object-cover" loading="lazy" />
-                        : <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-400"><Package className="h-4 w-4" /></span>}
+                      <SkuThumb sku={sku} />
                     </td>
                     <td className="py-2.5 pr-2">
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="font-medium text-slate-800">{sku.name}</span>
-                        {out && <OutBadge />}
-                        {!out && low && <LowBadge />}
-                        {scope === 'all' && wh === 'cs' && <CsOnlyBadge />}
-                        {scope === 'all' && wh === 'mkt' && !csSkus.some((c) => c.id === sku.id) && <MktOnlyBadge />}
+                        <SkuBadges sku={sku} wh={wh} scope={scope} csSkus={csSkus} />
                       </div>
                     </td>
                     <td className="py-2.5 pr-2 text-slate-500">{sku.category || '—'}</td>
                     <td className="py-2.5 pr-2 text-right text-slate-600">{fmt(sku.openingBalance)} {sku.unit}</td>
-                    <td className="py-2.5 pr-2 text-right font-medium text-emerald-600">{mv.stockIn > 0 ? `+${fmt(mv.stockIn)}` : '—'}</td>
-                    <td className="py-2.5 pr-2 text-right font-medium text-rose-500">{mv.stockOut > 0 ? `-${fmt(mv.stockOut)}` : '—'}</td>
+                    <td className="py-2.5 pr-2 text-right font-medium text-emerald-600">{inText(mv.stockIn)}</td>
+                    <td className="py-2.5 pr-2 text-right font-medium text-rose-500">{outText(mv.stockOut)}</td>
                     <td className="py-2.5 pr-2 text-right font-semibold text-slate-800">{fmt(sku.currentStock)} {sku.unit}</td>
                     <td className="py-2.5 pr-2 text-right text-slate-500">{money(sku.costPerUnit)}</td>
                     <td className="py-2.5 pr-2 text-right font-semibold text-brand-700">{money(totalValue)}</td>
@@ -264,9 +311,48 @@ export function DashboardPage() {
             </tbody>
           </table>
         </div>
+        )}
       </div>
 
       {detail && <SkuDetailModal sku={detail.sku} warehouse={detail.wh} onClose={() => setDetail(null)} />}
+    </div>
+  );
+}
+
+// ── Shared by the list and card views so the two can never drift apart ──
+const inText = (n: number) => (n > 0 ? `+${fmt(n)}` : '—');
+const outText = (n: number) => (n > 0 ? `-${fmt(n)}` : '—');
+
+function SkuThumb({ sku, size = 'sm' }: { sku: SKU; size?: 'sm' | 'lg' }) {
+  const box = size === 'lg' ? 'h-11 w-11' : 'h-8 w-8';
+  return sku.imageUrl
+    ? <img src={safeImageUrl(sku.imageUrl)} alt="" className={cn(box, 'shrink-0 rounded-lg object-cover')} loading="lazy" />
+    : (
+      <span className={cn(box, 'flex shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-400')}>
+        <Package className="h-4 w-4" />
+      </span>
+    );
+}
+
+function SkuBadges({ sku, wh, scope, csSkus }: { sku: SKU; wh: 'mkt' | 'cs'; scope: Scope; csSkus: SKU[] }) {
+  const out = sku.currentStock <= 0;
+  const low = sku.currentStock <= sku.lowStockThreshold;
+  return (
+    <>
+      {out && <OutBadge />}
+      {!out && low && <LowBadge />}
+      {scope === 'all' && wh === 'cs' && <CsOnlyBadge />}
+      {scope === 'all' && wh === 'mkt' && !csSkus.some((c) => c.id === sku.id) && <MktOnlyBadge />}
+    </>
+  );
+}
+
+function CardStat({ label, value, sub, className }: { label: string; value: string; sub?: string; className?: string }) {
+  return (
+    <div className="min-w-0 px-1">
+      <p className="text-[10px] font-semibold uppercase tracking-wide text-slate-400">{label}</p>
+      <p className={cn('mt-0.5 truncate text-sm tabular-nums', className)}>{value}</p>
+      {sub && <p className="truncate text-[10px] text-slate-400">{sub}</p>}
     </div>
   );
 }

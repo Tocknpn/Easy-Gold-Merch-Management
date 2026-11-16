@@ -76,12 +76,14 @@ const MIN_INSET = 0.9;               // mm — bitmap / `₭` inset, never tight
 // on floating-point noise, pushing the boxes to a second page.
 const FIT_SLACK = 0.5;               // mm — keep the solved table strictly inside
 
-/** Column widths (mm): 50+14+22 + 4×(18+25) + 17 = 275 ≤ 277 usable. */
-const COL_W = [50, 14, 22, 18, 25, 18, 25, 18, 25, 18, 25, 17];
-const ITEM_COL = 0;
-const UNIT_COL = 1;
+/** Column widths (mm): 7+47+12+20 + 4×(18+25) + 17 = 275 ≤ 277 usable.
+ *  NO (row number) leads so a reader can call out / find a row quickly. */
+const COL_W = [7, 47, 12, 20, 18, 25, 18, 25, 18, 25, 18, 25, 17];
+const NO_COL = 0;
+const ITEM_COL = 1;
+const UNIT_COL = 2;
 /** Columns drawn by hand as `₭` + digits (see `drawCell`). */
-const MONEY_COLS = new Set([2, 4, 6, 8, 10]);
+const MONEY_COLS = new Set([3, 5, 7, 9, 11]);
 
 /** Solved vertical geometry for one export — see the one-page-fit note above. */
 interface Layout {
@@ -108,20 +110,15 @@ function solveLayout(bodyRows: number): Layout {
   return { pitch, headPitch: single ? Math.max(pitch, HEAD_MIN) : PITCH_MAX, pad, single };
 }
 
-const columnStyles: Record<number, Partial<Styles>> = {
-  0: { halign: 'left', cellWidth: COL_W[0] },
-  1: { halign: 'center', cellWidth: COL_W[1] },
-  2: { halign: 'right', cellWidth: COL_W[2] },
-  3: { halign: 'right', cellWidth: COL_W[3] },
-  4: { halign: 'right', cellWidth: COL_W[4] },
-  5: { halign: 'right', cellWidth: COL_W[5] },
-  6: { halign: 'right', cellWidth: COL_W[6] },
-  7: { halign: 'right', cellWidth: COL_W[7] },
-  8: { halign: 'right', cellWidth: COL_W[8] },
-  9: { halign: 'right', cellWidth: COL_W[9] },
-  10: { halign: 'right', cellWidth: COL_W[10] },
-  11: { halign: 'center', cellWidth: COL_W[11] },
-};
+const columnStyles: Record<number, Partial<Styles>> = Object.fromEntries(
+  COL_W.map((w, i) => [i, {
+    cellWidth: w,
+    halign: i === ITEM_COL ? 'left'
+      : i === NO_COL || i === UNIT_COL || i === COL_W.length - 1 ? 'center'
+      : 'right',
+    ...(i === NO_COL ? { textColor: [100, 116, 139] as [number, number, number] } : {}),
+  } as Partial<Styles>]),
+);
 
 /** Movement-block band on the first head row (light tint + matching ink). */
 const band = (
@@ -181,7 +178,8 @@ const remarkOf = (r: MonthEndRow) =>
  * blanked in `didParseCell` so autoTable only draws the grid for them.
  */
 function bodyRows(rows: MonthEndRow[]): RowInput[] {
-  return rows.map((r) => [
+  return rows.map((r, i) => [
+    String(i + 1),
     r.sku.name,
     r.sku.unit || 'pcs',
     r.cpu,
@@ -195,7 +193,7 @@ function bodyRows(rows: MonthEndRow[]): RowInput[] {
 
 function footRow(opts: PdfOptions): RowInput {
   const { totalOpening: o, totalStockIn: i, totalStockOut: s, totalClosing: c } = opts;
-  return ['TOTAL', '', '', fmt(o.qty), o.val, fmt(i.qty), i.val, fmt(s.qty), s.val, fmt(c.qty), c.val, '—'];
+  return [{ content: 'TOTAL', colSpan: 2, styles: { halign: 'left' } }, '', '', fmt(o.qty), o.val, fmt(i.qty), i.val, fmt(s.qty), s.val, fmt(c.qty), c.val, '—'];
 }
 
 /** Suppress autoTable's own text wherever we paint the content ourselves. */
@@ -230,7 +228,8 @@ function drawCell(rasters: Map<string, LaoRaster>, layout: Layout) {
       return;
     }
 
-    if (MONEY_COLS.has(col) && section !== 'head') {
+    // An empty money cell (the TOTAL row's UNIT PRICE) stays blank, not `₭0`.
+    if (MONEY_COLS.has(col) && section !== 'head' && cell.raw !== '' && cell.raw != null) {
       const bold = section === 'foot';
       const right = cell.x + cell.width - inset;
       const baseline = cell.y + cell.height / 2 + BASELINE_DROP;
@@ -254,6 +253,7 @@ function drawCell(rasters: Map<string, LaoRaster>, layout: Layout) {
 function addTable(doc: jsPDF, opts: PdfOptions, rasters: Map<string, LaoRaster>, layout: Layout) {
   const head: RowInput[] = [
     [
+      { content: 'NO', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
       { content: 'ITEM', rowSpan: 2, styles: { halign: 'left', valign: 'middle' } },
       { content: 'UNIT', rowSpan: 2, styles: { halign: 'center', valign: 'middle' } },
       { content: 'UNIT PRICE', rowSpan: 2, styles: { halign: 'right', valign: 'middle' } },

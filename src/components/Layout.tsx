@@ -101,14 +101,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
         >
           <Menu className="h-5 w-5" />
         </button>
-        <button
-          className="hidden rounded-lg p-1.5 text-brand-200 transition hover:bg-white/10 hover:text-white lg:inline-flex"
-          onClick={() => setCollapsed((c) => !c)}
-          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-          aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-        >
-          {collapsed ? <PanelLeftOpen className="h-5 w-5" /> : <PanelLeftClose className="h-5 w-5" />}
-        </button>
         <button onClick={() => go(activeKey)} className="flex items-center gap-2">
           <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-white/15 ring-1 ring-white/20">
             <Crown className="h-4 w-4 text-gold-300" />
@@ -118,23 +110,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </span>
         </button>
         <div className="flex-1" />
-
-        {/* Admin only: deploy version and git commit name */}
-        {user?.role === 'admin' && (
-          <div
-            className="hidden items-center gap-1.5 rounded-lg bg-white/10 px-2.5 py-1 text-xs text-brand-100 ring-1 ring-white/15 md:inline-flex max-w-[280px] xl:max-w-[420px] truncate"
-            title={`Deploy Version: ${__APP_VERSION__}\nCommit: ${__GIT_COMMIT_HASH__} - ${__GIT_COMMIT_MSG__}\nBranch: ${__GIT_BRANCH__}\nBuilt: ${__BUILD_TIME__}`}
-          >
-            <span className="font-semibold text-gold-300 shrink-0">{__APP_VERSION__}</span>
-            <span className="text-white/40 shrink-0">·</span>
-            <span className="rounded bg-black/25 px-1 py-0.5 font-mono text-[10px] text-brand-200 shrink-0">
-              {__GIT_COMMIT_HASH__}
-            </span>
-            <span className="truncate text-[11px] text-slate-200" title={__GIT_COMMIT_MSG__}>
-              {__GIT_COMMIT_MSG__ || 'latest commit'}
-            </span>
-          </div>
-        )}
 
         <span
           className={cn(
