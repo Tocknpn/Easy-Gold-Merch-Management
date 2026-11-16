@@ -905,6 +905,48 @@ check('audit: the ticket edit shows in the Audit Trail with its remark',
   check('create date: a future date falls back to today', String(demoDB.skus.find((s) => s.id === fId)!.createdAt).startsWith(t));
   const nId = addSku({ name: 'WF NoDate', category: 'MKT', openingBalance: 1 });
   check('create date: no date = today', String(demoDB.skus.find((s) => s.id === nId)!.createdAt).startsWith(t));
+
+  // ── Stock In / Out movement date (0025) ────────────────────────────────
+  // item born on backDay with 40; refill 100 dated backDay+5; then today it
+  // has 140. A Stock Out dated before the refill may only take what existed
+  // then (40), even though 140 is on hand now.
+  const plus = (d: string, n: number) => {
+    const x = new Date(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)) + n);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+  const refillDay = plus(backDay, 5);
+  demoRestockSku(bId, 100, 'WF', 'dated refill', refillDay);
+  check('move date: dated Stock In is stored on that day',
+    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'RESTOCK' && tx.date === refillDay && tx.qty === 100));
+  check('move date: Stock In before the item existed is refused',
+    throws(() => demoRestockSku(bId, 1, 'WF', 'too early', plus(backDay, -1)), /before this item was created/i));
+  check('move date: future date is refused',
+    throws(() => demoRestockSku(bId, 1, 'WF', 'future', '2999-01-01'), /future/i));
+  check('move date: backdated Stock Out larger than that day\'s balance is refused (40 < 50)',
+    throws(() => demoMktDestockSku(bId, 50, 'WF', 'too much then', 0, plus(backDay, 1)), /not enough stock on/i));
+  check('move date: refused Stock Out left stock untouched', skuStock(bId) === 140);
+  demoMktDestockSku(bId, 30, 'WF', 'fits then', 0, plus(backDay, 1));
+  check('move date: backdated Stock Out within that day\'s balance is accepted', skuStock(bId) === 110 &&
+    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'DIRECT_DESTOCK' && tx.date === plus(backDay, 1) && tx.qty === 30));
+  check('move date: second backdated Stock Out now fails (only 10 left on that day)',
+    throws(() => demoMktDestockSku(bId, 11, 'WF', 'over', 0, plus(backDay, 2)), /only 10 left/i));
+  demoMktDestockSku(bId, 50, 'WF', 'after the refill', 0, refillDay);
+  check('move date: Stock Out dated after the refill can use it', skuStock(bId) === 60);
+  const bMonth = getMonthEndRows({
+    month: backMonth, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(),
+  }).filter((r) => r.sku.id === bId);
+  const refillMonthSame = refillDay.slice(0, 7) === backMonth;
+  check('move date: Month End of the backdated month never goes negative', bMonth.length === 1 && bMonth[0].closingQty >= 0 &&
+    (!refillMonthSame || bMonth[0].closingQty === 60));
+  demoCsRestockSku(csB, 4, 'WF', 'cs dated', backDay);
+  check('move date: CS dated Stock In stored on that day',
+    demoDB.csTransactions.some((tx) => tx.skuId === csB && tx.ticketId === 'RESTOCK' && tx.date === backDay));
+  check('move date: CS backdated Stock Out over that day\'s balance refused (9 < 10)',
+    throws(() => demoCsDestockSku(csB, 10, 'WF', 'cs over', 0, backDay), /not enough stock on/i));
+  demoRestockSku(nId, 2, 'WF', 'undated');
+  check('move date: no date = today (old behaviour)',
+    demoDB.transactions.some((tx) => tx.skuId === nId && tx.ticketId === 'RESTOCK' && tx.date === t));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -10,6 +10,7 @@ import { useData } from '@/contexts/DataContext';
 import { Modal, Spinner, ErrorBanner, toast } from '@/components/ui/primitives';
 import { fmt, money, cn, safeImageUrl, todayStr } from '@/lib/utils';
 import type { SKU, CS_SKU } from '@/lib/types';
+import { skuBirthDate } from '@/lib/stockMovement';
 
 type Wh = 'mkt' | 'cs';
 type TabKey = 'overview' | 'adjust' | 'transfer' | 'stockio' | 'sku';
@@ -587,12 +588,19 @@ function StockIOTab() {
   const [qty, setQty] = useState('');
   const [ref, setRef] = useState('');
   const [note, setNote] = useState('');
+  const [date, setDate] = useState(todayStr()); // movement date — backdatable, never future (0025)
   const { busy, wrap } = useStockOp();
 
   const list = wh === 'mkt' ? skus : csSkus;
   const sku = list.find((s) => s.id === skuId);
   const nQty = Number(qty) || 0;
-  const valid = !!sku && nQty > 0 && (dir === 'in' || nQty <= sku.currentStock);
+  const ledger = wh === 'mkt' ? transactions : csTransactions;
+  // earliest allowed date = when the item started existing (reports' skuBirthDate)
+  const birth = sku
+    ? skuBirthDate(sku, ledger.filter((t) => t.skuId === sku.id && t.date).map((t) => t.date as string).sort()[0])
+    : null;
+  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayStr() && (!birth || date >= birth);
+  const valid = !!sku && nQty > 0 && dateOk && (dir === 'in' || nQty <= sku.currentStock);
 
   const history = skuId ? (wh === 'mkt' ? transactions : csTransactions).filter((t) => t.skuId === skuId).slice(0, 6) : [];
 
@@ -603,14 +611,14 @@ function StockIOTab() {
     const noteTxt = note.trim() ? ` — ${note.trim()}` : '';
     const ok = dir === 'in'
       ? await wrap(
-          () => wh === 'mkt' ? restockSku(sku.id, nQty, by, `Stock refill${refTxt}${noteTxt}`) : csRestockSku(sku.id, nQty, by, `Stock refill${refTxt}${noteTxt}`),
+          () => wh === 'mkt' ? restockSku(sku.id, nQty, by, `Stock refill${refTxt}${noteTxt}`, date) : csRestockSku(sku.id, nQty, by, `Stock refill${refTxt}${noteTxt}`, date),
           `${sku.name} +${fmt(nQty)} ${sku.unit} — new balance ${fmt(sku.currentStock + nQty)}`,
         )
       : await wrap(
-          () => wh === 'mkt' ? mktDestockSku(sku.id, nQty, by, `Stock issue${refTxt}${noteTxt}`) : csDestockSku(sku.id, nQty, by, `Stock issue${refTxt}${noteTxt}`),
+          () => wh === 'mkt' ? mktDestockSku(sku.id, nQty, by, `Stock issue${refTxt}${noteTxt}`, 0, date) : csDestockSku(sku.id, nQty, by, `Stock issue${refTxt}${noteTxt}`, 0, date),
           `${sku.name} −${fmt(nQty)} ${sku.unit} — new balance ${fmt(sku.currentStock - nQty)}`,
         );
-    if (ok) { setSkuId(''); setQty(''); setRef(''); setNote(''); }
+    if (ok) { setSkuId(''); setQty(''); setRef(''); setNote(''); setDate(todayStr()); }
   };
 
   return (
@@ -656,6 +664,24 @@ function StockIOTab() {
             <label className="label">Note (optional)</label>
             <input className="input" value={note} onChange={(e) => setNote(e.target.value)} placeholder="e.g. Supplier delivery, event issue…" />
           </div>
+          <div>
+            <label className="label">Date</label>
+            <input
+              className="input"
+              type="date"
+              min={birth || undefined}
+              max={todayStr()}
+              value={date}
+              onChange={(e) => setDate(e.target.value)}
+            />
+            <p className={cn('mt-1 text-[11px]', !dateOk && sku ? 'text-rose-600' : 'text-slate-400')}>
+              {sku && birth && date < birth
+                ? `Date is before this item was created (${birth})`
+                : date > todayStr()
+                  ? 'Date cannot be in the future'
+                  : 'Backdating changes past month reports.'}
+            </p>
+          </div>
         </div>
 
         {sku && nQty > 0 && (
@@ -681,7 +707,7 @@ function StockIOTab() {
                 <span className={cn('inline-block h-1.5 w-1.5 shrink-0 rounded-full', t.type === 'addition' ? 'bg-emerald-500' : 'bg-rose-500')} />
                 <b className="text-slate-800">{t.type === 'addition' ? '+' : '−'}{fmt(t.qty)}</b>
                 <span className="truncate">{t.status || t.ticketId}</span>
-                <span className="ml-auto shrink-0 text-slate-400">{(t.actionAt || t.date || '').slice(0, 10)}</span>
+                <span className="ml-auto shrink-0 text-slate-400">{(t.date || t.actionAt || '').slice(0, 10)}</span>
               </li>
             ))}
           </ul>

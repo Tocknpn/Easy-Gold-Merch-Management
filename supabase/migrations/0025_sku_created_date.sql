@@ -1,5 +1,5 @@
 -- ============================================================
--- Easy Gold Merch — 0025: SKU "Create date" (backdatable on creation)
+-- Easy Gold Merch — 0025: SKU create date + Stock In / Out movement date
 -- ============================================================
 -- The Add SKU modal now sends an optional `created_at` ('YYYY-MM-DD') in
 -- p_sku. On 'add' only, manage_sku / manage_cs_sku:
@@ -12,7 +12,19 @@
 -- the frontend can ship before or after this migration.
 -- Backdating DOES change already-reported months — there is no month lock.
 --
--- Body = 0013 versions, only the 'add' branch changed.
+-- Stock In / Out (Manage Stock tab) also sends an optional `date`
+-- ('YYYY-MM-DD') with 'restock' / 'destock':
+--   * no future date, and never before the item existed (the earlier of its
+--     created_at and its first ledger row — same rule as the reports'
+--     skuBirthDate);
+--   * the ledger row is dated on that day (the audit log keeps the real
+--     entry time);
+--   * a dated 'destock' is STRICT: refused if it would push the balance below
+--     zero at the end of ANY day from that date to today (balance at day d =
+--     current_stock − Σ counted rows dated after d, the Month End roll-back).
+--   No `date` key → old behaviour (current_date, no extra checks).
+--
+-- Body = 0013 versions; only 'add', 'restock' and 'destock' changed.
 -- Idempotent. Run AFTER 0024. Paste into the Supabase SQL Editor and run.
 -- ============================================================
 
@@ -48,7 +60,111 @@ $$;
 revoke execute on function public.sku_created_at_from(jsonb) from public, anon, authenticated;
 
 -- ------------------------------------------------------------------
--- 2. manage_sku - MKT SKU master (0013 body; 'add' honours created_at)
+-- Helper: first day an item existed (warehouse ledger + master date).
+-- ------------------------------------------------------------------
+create or replace function public.sku_birth_day(p_cs boolean, p_sku_id text, p_created timestamptz)
+returns date
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  v_first date;
+  v_created date := (p_created at time zone 'Asia/Vientiane')::date;
+begin
+  if p_cs then
+    select min(t.date) into v_first from public.cs_transactions t where t.sku_id = p_sku_id;
+  else
+    select min(t.date) into v_first from public.stock_transactions t where t.sku_id = p_sku_id;
+  end if;
+  -- least() ignores nulls; both null → null (= no lower limit)
+  return least(v_created, v_first);
+end;
+$$;
+revoke execute on function public.sku_birth_day(boolean, text, timestamptz) from public, anon, authenticated;
+
+-- ------------------------------------------------------------------
+-- Helper: parse + validate a Stock In / Out movement date.
+--   absent → current_date (old behaviour); raises on malformed / future /
+--   before the item existed.
+-- ------------------------------------------------------------------
+create or replace function public.sku_move_date(p_sku jsonb, p_birth date)
+returns date
+language plpgsql
+stable
+set search_path = public
+as $$
+declare
+  v_raw   text := btrim(coalesce(p_sku->>'date', ''));
+  v_day   date;
+  v_today date := (now() at time zone 'Asia/Vientiane')::date;
+begin
+  if v_raw = '' then
+    return current_date;
+  end if;
+  if v_raw !~ '^\d{4}-\d{2}-\d{2}' then
+    raise exception 'Date must be YYYY-MM-DD (got "%")', v_raw;
+  end if;
+  v_day := substr(v_raw, 1, 10)::date;
+  if v_day > v_today then
+    raise exception 'Date cannot be in the future (% > %)', v_day, v_today;
+  end if;
+  if p_birth is not null and v_day < p_birth then
+    raise exception 'Date is before this item was created (%)', p_birth;
+  end if;
+  return v_day;
+end;
+$$;
+revoke execute on function public.sku_move_date(jsonb, date) from public, anon, authenticated;
+
+-- ------------------------------------------------------------------
+-- Helper: lowest end-of-day balance from p_from to today, rolled back from
+-- current_stock over COUNTED ledger rows (cancelled bookings and rows of
+-- rejected / recalled tickets excluded — same as reportableTransactions).
+-- ------------------------------------------------------------------
+create or replace function public.sku_min_balance_from(p_cs boolean, p_sku_id text, p_cur numeric, p_from date)
+returns table (min_bal numeric, at_day date)
+language plpgsql
+stable
+set search_path = public
+as $$
+begin
+  if p_cs then
+    return query
+    with mv as (
+      select t.date as d, case when t.type = 'addition' then t.qty else -t.qty end as q
+        from public.cs_transactions t
+       where t.sku_id = p_sku_id and t.date is not null
+         and lower(coalesce(t.status, '')) not in ('booking cancelled', 'cancelled', 'reversed')
+         and not exists (select 1 from public.tickets k
+                          where k.id = t.ticket_id and k.status in ('rejected', 'recalled'))
+    ), days as (
+      select p_from as d union select mv.d from mv where mv.d > p_from
+    )
+    select (coalesce(p_cur, 0) - coalesce((select sum(mv.q) from mv where mv.d > days.d), 0))::numeric, days.d
+      from days order by 1, 2 limit 1;
+  else
+    return query
+    with mv as (
+      select t.date as d, case when t.type = 'addition' then t.qty else -t.qty end as q
+        from public.stock_transactions t
+       where t.sku_id = p_sku_id and t.date is not null
+         and lower(coalesce(t.status, '')) not in ('booking cancelled', 'cancelled', 'reversed')
+         and not exists (select 1 from public.tickets k
+                          where k.id = t.ticket_id and k.status in ('rejected', 'recalled'))
+    ), days as (
+      select p_from as d union select mv.d from mv where mv.d > p_from
+    )
+    select (coalesce(p_cur, 0) - coalesce((select sum(mv.q) from mv where mv.d > days.d), 0))::numeric, days.d
+      from days order by 1, 2 limit 1;
+  end if;
+end;
+$$;
+revoke execute on function public.sku_min_balance_from(boolean, text, numeric, date) from public, anon, authenticated;
+
+-- ------------------------------------------------------------------
+-- 2. manage_sku - MKT SKU master (0013 body; 'add' honours created_at,
+--    'restock' / 'destock' honour date)
 --    'add' | 'update' | 'delete' | 'restock' | 'destock'
 --
 --    'update' now:
@@ -81,6 +197,9 @@ declare
   v_delta numeric := 0;
   v_has_opening boolean := false;
   v_created timestamptz;
+  v_date date;
+  v_min numeric;
+  v_min_at date;
 begin
   if p_action = 'add' then
     v_id := coalesce(p_sku->>'id', public.next_id('sku-'));
@@ -118,13 +237,14 @@ begin
     if not found then
       return jsonb_build_object('success', false, 'error', 'SKU not found');
     end if;
+    v_date := public.sku_move_date(p_sku, public.sku_birth_day(false, v_id, v_row.created_at));
     update public.skus
        set current_stock = current_stock + v_qty,
            total_inflow  = total_inflow  + v_qty
      where id = v_id;
     insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
                                            action_by, status, comment)
-    values ('RESTOCK', v_id, v_row.name, v_qty, 'addition', current_date, p_action_by,
+    values ('RESTOCK', v_id, v_row.name, v_qty, 'addition', v_date, p_action_by,
             'Restock', coalesce(p_remark, 'Manual restock'));
     return jsonb_build_object('success', true, 'message', 'Restocked +' || v_qty);
 
@@ -138,13 +258,24 @@ begin
     if not found then
       return jsonb_build_object('success', false, 'error', 'SKU not found');
     end if;
+    v_date := public.sku_move_date(p_sku, public.sku_birth_day(false, v_id, v_row.created_at));
+    if p_sku ? 'date' then
+      select b.min_bal, b.at_day into v_min, v_min_at
+        from public.sku_min_balance_from(false, v_id, v_row.current_stock, v_date) b;
+      if coalesce(v_min, 0) < v_qty then
+        return jsonb_build_object('success', false, 'error',
+          'Not enough stock on ' || v_min_at || ': only ' || public.nice_num(coalesce(v_min, 0))
+          || ' left that day — a Stock Out of ' || public.nice_num(v_qty) || ' dated ' || v_date
+          || ' would make it negative');
+      end if;
+    end if;
     update public.skus
        set current_stock = greatest(current_stock - v_qty, 0)
      where id = v_id;
     v_tx_id := coalesce(p_sku->>'ticket_id', 'DIRECT_DESTOCK');
     insert into public.stock_transactions (ticket_id, sku_id, sku_name, qty, type, date,
                                            action_by, status, comment)
-    values (v_tx_id, v_id, v_row.name, v_qty, 'deduction', current_date, p_action_by,
+    values (v_tx_id, v_id, v_row.name, v_qty, 'deduction', v_date, p_action_by,
             'Destock', coalesce(p_remark, 'Direct destock'));
     return jsonb_build_object('success', true, 'message', 'Destocked -' || v_qty);
 
@@ -221,7 +352,8 @@ end;
 $$;
 
 -- ------------------------------------------------------------------
--- 3. manage_cs_sku - CS warehouse SKU master (0013 body; 'add' honours created_at)
+-- 3. manage_cs_sku - CS warehouse SKU master (0013 body; 'add' honours created_at,
+--    'restock' / 'destock' honour date)
 --    'add' | 'update' | 'delete' | 'restock' | 'destock'
 --
 --    Same rules as manage_sku: status persists, opening_balance is a
@@ -252,6 +384,9 @@ declare
   v_has_opening boolean := false;
   v_mkt record;
   v_created timestamptz;
+  v_date date;
+  v_min numeric;
+  v_min_at date;
 begin
   if p_action = 'add' then
     v_id := coalesce(p_sku->>'id', 'CS-SKU-' || floor(extract(epoch from clock_timestamp()) * 1000)::bigint::text);
@@ -289,13 +424,14 @@ begin
     if not found then
       return jsonb_build_object('success', false, 'error', 'CS SKU not found');
     end if;
+    v_date := public.sku_move_date(p_sku, public.sku_birth_day(true, v_id, v_row.created_at));
     update public.cs_skus
        set current_stock = current_stock + v_qty,
            total_inflow  = total_inflow  + v_qty
      where id = v_id;
     insert into public.cs_transactions (ticket_id, sku_id, sku_name, qty, type, date,
                                         action_by, comment)
-    values ('RESTOCK', v_id, v_row.name, v_qty, 'addition', current_date, p_action_by,
+    values ('RESTOCK', v_id, v_row.name, v_qty, 'addition', v_date, p_action_by,
             coalesce(p_comment, 'Manual restock'));
     return jsonb_build_object('success', true, 'message', 'CS restocked +' || v_qty);
 
@@ -309,12 +445,23 @@ begin
     if not found then
       return jsonb_build_object('success', false, 'error', 'CS SKU not found');
     end if;
+    v_date := public.sku_move_date(p_sku, public.sku_birth_day(true, v_id, v_row.created_at));
+    if p_sku ? 'date' then
+      select b.min_bal, b.at_day into v_min, v_min_at
+        from public.sku_min_balance_from(true, v_id, v_row.current_stock, v_date) b;
+      if coalesce(v_min, 0) < v_qty then
+        return jsonb_build_object('success', false, 'error',
+          'Not enough stock on ' || v_min_at || ': only ' || public.nice_num(coalesce(v_min, 0))
+          || ' left that day — a Stock Out of ' || public.nice_num(v_qty) || ' dated ' || v_date
+          || ' would make it negative');
+      end if;
+    end if;
     update public.cs_skus
        set current_stock = greatest(current_stock - v_qty, 0)
      where id = v_id;
     insert into public.cs_transactions (ticket_id, sku_id, sku_name, qty, type, date,
                                         action_by, comment)
-    values ('DIRECT_DESTOCK', v_id, v_row.name, v_qty, 'deduction', current_date, p_action_by,
+    values ('DIRECT_DESTOCK', v_id, v_row.name, v_qty, 'deduction', v_date, p_action_by,
             coalesce(p_comment, 'Direct destock'));
     return jsonb_build_object('success', true, 'message', 'CS destocked -' || v_qty);
 

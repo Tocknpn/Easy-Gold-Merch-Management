@@ -61,10 +61,13 @@ export async function apiDeleteSku(id: string): Promise<void> {
   ok(data);
 }
 
-export async function apiRestockSku(id: string, qty: number, actionBy?: string, comment?: string): Promise<void> {
-  if (!isLive()) return demoData.demoRestockSku(id, qty, actionBy, comment);
+/** Optional movement date ('YYYY-MM-DD', Stock In / Out tab) — see 0025. */
+const withDate = (o: Record<string, unknown>, date?: string) => (date ? { ...o, date } : o);
+
+export async function apiRestockSku(id: string, qty: number, actionBy?: string, comment?: string, date?: string): Promise<void> {
+  if (!isLive()) return demoData.demoRestockSku(id, qty, actionBy, comment, date);
   const { data, error } = await supabase!.rpc('manage_sku', {
-    p_action: 'restock', p_sku: { id, qty }, p_remark: comment || null, p_action_by: actionBy || null,
+    p_action: 'restock', p_sku: withDate({ id, qty }, date), p_remark: comment || null, p_action_by: actionBy || null,
   });
   if (error) throw new Error(error.message);
   ok(data);
@@ -126,29 +129,29 @@ export async function apiCsDeleteSku(id: string): Promise<void> {
   ok(data);
 }
 
-export async function apiCsRestockSku(id: string, qty: number, actionBy?: string, comment?: string): Promise<void> {
-  if (!isLive()) return demoData.demoCsRestockSku(id, qty, actionBy, comment);
+export async function apiCsRestockSku(id: string, qty: number, actionBy?: string, comment?: string, date?: string): Promise<void> {
+  if (!isLive()) return demoData.demoCsRestockSku(id, qty, actionBy, comment, date);
   const { data, error } = await supabase!.rpc('manage_cs_sku', {
-    p_action: 'restock', p_sku: { id, qty }, p_comment: comment || null, p_action_by: actionBy || null,
+    p_action: 'restock', p_sku: withDate({ id, qty }, date), p_comment: comment || null, p_action_by: actionBy || null,
   });
   if (error) throw new Error(error.message);
   ok(data);
 }
 
-export async function apiCsDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0): Promise<void> {
-  if (!isLive()) return demoData.demoCsDestockSku(id, qty, actionBy, comment, broken);
+export async function apiCsDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0, date?: string): Promise<void> {
+  if (!isLive()) return demoData.demoCsDestockSku(id, qty, actionBy, comment, broken, date);
   const { data, error } = await supabase!.rpc('manage_cs_sku', {
-    p_action: 'destock', p_sku: { id, qty }, p_comment: comment || null, p_action_by: actionBy || null,
+    p_action: 'destock', p_sku: withDate({ id, qty }, date), p_comment: comment || null, p_action_by: actionBy || null,
   });
   if (error) throw new Error(error.message);
   ok(data);
 }
 
 // ── MKT warehouse direct destock (issue out / loss write-off) ───────────
-export async function apiMktDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0): Promise<void> {
-  if (!isLive()) return demoData.demoMktDestockSku(id, qty, actionBy, comment, broken);
+export async function apiMktDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0, date?: string): Promise<void> {
+  if (!isLive()) return demoData.demoMktDestockSku(id, qty, actionBy, comment, broken, date);
   const { data, error } = await supabase!.rpc('manage_sku', {
-    p_action: 'destock', p_sku: { id, qty }, p_remark: comment || null, p_action_by: actionBy || null,
+    p_action: 'destock', p_sku: withDate({ id, qty }, date), p_remark: comment || null, p_action_by: actionBy || null,
   });
   if (error) throw new Error(error.message);
   ok(data);

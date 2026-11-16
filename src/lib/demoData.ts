@@ -3,6 +3,7 @@ import { demoDB, nextId, nextLedgerId, pushAudit } from './demoStore';
 import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction, MovementEditPatch, AuditChange } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
+import { skuBirthDate, isCancelledStatus } from './stockMovement';
 
 // ── Audit helpers (mirror the audit_row() trigger of 0016) ────────────────
 // Live mode logs master-data / settings / user changes with database
@@ -143,13 +144,53 @@ export function demoDeleteSku(id: string): void {
     });
 }
 
-export function demoRestockSku(id: string, qty: number, actionBy?: string, comment?: string): void {
+/**
+ * Stock In / Out movement date (mirrors sku_move_date + sku_min_balance_from
+ * in 0025). No date → today, no extra checks (old behaviour).
+ */
+function moveDateOf(
+  sku: SKU | CS_SKU, ledger: StockTransaction[], date: string | undefined,
+): string {
+  if (!date) return todayStr();
+  const day = String(date).slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`Date must be YYYY-MM-DD (got "${date}")`);
+  if (day > todayStr()) throw new Error(`Date cannot be in the future (${day} > ${todayStr()})`);
+  const first = ledger.filter((t) => t.skuId === sku.id && t.date).map((t) => t.date as string).sort()[0];
+  const birth = skuBirthDate(sku, first);
+  if (birth && day < birth) throw new Error(`Date is before this item was created (${birth})`);
+  return day;
+}
+
+/** Lowest end-of-day balance from `from` to today (counted rows only). */
+function minBalanceFrom(sku: SKU | CS_SKU, ledger: StockTransaction[], from: string): { min: number; at: string } {
+  const dead = new Set(demoDB.tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id));
+  const rows = ledger.filter((t) => t.skuId === sku.id && t.date && !isCancelledStatus(t.status) && !(t.ticketId && dead.has(t.ticketId)));
+  const days = [from, ...rows.map((t) => t.date as string).filter((d) => d > from)];
+  let best = { min: Infinity, at: from };
+  for (const d of [...new Set(days)].sort()) {
+    const after = rows.filter((t) => (t.date as string) > d)
+      .reduce((a, t) => a + (t.type === 'addition' ? castNumber(t.qty) : -castNumber(t.qty)), 0);
+    const bal = castNumber(sku.currentStock) - after;
+    if (bal < best.min) best = { min: bal, at: d };
+  }
+  return best;
+}
+
+function assertDatedOut(sku: SKU | CS_SKU, ledger: StockTransaction[], day: string, qty: number) {
+  const { min, at } = minBalanceFrom(sku, ledger, day);
+  if (min < qty) {
+    throw new Error(`Not enough stock on ${at}: only ${min} left that day — a Stock Out of ${qty} dated ${day} would make it negative`);
+  }
+}
+
+export function demoRestockSku(id: string, qty: number, actionBy?: string, comment?: string, date?: string): void {
   const s = demoDB.skus.find((x) => x.id === id);
   if (!s) throw new Error('SKU not found');
   if (!(qty > 0)) throw new Error('Restock quantity must be greater than 0');
+  const day = moveDateOf(s, demoDB.transactions, date);
   s.currentStock += qty;
   s.totalInflow += qty;
-  demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, status: 'Restock', comment: comment || 'Manual restock' });
+  demoDB.transactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: day, actionAt: new Date().toISOString(), actionBy, status: 'Restock', comment: comment || 'Manual restock' });
 }
 
 export function demoCsAddSku(sku: Partial<CS_SKU>): string {
@@ -223,38 +264,43 @@ export function demoCsDeleteSku(id: string): void {
     });
 }
 
-export function demoCsRestockSku(id: string, qty: number, actionBy?: string, comment?: string): void {
+export function demoCsRestockSku(id: string, qty: number, actionBy?: string, comment?: string, date?: string): void {
   const s = demoDB.csSkus.find((x) => x.id === id);
   if (!s) throw new Error('CS SKU not found');
   if (!(qty > 0)) throw new Error('Restock quantity must be greater than 0');
+  const day = moveDateOf(s, demoDB.csTransactions, date);
   s.currentStock += qty; s.totalInflow += qty;
-  demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: todayStr(), actionAt: new Date().toISOString(), actionBy, comment: comment || 'Manual restock' });
+  demoDB.csTransactions.unshift({ id: nextLedgerId(), ticketId: 'RESTOCK', skuId: id, skuName: s.name, qty, type: 'addition', date: day, actionAt: new Date().toISOString(), actionBy, comment: comment || 'Manual restock' });
 }
 
-export function demoCsDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0): void {
+export function demoCsDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0, date?: string): void {
   const s = demoDB.csSkus.find((x) => x.id === id);
   if (!s) throw new Error('CS SKU not found');
   if (!(qty > 0)) throw new Error('Destock quantity must be greater than 0');
+  const day = moveDateOf(s, demoDB.csTransactions, date);
+  if (date) assertDatedOut(s, demoDB.csTransactions, day, qty);
   s.currentStock = Math.max(0, s.currentStock - qty);
   demoDB.csTransactions.unshift({
     id: nextLedgerId(),
     ticketId: 'DIRECT_DESTOCK', skuId: id, skuName: s.name, qty, qtyBroken: broken || undefined, type: 'deduction',
-    date: todayStr(), actionAt: new Date().toISOString(), actionBy,
+    date: day, actionAt: new Date().toISOString(), actionBy,
     status: broken > 0 ? 'Loss/Broken' : 'Destock', comment: comment || 'Direct destock',
   });
 }
 
 // MKT warehouse direct destock (issue out / loss write-off) — no ticket needed
-export function demoMktDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0): void {
+export function demoMktDestockSku(id: string, qty: number, actionBy?: string, comment?: string, broken = 0, date?: string): void {
   const s = demoDB.skus.find((x) => x.id === id);
   if (!s) throw new Error('SKU not found');
   if (!(qty > 0)) throw new Error('Destock quantity must be greater than 0');
   if (qty > s.currentStock) throw new Error(`Only ${s.currentStock} ${s.unit} in stock`);
+  const day = moveDateOf(s, demoDB.transactions, date);
+  if (date) assertDatedOut(s, demoDB.transactions, day, qty);
   s.currentStock -= qty;
   demoDB.transactions.unshift({
     id: nextLedgerId(),
     ticketId: 'DIRECT_DESTOCK', skuId: id, skuName: s.name, qty, qtyBroken: broken || undefined, type: 'deduction',
-    date: todayStr(), actionAt: new Date().toISOString(), actionBy,
+    date: day, actionAt: new Date().toISOString(), actionBy,
     status: broken > 0 ? 'Loss/Broken' : 'Destock', comment: comment || 'Direct destock',
   });
 }
