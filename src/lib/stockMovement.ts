@@ -5,12 +5,14 @@
 //   * `getMonthMovement` / `getMonthEndRows` — the month-snapshot math of the
 //                           Month End Report (opening rolls every movement back
 //                           from the month start, closing rolls back only the
-//                           movements AFTER the month end; an item's starting
-//                           stock — its OPENING row — is shown as Opening in
-//                           the month it was created, never as Stock In).
-// Ticket ledger rows are dated on the ticket's delivery date (migration 0026),
-// so every month is a stable roll-back of dated rows: looking at June in
-// November shows exactly what June showed in July.
+//                           movements AFTER the month end).
+// Finance rule: Opening(M) = Closing(M−1), always. A new item's starting stock
+// (its OPENING row) is Stock In in the month it is dated, and only becomes
+// Opening from the following month on. Ticket ledger rows are dated on the
+// ticket's delivery date (0026); corrections made later (edit / late recall /
+// late reject) are dated on the day they are made (0027), and nothing can be
+// written into a month before the current one — so a reported month never
+// changes.
 import type { CS_SKU, SKU, StockTransaction, Ticket, WarehouseScope } from './types';
 import { castNumber } from './types';
 import { todayStr } from './utils';
@@ -58,6 +60,29 @@ export const EDIT_STATUSES = {
   reversal: 'Edit Return',
 } as const;
 
+/**
+ * A late cancel (0027): a ticket rejected / recalled after its delivery month
+ * was already reported keeps its booking (counted in that month) and writes
+ * this addition, dated the cancel day, to give the stock back.
+ */
+export const CANCEL_RETURN_STATUS = 'Cancel Return';
+
+export function isCancelReturn(tx: StockTransaction): boolean {
+  return String(tx.status || '').toLowerCase() === CANCEL_RETURN_STATUS.toLowerCase();
+}
+
+/**
+ * Gross flow used by the Month End Report (Finance view): every row lands in
+ * the column of its direction — an addition is Stock In, a deduction is Stock
+ * Out — so an 'Edit Return' / 'Cancel Return' shows as positive Stock In (MKT)
+ * and never as a negative Stock Out. Net effect on the balance is identical to
+ * `flowOf`, so the roll-back is unchanged.
+ */
+export function reportFlowOf(tx: StockTransaction): { in: number; out: number } {
+  const q = castNumber(tx.qty);
+  return tx.type === 'addition' ? { in: q, out: 0 } : { in: 0, out: q };
+}
+
 /** A row written by an Admin ticket edit. */
 export function isTicketEditRow(tx: StockTransaction): boolean {
   return String(tx.status || '').toLowerCase().startsWith('edit ');
@@ -94,8 +119,16 @@ export function reportableTransactions(
   transactions: StockTransaction[],
   tickets: Ticket[],
 ): StockTransaction[] {
+  // A late-cancelled ticket (it has a 'Cancel Return' row) stays in the
+  // ledger: its booking counts in its (already reported) month and the return
+  // counts on the cancel day.
+  const lateCancelled = new Set(
+    transactions.filter((tx) => tx.ticketId && isCancelReturn(tx)).map((tx) => tx.ticketId as string),
+  );
   const deadTickets = new Set(
-    tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id),
+    tickets
+      .filter((t) => (t.status === 'rejected' || t.status === 'recalled') && !lateCancelled.has(t.id))
+      .map((t) => t.id),
   );
   return transactions.filter(
     (tx) => isCountedMovement(tx) && !(tx.ticketId && deadTickets.has(tx.ticketId)),
@@ -151,16 +184,14 @@ export interface MonthMovement {
   firstDate: string | null;
   /** `(Opening + Stock In − Stock Out) − Closing` — 0 unless the SKU baseline drifted from the ledger. */
   variance: number;
-  /** Σ OPENING (starting-stock) additions dated inside the month — already counted in `stockIn`. */
-  genesisIn: number;
 }
 
 /**
  * Month End Report maths (see `Month End Report.md`). There are no stored
  * snapshots, so the figures are rolled back from the live `currentStock`:
  *
- *   Stock In  = Σ addition qty  in [from, to] — including the OPENING row; the
- *               Month End rows (`valueRow`) move that `genesisIn` part to Opening
+ *   Stock In  = Σ addition qty  in [from, to] — including a new item's OPENING
+ *               row and 'Edit Return' / 'Cancel Return' rows (`reportFlowOf`)
  *   Stock Out = Σ deduction qty in [from, to]
  *   Opening   = current − Σ(additions − deductions) for every tx with date >= from
  *               (later months included → a new item's OPENING row rolls back to 0)
@@ -181,7 +212,6 @@ export function getMonthMovement(
   let stockIn = 0;
   let stockOut = 0;
   let lossQty = 0;
-  let genesisIn = 0;
   let firstDate: string | null = null;
 
   for (const tx of transactions) {
@@ -196,11 +226,10 @@ export function getMonthMovement(
     if (date >= from) fromStart += tx.type === 'addition' ? qty : -qty;
     if (date > to) afterEnd += tx.type === 'addition' ? qty : -qty;
     if (date >= from && date <= to) {
-      const f = flowOf(tx);
+      const f = reportFlowOf(tx);
       stockIn += f.in;
       stockOut += f.out;
       lossQty += castNumber(tx.qtyBroken);
-      if (tx.type === 'addition' && tx.ticketId === 'OPENING') genesisIn += qty;
     }
   }
 
@@ -209,7 +238,7 @@ export function getMonthMovement(
   const variance = opening + stockIn - stockOut - closing;
   const inflow = castNumber(sku.totalInflow) || castNumber(sku.openingBalance);
   const usagePct = inflow > 0 ? Math.max(0, ((inflow - current) / inflow) * 100) : 0;
-  return { opening, stockIn, stockOut, closing, usagePct, lossQty, firstDate, variance, genesisIn };
+  return { opening, stockIn, stockOut, closing, usagePct, lossQty, firstDate, variance };
 }
 
 /**
@@ -330,14 +359,11 @@ interface ValuedRow {
 function valueRow(sku: SKU | CS_SKU, transactions: StockTransaction[], month: string): ValuedRow {
   const mv = getMonthMovement(sku, transactions, month);
   const cpu = castNumber(sku.costPerUnit);
-  // Starting stock = Opening. The OPENING row entered at SKU creation is the
-  // item's starting balance, so in its creation month it shows as Opening
-  // Balance (not Stock In): a hat created in June with 500 and issued 500 in
-  // June reads Opening 500 / In 0 / Out 500 / Closing 0. An imported baseline
-  // with no OPENING row already rolls back into `mv.opening`. Only real
-  // restocks / receipts are Stock In. Opening + In − Out = Closing still holds.
-  const opening = mv.opening + mv.genesisIn;
-  const stockIn = mv.stockIn - mv.genesisIn;
+  // Finance rule: Opening = last month's Closing. A new item's OPENING row is
+  // Stock In in the month it is dated: a hat created in June with 500 and
+  // issued 500 in June reads Opening 0 / In 500 / Out 500 / Closing 0.
+  const opening = mv.opening;
+  const stockIn = mv.stockIn;
   return {
     id: String(sku.id),
     name: sku.name || '',

@@ -4,11 +4,14 @@ import type { SKU, CS_SKU, TicketStatus, TicketType, TicketEditChange, TicketEdi
 import { castNumber } from './types';
 import { todayStr } from './utils';
 import { minBalanceFrom } from './demoData';
+import { demoCancelBooking, demoSetTicketRowQty, ledgerInsertDate } from './demoLedgerLock';
 
 /** Ledger date of a ticket's movements = its delivery date, else its created
  *  day (mirrors ticket_ledger_date in migration 0026). */
 export const ticketLedgerDate = (t: { deliveryDate?: string | null; createdAt?: string | null }): string =>
-  String(t.deliveryDate || '').slice(0, 10) || String(t.createdAt || '').slice(0, 10) || todayStr();
+  ledgerInsertDate(String(t.deliveryDate || '').slice(0, 10) || String(t.createdAt || '').slice(0, 10) || todayStr(), {});
+// ↑ 0027: a ticket row is never dated into a month already reported to
+//   Finance — corrections made later land on today instead.
 
 /** A deduction of `qty` dated `day` must not push any day's balance below zero
  *  (mirrors dated_out_error in 0026). `sku.currentStock` = stock BEFORE it. */
@@ -55,7 +58,7 @@ export function demoCreateTicket(p: {
   // except for legacy pending tickets created before booking-at-creation.
   const hasBooking = (ticketId: string, skuId: string) =>
     demoDB.transactions.some((tx) => tx.ticketId === ticketId && tx.skuId === skuId && tx.type === 'deduction' && tx.status === 'Booked');
-  const ledgerDay = String(p.deliveryDate || '').slice(0, 10) || todayStr();
+  const ledgerDay = ledgerInsertDate(String(p.deliveryDate || '').slice(0, 10) || todayStr(), {});
   const need = new Map<string, number>();
   for (const i of items) need.set(i.skuId, (need.get(i.skuId) || 0) + i.qtyRequested);
   for (const [skuId, qty] of need) {
@@ -191,8 +194,7 @@ export function demoUpdateTicketStatus(
         it.qtyApproved = 0;
         if (booking) {
           if (sku) sku.currentStock += bookedQty;
-          booking.status = 'Booking Cancelled';
-          booking.comment = 'Booking released - nothing approved at review';
+          demoCancelBooking(booking, 'Booking released - nothing approved at review', actor);
         }
         continue;
       }
@@ -203,7 +205,7 @@ export function demoUpdateTicketStatus(
         if (qty !== bookedQty) {
           if (sku && qty > bookedQty) assertTicketDatedOut(sku, false, ticketLedgerDate(t), qty - bookedQty);
           if (sku) sku.currentStock = Math.max(0, sku.currentStock - (qty - bookedQty));
-          booking.qty = qty;
+          demoSetTicketRowQty(demoDB.transactions, booking, qty, false, actor);
           booking.comment = 'Stock booked - confirmed at review';
           qtyNotes.push(`${it.skuName}: ${bookedQty} → ${qty}`);
         }
@@ -279,10 +281,7 @@ export function demoUpdateTicketStatus(
           (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction' && tx.status === 'Booked',
         );
         qty = booking ? booking.qty : 0;
-        if (booking) {
-          booking.status = 'Booking Cancelled';
-          booking.comment = `Booking released - ${note}`;
-        }
+        if (booking) demoCancelBooking(booking, `Booking released - ${note}`, actor);
       } else {
         // reviewed/lm_approved → qty is already deducted; cancel the booking
         qty = it.qtyApproved ?? it.qtyRequested;
@@ -296,10 +295,7 @@ export function demoUpdateTicketStatus(
               (tx) => tx.ticketId === t.id && tx.skuId === it.skuId && tx.type === 'deduction'
                 && !['Booking Cancelled', 'Deducted'].includes(String(tx.status || '')),
             );
-        for (const tx of fallback) {
-          tx.status = 'Booking Cancelled';
-          tx.comment = `Booking cancelled - ${note}`;
-        }
+        for (const tx of fallback) demoCancelBooking(tx, `Booking cancelled - ${note}`, actor);
       }
       if (qty <= 0) continue;
       const sku = demoDB.skus.find((s) => s.id === it.skuId);
@@ -366,7 +362,8 @@ export function demoUpdateTicketStatus(
 // Adjust / add / remove items on a FINALIZED ticket. Phase 1 validates every
 // line and builds the change list without touching anything; phase 2 applies
 // it — so a refused edit never leaves a half-applied ticket (all-or-nothing).
-// Ledger rows are APPENDED, dated today (closed months stay frozen):
+// Ledger rows are APPENDED, dated on the delivery date — or today when that
+// date is in a month already reported to Finance (0027):
 //   MKT more/added → deduction 'Edit Issue'   · less/removed → addition 'Edit Return'
 //   CS mirror (cs_transfer): addition 'Edit Receipt' · deduction 'Edit Return'
 // The ticket's status, dates and last-action stamp are never touched.
@@ -451,7 +448,8 @@ export function demoEditTicket(
   const editId = demoDB.ticketEdits.reduce((m, e) => Math.max(m, e.id), 0) + 1;
   const nowIso = new Date().toISOString();
   const today = todayStr();
-  // 0026: edit rows land on the ticket's delivery date (not today)
+  // 0026: edit rows land on the ticket's delivery date; 0027: never in a
+  // reported month (ticketLedgerDate clamps those to today)
   const ledgerDay = ticketLedgerDate(t);
   demoDB.ticketEdits.unshift({
     id: editId, ticketId: t.id, at: nowIso, actorName: actor, actorRole: 'admin',

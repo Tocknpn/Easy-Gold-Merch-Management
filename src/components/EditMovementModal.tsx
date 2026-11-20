@@ -11,6 +11,7 @@ import { useData } from '@/contexts/DataContext';
 import { Modal, toast } from '@/components/ui/primitives';
 import { fmt, cn } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
+import { isLockedDate, isManualLedgerRow, reportingPeriodStart } from '@/lib/ledgerLock';
 import type { SKU, StockTransaction, MovementEditPatch } from '@/lib/types';
 
 export function EditMovementModal({
@@ -54,12 +55,19 @@ export function EditMovementModal({
 
   // Rows that must not be edited here (the table hides the button too —
   // this is the server-mirroring double guard).
+  // 0027: a row dated in a month already reported to Finance is frozen. A
+  // ticket row may still get a qty correction — it is posted TODAY as a
+  // separate row; manual / transfer rows cannot change at all.
+  const locked = isLockedDate(tx.date);
+  const lockedTransfer = ['MKT_TRANSFER', 'CS_TRANSFER', 'CS_TRANSFER_OUT'].includes(String(tx.ticketId || ''));
   const blocked =
     tx.ticketId === 'OPENING'
       ? 'Opening rows follow the SKU opening balance — edit it in Manage Stock → SKU Setup'
       : isCancelledStatus(tx.status)
         ? 'Cancelled bookings are audit-only and cannot be edited'
-        : '';
+        : locked && (isManualLedgerRow(tx) || lockedTransfer)
+          ? `Month closed — this row is in a month already reported to Finance (before ${reportingPeriodStart()}). Record a Stock In / Stock Out dated this month instead.`
+          : '';
 
   const save = async () => {
     if (!tx.id) { toast('This row has no id — please refresh', 'error'); return; }
@@ -136,13 +144,17 @@ export function EditMovementModal({
             {wh === 'MKT' && (
               <div>
                 <label className={label}>Broken / lost</label>
-                <input className={input} type="number" min={0} step="any" value={broken}
+                <input className={input} type="number" min={0} step="any" value={broken} disabled={locked}
                   onChange={(e) => setBroken(e.target.value)} />
               </div>
             )}
             <div>
               <label className={label}>Movement date (reports)</label>
-              <input className={input} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              <input className={input} type="date" value={date} min={reportingPeriodStart()} disabled={locked}
+                onChange={(e) => setDate(e.target.value)} />
+              {locked && (
+                <p className="mt-1 text-[11px] text-slate-400">Reported month — a qty change is posted today as a separate correction.</p>
+              )}
             </div>
             <div>
               <label className={label}>By (recorded name)</label>

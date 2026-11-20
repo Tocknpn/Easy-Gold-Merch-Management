@@ -385,10 +385,12 @@ month end (so a past month never shows today's stock), and **All stock** merges 
 quantities *and* values (each warehouse keeps its own cost per unit). An item is **never listed before its
 creation date** (`createdAt`, else its first movement), and rows with no balance and no movement in the month
 are hidden unless you tick **Show items with no movement** (Finance/audit view). In the month an item first
-exists, its starting stock — its `OPENING` row, or an imported baseline with no ledger row — is reported as
-**Opening Balance** (e.g. created in June with 500, issued 500 in June → Opening 500 / Out 500 / Closing 0).
-Ticket movements are dated on the ticket's **delivery date** (migration 0026), so a past month always reads
-the same.
+exists, its starting stock — its `OPENING` row — is reported as **Stock In** and the item opens at 0
+(Finance rule: **Opening = last month's Closing**; e.g. created in June with 500, issued 500 in June →
+Opening 0 / In 500 / Out 500 / Closing 0). Ticket movements are dated on the ticket's **delivery date**
+(migration 0026). Every month before the current one is **locked** (migration 0027): nothing can be dated
+there any more, and late ticket corrections (edit, approved-qty change, reject / recall) are posted on
+today's date — so a month already reported to Finance never changes.
 
 ---
 

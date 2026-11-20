@@ -16,7 +16,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
-import { flowOf, getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
+import { reportFlowOf, getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
@@ -123,8 +123,8 @@ export function ReportingPage() {
 
   // Month End Report rows — see "Month End Report.md". Opening rolls every
   // movement back from the month start (an item's starting stock shows as
-  // Opening in its creation month, never as Stock In; ticket movements are
-  // dated on the ticket's delivery date — 0026), Closing rolls back only what
+  // Stock In in the month it is dated — Opening(M) = Closing(M−1); ticket
+  // movements are dated on the ticket's delivery date — 0026), Closing rolls back only what
   // happened AFTER the month end, and "All" merges MKT + CS per SKU summing
   // quantity AND value (each warehouse keeps its own cost per unit).
   // Items are never listed before they were created, and rows with no balance
@@ -143,17 +143,17 @@ export function ReportingPage() {
     [monthRows],
   );
 
-  // Stock Out / Stock In lists use the same signed flow as the totals: an Admin
-  // ticket edit's 'Edit Return' row is listed as a NEGATIVE line of the
-  // opposite column (it reduces what went out / came in), never a phantom flow.
+  // Stock Out / Stock In lists use the same gross flow as the Month End totals:
+  // every addition (incl. a new item's OPENING row, 'Edit Return' and
+  // 'Cancel Return') is a Stock In line, every deduction a Stock Out line.
   const stockOutRows = useMemo(() =>
-    merged.tx.filter((t) => flowOf(t).out !== 0 && inRange(t.date))
-      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: flowOf(t).out, cpu: cpuOf(t.skuId, t.skuName) }))
+    merged.tx.filter((t) => reportFlowOf(t).out !== 0 && inRange(t.date))
+      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: reportFlowOf(t).out, cpu: cpuOf(t.skuId, t.skuName) }))
       .sort((a, b) => b.date.localeCompare(a.date)), [merged, from, to]);
 
   const stockInRows = useMemo(() =>
-    merged.tx.filter((t) => t.ticketId !== 'OPENING' && flowOf(t).in !== 0 && inRange(t.date))
-      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: flowOf(t).in, cpu: cpuOf(t.skuId, t.skuName) }))
+    merged.tx.filter((t) => reportFlowOf(t).in !== 0 && inRange(t.date))
+      .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: reportFlowOf(t).in, cpu: cpuOf(t.skuId, t.skuName) }))
       .sort((a, b) => a.date.localeCompare(b.date)), [merged, from, to]);
 
   const remainRows = useMemo(() =>

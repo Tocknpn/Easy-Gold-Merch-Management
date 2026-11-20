@@ -4,6 +4,8 @@ import type { SKU, CS_SKU, AppUser, NewUserInput, StockTransaction, MovementEdit
 import { castNumber } from './types';
 import { todayStr } from './utils';
 import { skuBirthDate, isCancelledStatus } from './stockMovement';
+import { isLockedDate, monthClosedError } from './ledgerLock';
+import { demoSetTicketRowQty } from './demoLedgerLock';
 
 // ── Audit helpers (mirror the audit_row() trigger of 0016) ────────────────
 // Live mode logs master-data / settings / user changes with database
@@ -53,6 +55,10 @@ function syncOpeningTx(
   ledger: StockTransaction[], skuId: string, name: string, opening: number, actionBy?: string,
 ): void {
   const i = ledger.findIndex((t) => t.ticketId === 'OPENING' && t.skuId === skuId);
+  // 0027: an opening balance dated in a month already reported is locked —
+  // change stock with a Stock In / Stock Out dated this month instead.
+  if (i >= 0 && isLockedDate(ledger[i].date) && castNumber(ledger[i].qty) !== opening)
+    throw monthClosedError(String(ledger[i].date));
   if (opening <= 0) {
     if (i >= 0) ledger.splice(i, 1);
     return;
@@ -79,6 +85,7 @@ function syncOpeningTx(
 function createDateOf(v?: string | null): { day: string; at: string } {
   const picked = String(v || '').slice(0, 10);
   const day = /^\d{4}-\d{2}-\d{2}$/.test(picked) && picked <= todayStr() ? picked : todayStr();
+  if (isLockedDate(day)) throw monthClosedError(day); // 0027
   return { day, at: `${day}T${new Date().toTimeString().slice(0, 8)}` };
 }
 
@@ -115,12 +122,13 @@ export function demoUpdateSku(id: string, updates: Partial<SKU>): number {
   if (patch.openingBalance !== undefined) {
     const next = Math.max(0, castNumber(patch.openingBalance));
     delta = next - castNumber(s.openingBalance);
+    // ledger first: a locked (reported-month) opening throws before any change
+    syncOpeningTx(demoDB.transactions, id, patch.name || s.name, next);
     if (delta !== 0) {
       s.currentStock = Math.max(0, s.currentStock + delta);
       s.totalInflow = Math.max(0, s.totalInflow + delta);
     }
     patch.openingBalance = next;
-    syncOpeningTx(demoDB.transactions, id, patch.name || s.name, next);
   }
 
   Object.assign(s, patch);
@@ -155,6 +163,7 @@ function moveDateOf(
   const day = String(date).slice(0, 10);
   if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) throw new Error(`Date must be YYYY-MM-DD (got "${date}")`);
   if (day > todayStr()) throw new Error(`Date cannot be in the future (${day} > ${todayStr()})`);
+  if (isLockedDate(day)) throw monthClosedError(day); // 0027
   const first = ledger.filter((t) => t.skuId === sku.id && t.date).map((t) => t.date as string).sort()[0];
   const birth = skuBirthDate(sku, first);
   if (birth && day < birth) throw new Error(`Date is before this item was created (${birth})`);
@@ -226,12 +235,13 @@ export function demoCsUpdateSku(id: string, updates: Partial<CS_SKU>): number {
   if (patch.openingBalance !== undefined) {
     const next = Math.max(0, castNumber(patch.openingBalance));
     delta = next - castNumber(s.openingBalance);
+    // ledger first: a locked (reported-month) opening throws before any change
+    syncOpeningTx(demoDB.csTransactions, id, patch.name || s.name, next);
     if (delta !== 0) {
       s.currentStock = Math.max(0, s.currentStock + delta);
       s.totalInflow = Math.max(0, s.totalInflow + delta);
     }
     patch.openingBalance = next;
-    syncOpeningTx(demoDB.csTransactions, id, patch.name || s.name, next);
   }
 
   Object.assign(s, patch);
@@ -440,6 +450,17 @@ export function demoEditStockMovement(
   if (patch.date !== undefined && patch.date && !/^\d{4}-\d{2}-\d{2}$/.test(patch.date))
     throw new Error('Date must be in YYYY-MM-DD format');
 
+  // 0027: rows in a month already reported to Finance are frozen — a ticket
+  // row's qty change is posted today as a separate row, anything else refused.
+  const locked = isLockedDate(tx.date);
+  if (patch.date !== undefined && patch.date && patch.date !== tx.date && (locked || isLockedDate(patch.date)))
+    throw monthClosedError(locked ? String(tx.date) : patch.date);
+  if (locked && warehouse === 'mkt' && patch.qtyBroken !== undefined
+      && (Math.max(0, castNumber(patch.qtyBroken)) || 0) !== (castNumber(tx.qtyBroken) || 0))
+    throw monthClosedError(String(tx.date));
+  if (locked && newQty !== oldQty && !(tx.ticketId && demoDB.tickets.some((t) => t.id === tx.ticketId)))
+    throw monthClosedError(String(tx.date));
+
   // ── re-sync the SKU baseline by the delta (the core fix) ──
   const delta = newQty - oldQty;
   const db = warehouse === 'mkt' ? demoDB.skus : demoDB.csSkus;
@@ -454,7 +475,7 @@ export function demoEditStockMovement(
   }
 
   // ── apply the patch (type / status never change) ──
-  tx.qty = newQty;
+  demoSetTicketRowQty(ledger, tx, newQty, warehouse === 'cs', editorName);
   if (warehouse === 'mkt' && patch.qtyBroken !== undefined)
     tx.qtyBroken = Math.max(0, castNumber(patch.qtyBroken)) || undefined;
   if (patch.date !== undefined && patch.date) tx.date = patch.date;

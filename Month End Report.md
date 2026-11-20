@@ -30,18 +30,18 @@ Since there is no saved snapshot, the system uses the **Current Stock** as the a
 *   **Calculation**: Starts with the `Current Stock` and **rolls back** (reverses) every single transaction that occurred *on or after* the `startDate`.
     *   If a deduction occurred after the start date, it adds the quantity back.
     *   If an addition occurred after the start date, it subtracts the quantity out.
-*   **The Starting-Stock Rule**: If an item was created during this month, the stock it was created with (its "OPENING" transaction) is shown as its **Opening Balance** — not as Stock In. Example: a hat created in June with 500 pcs and issued 500 in June reads Opening 500 / Stock In 0 / Stock Out 500 / Closing 0. The item is not listed in the months before it was created.
+*   **The Finance Rule — Opening = last month's Closing**: the Opening Balance of a month is always exactly the Closing Balance of the month before. An item created during the month therefore opens at **0**; the stock it was created with (its "OPENING" transaction) is **Stock In** of that month, and becomes part of the Opening Balance only from the following month. Example: a hat created in June with 500 pcs and issued 500 in June reads Opening 0 / Stock In 500 / Stock Out 500 / Closing 0. The item is not listed in the months before it was created.
 
 ### B. Stock In
 **Definition**: Total quantity added to the inventory during the selected month.
 *   **Calculation**: Sums the quantities of all transactions explicitly marked as `addition` that fall strictly between the `startDate` and `endDate` (inclusive).
-*   **What it includes**: Normal restocks, returned items and items transferred from another warehouse. The starting stock an item is created with is NOT Stock In — it is the Opening Balance of its creation month.
+*   **What it includes**: The starting stock of an item created in this month, normal restocks, returned items, items transferred from another warehouse, and corrections that give stock back (an Admin ticket edit that reduces a ticket — `Edit Return` — and a late cancel — `Cancel Return`, see §6). Returned quantities are always positive Stock In, never a negative Stock Out.
 
 ### C. Stock Out
 **Definition**: Total quantity removed from the inventory during the selected month.
 *   **Calculation**: Sums the quantities of all transactions explicitly marked as `deduction` that fall strictly between the `startDate` and `endDate` (inclusive).
 *   **What it includes**: Dispatched tickets, items consumed, or items transferred out.
-*   **Which month a ticket counts in**: the ticket's **delivery date** — not the day it was created, approved or finalized. The booking (accrual) counts as Stock Out from the moment the ticket is submitted, also while it is still pending; a rejected or recalled ticket is removed. Because the delivery date never changes, a month reads the same whenever you look at it.
+*   **Which month a ticket counts in**: the ticket's **delivery date** — not the day it was created, approved or finalized. The booking (accrual) counts as Stock Out from the moment the ticket is submitted, also while it is still pending. A ticket rejected or recalled while its delivery month is still open simply disappears; one cancelled after its month was reported is handled as in §6.
 
 ### D. Closing Balance
 **Definition**: The exact stock quantity at the very end of the selected period.
@@ -54,6 +54,23 @@ For every quantity calculated (Opening, In, Out, Closing), the report also calcu
 
 *   **Formula**: `Value = Quantity * Unit Price (costPerUnit)`
 *   **VAT Toggle**: If the user toggles "Include VAT (10%)", the `costPerUnit` is dynamically multiplied by `1.1` before the values are calculated, inflating the unit price and all resulting column values by 10% for reporting purposes.
+*   **Known limit**: values use the item's **current** cost per unit for every month. Changing an item's cost re-prices months already reported, so Opening *value* can differ from last month's Closing *value* after a cost change (quantities always chain).
+
+## 6. Reported Months Are Frozen (migration 0027)
+
+Every month **before the current month** (Asia/Vientiane) counts as already reported to Finance, and nothing may be written into it any more. That is what keeps `Opening(M) = Closing(M−1)` true for every report you have already handed over.
+
+| Action | Date in the current (or a future) month | Date in a reported month |
+|---|---|---|
+| Add SKU create date, Stock In / Stock Out date | allowed | refused — "Month closed" |
+| Edit an item's Opening balance | allowed | refused — use Stock In / Stock Out this month |
+| Correct a ledger row (Edit stock movement) | allowed | manual rows refused; a ticket row keeps its qty and the difference is posted **today** |
+| New ticket with a delivery date in the past | booked on that date | booked **today** |
+| Admin ticket edit | dated on the delivery date | dated **today** (`Edit Issue` = Stock Out, `Edit Return` = Stock In) |
+| Approved qty changed at review | booking updated | booking kept; difference posted **today** |
+| Ticket rejected / recalled | booking dropped (never shows) | booking stays in its month; a `Cancel Return` dated **today** gives the stock back (Stock In) |
+
+The only things that move numbers between months are therefore ticket corrections, and they always land in the **current** month. Emergency maintenance in the SQL Editor can bypass the lock inside one transaction with `set local app.ledger_unlock = 'on';`.
 
 ## 5. Examples & Scenarios
 
@@ -63,11 +80,12 @@ To help illustrate how this works in practice, here are a few scenarios showing 
 *   **Action**: On October 15th, you create a new item "Lanyard" and set the initial stock to 100 pcs.
 *   **Behind the Scenes**: The system logs an `addition` transaction tagged as "OPENING" for 100 pcs on Oct 15th.
 *   **October Month End Report**:
-    *   **Opening Balance**: 100 (The stock the item was created with is its opening balance).
-    *   **Stock In**: 0 (Only real restocks / receipts are Stock In).
+    *   **Opening Balance**: 0 (September's Closing — the item did not exist yet).
+    *   **Stock In**: 100 (The stock the item was created with comes IN during October).
     *   **Stock Out**: 0
     *   **Closing Balance**: 100
-*   **Why?**: The item starts its life with 100 pcs on hand, so that is what October opens with. September does not list the item at all (it did not exist yet).
+*   **November Month End Report**: Opening 100 (= October's Closing).
+*   **Why?**: Finance's rule is Opening = last month's Closing. September does not list the item at all (it did not exist yet).
 
 ### Scenario B: Generating a Past Month's Report
 *   **Current Date**: December 5th. Current stock of "T-Shirts" is 50.

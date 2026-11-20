@@ -369,8 +369,8 @@ check('all workflow txs have YYYY-MM-DD date', allTx.every((tx) => /^\d{4}-\d{2}
 
 // ── 9b) Month End Report — "Month End Report.md" (dynamic month snapshot) ─
 // Opening rolls every movement back from the 1st of the month (the raw
-// getMonthRows math starts a brand-new item at 0 with its OPENING row in Stock
-// In; the Month End rows move that starting stock to Opening), Closing
+// math starts a brand-new item at 0 with its OPENING row in Stock In — the
+// Finance rule: Opening(M) = Closing(M−1)), Closing
 // rolls back only the movements AFTER the month end, and "All" merges the MKT
 // and CS rows (quantities AND values summed, each side keeps its own cost).
 const curMonth = today.slice(0, 7);
@@ -407,8 +407,8 @@ const mergedRows = allRows.filter((r) => r.sku.name === 'WF Merge');
 check('month end All: matched MKT + CS collapses into one row', mergedRows.length === 1 && mergedRows[0].warehouses === 2);
 check('month end All: quantities summed (60 + 50 = 110)', mergedRows[0].closingQty === 110);
 check('month end All: values summed (60×10 + 50×12 = 1200)', mergedRows[0].closingVal === 1200);
-check('month end All: both items are newborn → starting stock is Opening (110, ₭1,200), Stock In 0',
-  mergedRows[0].openingQty === 110 && mergedRows[0].openingVal === 1200 && mergedRows[0].stockInQty === 0);
+check('month end All: both items are newborn → Opening 0, starting stock is Stock In (110, ₭1,200)',
+  mergedRows[0].openingQty === 0 && mergedRows[0].stockInQty === 110 && mergedRows[0].stockInVal === 1200);
 check('month end All: no ledger variance', mergedRows[0].variance === 0);
 // The MKT ↔ CS transfers done in §7 use ONE id in both warehouses: the merged
 // row must show the true combined stock (MKT 30 + CS 0), not a half-pair.
@@ -435,8 +435,8 @@ const mktRowsFor = (m: string, name: string, includeEmpty = false) =>
 // (a) created after the reported month → absent, not a zero row
 const bornNow = addSku({ name: 'WF BornThisMonth', category: 'MKT', unit: 'pcs', openingBalance: 40, costPerUnit: 3 });
 check('month end: item created this month is listed this month',
-  mktRowsFor(curMonth, 'WF BornThisMonth').length === 1 && mktRowsFor(curMonth, 'WF BornThisMonth')[0].openingQty === 40
-  && mktRowsFor(curMonth, 'WF BornThisMonth')[0].stockInQty === 0);
+  mktRowsFor(curMonth, 'WF BornThisMonth').length === 1 && mktRowsFor(curMonth, 'WF BornThisMonth')[0].openingQty === 0
+  && mktRowsFor(curMonth, 'WF BornThisMonth')[0].stockInQty === 40);
 check('month end: item created this month is ABSENT from the previous month',
   mktRowsFor(prevMonth, 'WF BornThisMonth').length === 0);
 check('month end: an item with only later activity is absent from an older month',
@@ -636,12 +636,19 @@ check('broken edit: report lossQty = 5', mvL.lossQty === 5);
 const skuT = addSku({ name: 'WF Edit Date', openingBalance: 10 });
 demoRestockSku(skuT, 7, 'Wh Person');
 const dateTx = demoDB.transactions.find((t) => t.ticketId === 'RESTOCK' && t.skuId === skuT)!;
-demoEditStockMovement('mkt', dateTx.id!, { date: '2000-01-15' }, 'recorded in the wrong month', adm.fullName, adm.role);
-check('date edit: row moved to the new date', dateTx.date === '2000-01-15');
-const mvT = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, todayStr(), todayStr());
-check('date edit: today report no longer counts it', mvT.stockIn === 0);
-const mvTOld = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, '2000-01-01', '2000-01-31');
-check('date edit: the corrected month shows it', mvTOld.stockIn === 7);
+// 0027: a reported month (before the current one) can never receive a row
+check('date edit: moving a row INTO a reported month is refused (month closed)',
+  throws(() => demoEditStockMovement('mkt', dateTx.id!, { date: '2000-01-15' }, 'recorded in the wrong month', adm.fullName, adm.role), /month closed/i)
+  && dateTx.date === todayStr());
+const firstOfMonth = `${todayStr().slice(0, 7)}-01`;
+if (todayStr() !== firstOfMonth) {
+  demoEditStockMovement('mkt', dateTx.id!, { date: firstOfMonth }, 'recorded on the wrong day', adm.fullName, adm.role);
+  check('date edit: row moved to another day of the open month', dateTx.date === firstOfMonth);
+  const mvT = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, todayStr(), todayStr());
+  check('date edit: today report no longer counts it', mvT.stockIn === 0);
+  const mvTOld = getStockMovement(demoDB.skus.find((s) => s.id === skuT)!, demoDB.transactions, firstOfMonth, firstOfMonth);
+  check('date edit: the corrected day shows it', mvTOld.stockIn === 7);
+}
 
 // 14e) CS warehouse rows — customer_service edits their own, others cannot
 const csSku = addCsSku({ name: 'WF Edit CS', openingBalance: 60 });
@@ -883,92 +890,88 @@ const audEdit = demoFetchAudit({ limit: 100000 });
 check('audit: the ticket edit shows in the Audit Trail with its remark',
   audEdit.some((e) => e.refTicket === tE && /edit/i.test(e.action) && (e.summary + ' ' + (e.comment || '')).includes('delivery note')));
 
-// ── SKU create date (Add SKU modal, migration 0025) ───────────────────────
-// A backdated create date dates the SKU and its OPENING row, so Month End
-// shows the item (with its opening) from the chosen month; a future date
-// falls back to today; no date = today (old behaviour).
+// ── SKU create date + movement date (0025) under the month lock (0027) ────
+// Only days of the CURRENT month may be picked — earlier months are already
+// reported to Finance. A new item's opening stock is Stock In in its month.
 {
   const t = todayStr();
+  const first = `${t.slice(0, 7)}-01`;
   const prevD = new Date(Number(t.slice(0, 4)), Number(t.slice(5, 7)) - 2, 10);
-  const backDay = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}-10`;
-  const backMonth = backDay.slice(0, 7);
-  const bId = addSku({ name: 'WF Backdated', category: 'MKT', openingBalance: 40, createdAt: backDay });
+  const prevDay = `${prevD.getFullYear()}-${String(prevD.getMonth() + 1).padStart(2, '0')}-10`;
+  const plus = (d: string, n: number) => {
+    const x = new Date(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)) + n);
+    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
+  };
+
+  check('create date: a create date in a reported month is refused (month closed)',
+    throws(() => addSku({ name: 'WF Backdated Closed', category: 'MKT', openingBalance: 40, createdAt: prevDay }), /month closed/i)
+    && !demoDB.skus.some((s) => s.name === 'WF Backdated Closed'));
+  check('create date: CS create date in a reported month is refused',
+    throws(() => addCsSku({ name: 'WF Backdated Closed CS', category: 'MKT', openingBalance: 5, createdAt: prevDay }), /month closed/i));
+
+  const bId = addSku({ name: 'WF Backdated', category: 'MKT', openingBalance: 40, createdAt: first });
   const bSku = demoDB.skus.find((s) => s.id === bId)!;
-  check('create date: SKU createdAt starts with the picked day', String(bSku.createdAt).startsWith(backDay));
+  check('create date: SKU createdAt starts with the picked day (1st of this month)', String(bSku.createdAt).startsWith(first));
   check('create date: OPENING row dated on the picked day',
-    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'OPENING' && tx.date === backDay && tx.qty === 40));
-  const bRows = getMonthEndRows({
-    month: backMonth, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'OPENING' && tx.date === first && tx.qty === 40));
+  const bRow = getMonthEndRows({
+    month: t.slice(0, 7), scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
     csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(),
-  }).filter((r) => r.sku.id === bId);
-  check('create date: Month End shows the item in the backdated month', bRows.length === 1 && bRows[0].closingQty === 40);
-  const csB = addCsSku({ name: 'WF Backdated CS', category: 'MKT', openingBalance: 5, createdAt: backDay });
-  check('create date: CS SKU + OPENING row honour the picked day',
-    String(demoDB.csSkus.find((s) => s.id === csB)!.createdAt).startsWith(backDay) &&
-    demoDB.csTransactions.some((tx) => tx.skuId === csB && tx.ticketId === 'OPENING' && tx.date === backDay));
+  }).find((r) => r.sku.id === bId);
+  check('create date: Month End shows the opening stock as Stock In (0 / 40 / 0 / 40)',
+    !!bRow && bRow.openingQty === 0 && bRow.stockInQty === 40 && bRow.closingQty === 40);
   const fId = addSku({ name: 'WF Future', category: 'MKT', openingBalance: 1, createdAt: '2999-01-01' });
   check('create date: a future date falls back to today', String(demoDB.skus.find((s) => s.id === fId)!.createdAt).startsWith(t));
   const nId = addSku({ name: 'WF NoDate', category: 'MKT', openingBalance: 1 });
   check('create date: no date = today', String(demoDB.skus.find((s) => s.id === nId)!.createdAt).startsWith(t));
 
-  // ── Stock In / Out movement date (0025) ────────────────────────────────
-  // item born on backDay with 40; refill 100 dated backDay+5; then today it
-  // has 140. A Stock Out dated before the refill may only take what existed
-  // then (40), even though 140 is on hand now.
-  const plus = (d: string, n: number) => {
-    const x = new Date(Number(d.slice(0, 4)), Number(d.slice(5, 7)) - 1, Number(d.slice(8, 10)) + n);
-    return `${x.getFullYear()}-${String(x.getMonth() + 1).padStart(2, '0')}-${String(x.getDate()).padStart(2, '0')}`;
-  };
-  const refillDay = plus(backDay, 5);
-  demoRestockSku(bId, 100, 'WF', 'dated refill', refillDay);
-  check('move date: dated Stock In is stored on that day',
-    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'RESTOCK' && tx.date === refillDay && tx.qty === 100));
-  check('move date: Stock In before the item existed is refused',
-    throws(() => demoRestockSku(bId, 1, 'WF', 'too early', plus(backDay, -1)), /before this item was created/i));
+  // ── movement date ──
+  check('move date: Stock In dated in a reported month is refused',
+    throws(() => demoRestockSku(nId, 1, 'WF', 'too late', prevDay), /month closed/i));
+  check('move date: Stock Out dated in a reported month is refused',
+    throws(() => demoMktDestockSku(bId, 1, 'WF', 'too late', 0, prevDay), /month closed/i));
+  const csN = addCsSku({ name: 'WF CS Move', category: 'MKT', openingBalance: 5 });
+  check('move date: CS Stock In / Out dated in a reported month are refused',
+    throws(() => demoCsRestockSku(csN, 1, 'WF', 'late', prevDay), /month closed/i) &&
+    throws(() => demoCsDestockSku(csN, 1, 'WF', 'late', 0, prevDay), /month closed/i));
   check('move date: future date is refused',
     throws(() => demoRestockSku(bId, 1, 'WF', 'future', '2999-01-01'), /future/i));
-  check('move date: backdated Stock Out larger than that day\'s balance is refused (40 < 50)',
-    throws(() => demoMktDestockSku(bId, 50, 'WF', 'too much then', 0, plus(backDay, 1)), /not enough stock on/i));
-  check('move date: refused Stock Out left stock untouched', skuStock(bId) === 140);
-  demoMktDestockSku(bId, 30, 'WF', 'fits then', 0, plus(backDay, 1));
-  check('move date: backdated Stock Out within that day\'s balance is accepted', skuStock(bId) === 110 &&
-    demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'DIRECT_DESTOCK' && tx.date === plus(backDay, 1) && tx.qty === 30));
-  check('move date: second backdated Stock Out now fails (only 10 left on that day)',
-    throws(() => demoMktDestockSku(bId, 11, 'WF', 'over', 0, plus(backDay, 2)), /only 10 left/i));
-  demoMktDestockSku(bId, 50, 'WF', 'after the refill', 0, refillDay);
-  check('move date: Stock Out dated after the refill can use it', skuStock(bId) === 60);
-  const bMonth = getMonthEndRows({
-    month: backMonth, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
-    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(),
-  }).filter((r) => r.sku.id === bId);
-  const refillMonthSame = refillDay.slice(0, 7) === backMonth;
-  check('move date: Month End of the backdated month never goes negative', bMonth.length === 1 && bMonth[0].closingQty >= 0 &&
-    (!refillMonthSame || bMonth[0].closingQty === 60));
-  demoCsRestockSku(csB, 4, 'WF', 'cs dated', backDay);
-  check('move date: CS dated Stock In stored on that day',
-    demoDB.csTransactions.some((tx) => tx.skuId === csB && tx.ticketId === 'RESTOCK' && tx.date === backDay));
-  check('move date: CS backdated Stock Out over that day\'s balance refused (9 < 10)',
-    throws(() => demoCsDestockSku(csB, 10, 'WF', 'cs over', 0, backDay), /not enough stock on/i));
+  check('move date: refused moves left stock untouched', skuStock(bId) === 40 && skuStock(nId) === 1);
+
+  // Inside the open month the dated-balance guard still works (needs >= 3 days).
+  if (plus(first, 2) <= t) {
+    // born on the 1st with 40; refill 100 dated the 3rd -> 140 today. A Stock
+    // Out dated the 2nd may only take what existed then (40).
+    demoRestockSku(bId, 100, 'WF', 'dated refill', plus(first, 2));
+    check('move date: dated Stock In is stored on that day',
+      demoDB.transactions.some((tx) => tx.skuId === bId && tx.ticketId === 'RESTOCK' && tx.date === plus(first, 2) && tx.qty === 100));
+    check('move date: backdated Stock Out larger than that day balance is refused (40 < 50)',
+      throws(() => demoMktDestockSku(bId, 50, 'WF', 'too much then', 0, plus(first, 1)), /not enough stock on/i));
+    demoMktDestockSku(bId, 30, 'WF', 'fits then', 0, plus(first, 1));
+    check('move date: backdated Stock Out within that day balance is accepted', skuStock(bId) === 110);
+    check('move date: second backdated Stock Out now fails (only 10 left on that day)',
+      throws(() => demoMktDestockSku(bId, 11, 'WF', 'over', 0, plus(first, 1)), /only 10 left/i));
+  } else {
+    console.log('  (skip) dated-balance checks need the 3rd of the month or later');
+  }
   demoRestockSku(nId, 2, 'WF', 'undated');
   check('move date: no date = today (old behaviour)',
     demoDB.transactions.some((tx) => tx.skuId === nId && tx.ticketId === 'RESTOCK' && tx.date === t));
 }
 
 // ══════════════════════════════════════════════════════════════════════
-console.log('\n── 17) Month End: starting stock = Opening, ticket movements on the DELIVERY date (0026)');
+console.log('\n── 17) Month End (Finance): Opening(M) = Closing(M−1), reported months frozen (0026 + 0027)');
 {
   const ym = (offset: number) => {
     const d = new Date(new Date().getFullYear(), new Date().getMonth() + offset, 1);
     return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
   };
   const cm = ym(0), pm = ym(-1), ppm = ym(-2), nm = ym(1);
-  /** Create an item that was born on `day` (master date + OPENING row). */
-  const bornOn = (name: string, opening: number, day: string, cost = 1) => {
-    const id = addSku({ name, category: 'MKT', openingBalance: opening, costPerUnit: cost });
-    (demoDB.skus.find((s) => s.id === id) as any).createdAt = day;
-    (demoDB.transactions.find((tx) => tx.ticketId === 'OPENING' && tx.skuId === id) as any).date = day;
-    return id;
-  };
+  const today = todayStr();
+  const allMktRows = (m: string) => getMonthEndRows({
+    month: m, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), includeEmpty: true,
+  });
   const rowOf = (m: string, id: string, includeEmpty = false) => getMonthEndRows({
     month: m, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
     csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), includeEmpty,
@@ -979,40 +982,106 @@ console.log('\n── 17) Month End: starting stock = Opening, ticket movements 
     createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type: 'request',
     deliveryDate, items: [{ skuId, skuName: name, qtyRequested: qty, unit: 'pcs' }],
   });
+  // HISTORY helpers — rows written while last month was still open (the lock
+  // forbids writing them now, so the test plants them directly).
+  /** An item born on `day` (master date + OPENING row). */
+  const bornOn = (name: string, opening: number, day: string, cost = 1) => {
+    const id = addSku({ name, category: 'MKT', openingBalance: opening, costPerUnit: cost });
+    (demoDB.skus.find((s) => s.id === id) as any).createdAt = day;
+    (demoDB.transactions.find((tx) => tx.ticketId === 'OPENING' && tx.skuId === id) as any).date = day;
+    return id;
+  };
+  /** A ticket requested back when `day` was in the open month. */
+  const pastTicket = (skuId: string, name: string, qty: number, day: string) => {
+    const id = request(skuId, name, qty);
+    (demoDB.tickets.find((x) => x.id === id) as any).deliveryDate = day;
+    for (const tx of demoDB.transactions) if (tx.ticketId === id) tx.date = day;
+    return id;
+  };
 
-  // (a) the hat: created last month with 500, booked out 500 for delivery last month
+  // (a) Gift set Hero — born last month (90), 11 out last month, 5 out this month
+  const gift = bornOn('WF Gift Set', 90, `${pm}-24`, 450000);
+  const tG1 = pastTicket(gift, 'WF Gift Set', 11, `${pm}-29`);
+  finalize(tG1);
+  const tG2 = request(gift, 'WF Gift Set', 5, today);
+  finalize(tG2);
+  check(`gift: creation month = Opening 0 / In 90 / Out 11 / Closing 79 (got ${snap(rowOf(pm, gift))})`,
+    snap(rowOf(pm, gift)) === '0/90/11/79');
+  check('gift: Stock In value = 90 x CPU, Opening value 0', rowOf(pm, gift)?.stockInVal === 90 * 450000 && rowOf(pm, gift)?.openingVal === 0);
+  check(`gift: this month = Opening 79 / In 0 / Out 5 / Closing 74 (got ${snap(rowOf(cm, gift))})`,
+    snap(rowOf(cm, gift)) === '79/0/5/74');
+  check(`gift: next month = Opening 74 / 0 / 0 / Closing 74 (got ${snap(rowOf(nm, gift, true))})`,
+    snap(rowOf(nm, gift, true)) === '74/0/0/74');
+  check('gift: absent before it was created', rowOf(ppm, gift) === undefined);
+
+  // (b) the hat: born last month with 500, all 500 delivered last month
   const hat = bornOn('WF Hat 2026', 500, `${pm}-10`, 55);
-  const tHat = request(hat, 'WF Hat 2026', 500, `${pm}-23`);
-  check('delivery date: booking row dated on the delivery date, not the create day',
-    demoDB.transactions.some((tx) => tx.ticketId === tHat && tx.status === 'Booked' && tx.date === `${pm}-23`));
-  check('hat: current stock is 0 today', skuStock(hat) === 0);
-  const hatPm = snap(rowOf(pm, hat));
-  check(`hat: creation month = Opening 500 / In 0 / Out 500 / Closing 0 (got ${hatPm})`, hatPm === '500/0/500/0');
-  check('hat: value columns follow (Opening ₭27,500)', rowOf(pm, hat)?.openingVal === 500 * 55);
-  check('hat: absent before it was created', rowOf(ppm, hat) === undefined);
+  const tHat = pastTicket(hat, 'WF Hat 2026', 500, `${pm}-23`);
+  check(`hat: creation month = 0 / 500 / 500 / 0 (got ${snap(rowOf(pm, hat))})`, snap(rowOf(pm, hat)) === '0/500/500/0');
   check('hat: following month is an all-zero row (hidden by default)',
     rowOf(cm, hat) === undefined && snap(rowOf(cm, hat, true)) === '0/0/0/0');
-  // pending booking already counts (accrual); approving it later changes nothing
+
+  // Snapshot of last month (already reported) BEFORE any late correction
+  const pmBefore = new Map(allMktRows(pm).map((r) => [r.sku.id, snap(r)]));
+
+  // (c) finalizing a ticket from last month changes nothing
   finalize(tHat);
-  check('hat: the month reads the same after the ticket is finalized', snap(rowOf(pm, hat)) === hatPm);
+  check('hat: last month reads the same after the ticket is finalized', snap(rowOf(pm, hat)) === '0/500/500/0');
 
-  // (b) a rejected ticket disappears from its delivery month
-  const rj = bornOn('WF Reject Me', 40, `${pm}-02`);
-  const tRj = request(rj, 'WF Reject Me', 15, `${pm}-12`);
-  check('pending booking counts as Stock Out in the delivery month', rowOf(pm, rj)?.stockOutQty === 15);
-  demoUpdateTicketStatus(tRj, 'rejected', { actorName: wh.fullName, actorRole: wh.role });
-  check('rejected ticket: gone from its delivery month', rowOf(pm, rj)?.stockOutQty === 0 && skuStock(rj) === 40);
+  // (d) late Admin edit of a last-month ticket -> posted THIS month
+  const ed = bornOn('WF Edit Old', 100, `${pm}-01`);
+  const tEd = pastTicket(ed, 'WF Edit Old', 10, `${pm}-20`);
+  finalize(tEd);
+  const pmEd = snap(rowOf(pm, ed));
+  demoEditTicket(tEd, [lineOf(tEd)(ed, 14)], 'four more were shipped', adm.fullName, adm.role);
+  check('late edit: Edit Issue row dated TODAY, not on the old delivery date',
+    demoDB.transactions.some((tx) => tx.ticketId === tEd && tx.status === 'Edit Issue' && tx.date === today));
+  check('late edit: last month unchanged (Out 10)', snap(rowOf(pm, ed)) === pmEd && rowOf(pm, ed)?.stockOutQty === 10);
+  check('late edit: +4 shows as Stock Out this month, Opening = last Closing (90)',
+    rowOf(cm, ed)?.stockOutQty === 4 && rowOf(cm, ed)?.openingQty === 90);
+  demoEditTicket(tEd, [lineOf(tEd)(ed, 6)], 'eight came back unused', adm.fullName, adm.role);
+  check('late edit: returned qty shows as positive Stock In this month (8), never negative Stock Out',
+    rowOf(cm, ed)?.stockInQty === 8 && rowOf(cm, ed)?.stockOutQty === 4 && rowOf(cm, ed)?.closingQty === 94);
+  check('late edit: invariant holds', invariantHolds(tEd, [ed]));
 
-  // (c) a past delivery date that would make an earlier day negative is refused
-  const neg = bornOn('WF Late Refill', 20, `${pm}-05`);
-  demoRestockSku(neg, 30, 'WF', 'refill today');
-  check('past delivery date over that day\'s balance is refused (20 < 40)',
-    throws(() => request(neg, 'WF Late Refill', 40, `${pm}-15`), /not enough stock/i));
-  check('...and nothing was booked', skuStock(neg) === 50 && !demoDB.transactions.some((tx) => tx.skuId === neg && tx.type === 'deduction'));
-  request(neg, 'WF Late Refill', 40, todayStr());
-  check('the same qty delivered today is fine (stock arrived since)', skuStock(neg) === 10);
+  // (e) late recall of a pending ticket booked for last month
+  const rc = bornOn('WF Recall Late', 40, `${pm}-02`);
+  const tRc = pastTicket(rc, 'WF Recall Late', 15, `${pm}-12`);
+  const pmRc = snap(rowOf(pm, rc));
+  check('pending booking counts as Stock Out in its delivery month', rowOf(pm, rc)?.stockOutQty === 15);
+  demoUpdateTicketStatus(tRc, 'recalled', { actorName: staff.fullName, actorRole: staff.role });
+  check('late recall: stock is back', skuStock(rc) === 40);
+  check('late recall: last month unchanged (Out 15)', snap(rowOf(pm, rc)) === pmRc);
+  check('late recall: Cancel Return of 15 dated today = Stock In this month',
+    demoDB.transactions.some((tx) => tx.ticketId === tRc && tx.status === 'Cancel Return' && tx.date === today && tx.qty === 15)
+    && rowOf(cm, rc)?.openingQty === 25 && rowOf(cm, rc)?.stockInQty === 15 && rowOf(cm, rc)?.closingQty === 40);
 
-  // (d) delivery in a future month: reserved now, Stock Out lands in that month
+  // (f) review approves less on a last-month booking, then the ticket is rejected
+  const rv = bornOn('WF Review Late', 40, `${pm}-02`);
+  const tRv = pastTicket(rv, 'WF Review Late', 15, `${pm}-12`);
+  demoUpdateTicketStatus(tRv, 'reviewed', { actorName: wh.fullName, actorRole: wh.role, items: [{ skuId: rv, qtyApproved: 10 }] });
+  check('late review: booking keeps its reported qty (15), the 5 cut is an Edit Return today',
+    demoDB.transactions.some((tx) => tx.ticketId === tRv && tx.status === 'Booked' && tx.qty === 15)
+    && demoDB.transactions.some((tx) => tx.ticketId === tRv && tx.status === 'Edit Return' && tx.qty === 5 && tx.date === today)
+    && skuStock(rv) === 30);
+  demoUpdateTicketStatus(tRv, 'rejected', { actorName: lm.fullName, actorRole: lm.role });
+  check('late reject: stock fully back (40), last month still Out 15, this month In 5 + 10',
+    skuStock(rv) === 40 && rowOf(pm, rv)?.stockOutQty === 15
+    && rowOf(cm, rv)?.stockInQty === 15 && rowOf(cm, rv)?.closingQty === 40);
+
+  // (g) a same-month recall still just disappears
+  const sm = bornOn('WF Recall Now', 20, `${pm}-02`);
+  const tSm = request(sm, 'WF Recall Now', 5, today);
+  demoUpdateTicketStatus(tSm, 'recalled', { actorName: staff.fullName, actorRole: staff.role });
+  check('same-month recall: no Stock In / Out at all', rowOf(cm, sm, true)?.stockOutQty === 0 && rowOf(cm, sm, true)?.stockInQty === 0);
+
+  // (h) a NEW ticket with a delivery date in a reported month lands today
+  const lt = bornOn('WF Late Ticket', 20, `${pm}-02`);
+  const tLt = request(lt, 'WF Late Ticket', 3, `${pm}-15`);
+  check('new ticket dated into a reported month: booking dated today',
+    demoDB.transactions.some((tx) => tx.ticketId === tLt && tx.status === 'Booked' && tx.date === today));
+
+  // (i) delivery in a future month: reserved now, Stock Out lands in that month
   const fut = bornOn('WF Future Delivery', 30, `${pm}-01`);
   request(fut, 'WF Future Delivery', 5, `${nm}-05`);
   check('future delivery: stock reserved immediately', skuStock(fut) === 25);
@@ -1021,26 +1090,31 @@ console.log('\n── 17) Month End: starting stock = Opening, ticket movements 
   check('future delivery: Stock Out in the delivery month, months chain',
     futNm.stockOutQty === 5 && futNm.openingQty === futCm.closingQty && futNm.closingQty === 25);
 
-  // (e) an Admin edit of an older ticket lands in its delivery month
-  const ed = bornOn('WF Edit Old', 100, `${pm}-01`);
-  const tEd = request(ed, 'WF Edit Old', 10, `${pm}-20`);
-  finalize(tEd);
-  demoEditTicket(tEd, [lineOf(tEd)(ed, 14)], 'four more were shipped', adm.fullName, adm.role);
-  check('edit: Edit Issue row dated on the delivery date',
-    demoDB.transactions.some((tx) => tx.ticketId === tEd && tx.status === 'Edit Issue' && tx.date === `${pm}-20`));
-  check('edit: correction counted in the delivery month', rowOf(pm, ed)?.stockOutQty === 14 && rowOf(cm, ed)?.stockOutQty === 0 && rowOf(cm, ed)?.openingQty === 86);
-  check('edit: invariant holds', invariantHolds(tEd, [ed]));
+  // (j) manual rows of a reported month are frozen
+  const op = bornOn('WF Opening Locked', 12, `${pm}-03`);
+  check('opening balance of a reported month cannot be edited',
+    throws(() => demoUpdateSku(op, { openingBalance: 20 }), /month closed/i) && skuStock(op) === 12);
+  demoDB.transactions.unshift({ id: 990001, ticketId: 'RESTOCK', skuId: op, skuName: 'WF Opening Locked', qty: 3, type: 'addition',
+    date: `${pm}-04`, status: 'Restock', comment: 'planted history' });
+  (demoDB.skus.find((s) => s.id === op) as any).currentStock += 3;
+  check('ledger correction of a reported manual row is refused',
+    throws(() => demoEditStockMovement('mkt', 990001, { qty: 5 }, 'typo', adm.fullName, adm.role), /month closed/i));
+  const edRow = demoDB.transactions.find((tx) => tx.ticketId === tEd && tx.status === 'Deducted')!;
+  demoEditStockMovement('mkt', edRow.id!, { qty: 12 }, 'scan showed 12', adm.fullName, adm.role);
+  check('ledger correction of a reported ticket row: row kept, +2 posted today',
+    edRow.qty === 10 && demoDB.transactions.some((tx) => tx.ticketId === tEd && tx.status === 'Edit Issue' && tx.qty === 2 && tx.date === today));
 
-  // (f) cs_transfer: MKT Stock Out and CS Stock In fall in the same month
-  const ct = bornOn('WF CT Delivery', 60, `${pm}-01`);
-  const tCt = demoCreateTicket({
-    createdBy: cs.email, createdByName: cs.fullName, department: cs.department, type: 'cs_transfer',
-    deliveryDate: `${pm}-25`, items: [{ skuId: ct, skuName: 'WF CT Delivery', qtyRequested: 6, unit: 'pcs' }],
-  });
-  finalize(tCt);
-  check('cs_transfer: MKT row and CS receipt both dated on the delivery date',
-    demoDB.transactions.some((tx) => tx.ticketId === tCt && tx.date === `${pm}-25`)
-    && demoDB.csTransactions.some((tx) => tx.skuId === ct && tx.comment?.includes(tCt) && tx.date === `${pm}-25`));
+  // (k) the reported month never moved, and every month chains
+  const pmAfter = new Map(allMktRows(pm).map((r) => [r.sku.id, snap(r)]));
+  const changed = [...pmBefore].filter(([id, v]) => pmAfter.get(id) !== v);
+  check(`reported month frozen: no row of ${pm} changed after the late corrections (${changed.length} changed)`, changed.length === 0);
+  let breaks = 0;
+  for (const [a, b] of [[ppm, pm], [pm, cm], [cm, nm]] as const) {
+    const prev = new Map(allMktRows(a).map((r) => [r.sku.id, r.closingQty]));
+    for (const r of allMktRows(b)) if (prev.has(r.sku.id) && prev.get(r.sku.id) !== r.openingQty) breaks++;
+  }
+  check(`chain: Opening(M) = Closing(M−1) for every item, ${ppm} -> ${nm} (${breaks} breaks)`, breaks === 0);
+  check('no ledger variance anywhere this month', allMktRows(cm).every((r) => Math.abs(r.variance) < 1e-6));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

@@ -548,16 +548,16 @@ centered card + gold Crown logo.
   (inflow−current)/inflow). Sortable columns. Print/export.
 - **MonthEndReportPage**: per-SKU monthly ledger — Opening Qty/Value, Stock In, Stock Out, Closing Qty/Value.
   The tab has a **month picker** (`YYYY-MM`, defaults to the previous month) which pins the shared from/to
-  filters to that month's boundaries. Opening rolls every movement back from the 1st (an item's starting stock
-  shows as Opening in its creation month), Closing rolls back only the movements after the month end, and the
+  filters to that month's boundaries. Opening rolls every movement back from the 1st (Opening(M) = Closing(M−1);
+  an item's starting stock is Stock In in its creation month), Closing rolls back only the movements after the month end, and the
   "All" scope merges the MKT + CS rows (quantities and values summed, each warehouse keeps its own cost) — see
   §7. Rows from both warehouses carry a `MKT + CS` badge; a ledger-drift warning appears if
   `Opening + In − Out ≠ Closing`. **Visibility**: an item is never listed before it started existing (its
   `createdAt`, else its first movement — legacy baseline-only rows are always listed), and a row with
   Opening = In = Out = Closing = 0 is hidden unless the **"Show items with no movement"** checkbox is ticked
-  (Finance/audit view). In its birth month an item's starting stock — its `OPENING` row, or an imported
-  baseline with no ledger row — is reported as **Opening Balance** (Stock In = real restocks / receipts only).
-  Ticket movements are dated on the ticket's **delivery date** (migration 0026). Exports to **XLSX** with `xlsx`; Print injects
+  (Finance/audit view). In its birth month an item's starting stock — its `OPENING` row — is reported as
+  **Stock In**; it opens at 0. Ticket movements are dated on the ticket's **delivery date** (migration 0026);
+  months before the current one are locked (migration 0027). Exports to **XLSX** with `xlsx`; Print injects
   landscape `@page` while mounted.
 - **TotalStockPage**: merged MKT+CS totals (admin/director).
 - **CsDestockPage**: CS direct destock with confirmation dialog (no remark/reason required).
@@ -633,11 +633,11 @@ report is not snapshotted: every figure is rolled back from the live `Current` o
 (`from` = 1st, `to` = last day of the selected `YYYY-MM`).
 
 ```
-Stock In(month)  = Σ addition qty  where from <= date <= to    (EXCLUDING the OPENING starting-stock row)
+Stock In(month)  = Σ addition qty  where from <= date <= to    (INCLUDING the OPENING starting-stock row,
+                   'Edit Return' and 'Cancel Return' — gross, never a negative Stock Out: `reportFlowOf`)
 Stock Out(month) = Σ deduction qty where from <= date <= to
 Opening(month)   = Current − Σ(additions − deductions) for every tx with date >= from
-                   + the OPENING row(s) dated inside the month
-                   → an item's starting stock is its Opening in the month it was created
+                   = Closing(month − 1), always (Finance rule)
 Closing(month)   = Current − Σ(additions − deductions) for every tx with date > to
                    → a past month never reports today's stock
 Variance(month)  = (Opening + In − Out) − Closing   (0 unless a SKU baseline drifted from the ledger)
@@ -650,16 +650,22 @@ Visibility       = an item is never listed in a month that ended before it start
                    (`birth = min(createdAt, first ledger row)`; no evidence at all → always listed), and a row
                    with Opening = In = Out = Closing = 0 is dropped unless `includeEmpty` is set (the
                    "Show items with no movement" checkbox). Hiding is display-only — totals never change.
-Birth month      = in the month an item starts existing, its starting stock (the OPENING row, or an
-                   imported baseline with no ledger row) is reported as Opening — e.g. a hat created in
-                   June with 500 and issued 500 in June reads Opening 500 / In 0 / Out 500 / Closing 0.
-                   The month before, the item is not listed at all.
+Birth month      = in the month an item starts existing, its starting stock (the OPENING row) is
+                   reported as Stock In and it opens at 0 — e.g. a hat created in June with 500 and
+                   issued 500 in June reads Opening 0 / In 500 / Out 500 / Closing 0. The month before,
+                   the item is not listed at all.
 Ticket date      = every ledger row a ticket writes (booking at submission — counted as Stock Out from
                    then on, also while pending —, the CS receipt of a cs_transfer, Admin edit rows) is
                    dated on tickets.delivery_date (else the create day), which never changes after
-                   creation → a month reads the same whenever it is looked at (migration 0026). Borrow
-                   returns stay on the real return day. A PAST delivery date is refused when it would push
-                   any day's balance below zero.
+                   creation (migration 0026). Borrow returns stay on the real return day. A PAST delivery
+                   date is refused when it would push any day's balance below zero.
+Month lock       = (migration 0027, triggers on both ledgers; demo: `demoLedgerLock.ts`) every month
+                   before the current one (Asia/Vientiane) is reported and frozen. Manual rows (OPENING,
+                   RESTOCK, DIRECT_DESTOCK) cannot be dated, edited or deleted there. Ticket rows that
+                   would land there are dated TODAY instead; a qty change on a reported ticket row posts
+                   the difference today ('Edit Issue' / 'Edit Return'); a late reject / recall keeps the
+                   booking counted and writes a 'Cancel Return' addition today. `reportableTransactions`
+                   keeps every row of a late-cancelled ticket. Values use the current cost (known limit).
 ```
 
 Month-End Report row layout: **Opening Qty/Value | Stock In Qty/Value | Stock Out Qty/Value | Closing Qty/Value**

@@ -83,6 +83,22 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     };
   }
 
+  // Supabase caps one request at 1,000 rows (PostgREST max-rows): the ledgers,
+  // tickets and their trail grow past that, and a silently truncated ledger
+  // breaks every Month End roll-back — so those tables are read page by page.
+  const PAGE = 1000;
+  const fetchAll = async (
+    page: (from: number, to: number) => PromiseLike<{ data: any[] | null; error: { message: string } | null }>,
+  ): Promise<{ data: any[]; error: { message: string } | null }> => {
+    const out: any[] = [];
+    for (let from = 0; ; from += PAGE) {
+      const r = await page(from, from + PAGE - 1);
+      if (r.error) return { data: out, error: r.error };
+      out.push(...(r.data || []));
+      if (!r.data || r.data.length < PAGE) return { data: out, error: null };
+    }
+  };
+
   const [
     usersRes, skusRes, csSkusRes, ticketsRes, itemsRes,
     txRes, csTxRes, actionsRes, catsRes, cfgRes, remarksRes, editsRes,
@@ -90,11 +106,11 @@ export async function apiFetchBundle(): Promise<DataBundle> {
     supabase!.from('users').select('id,username,email,full_name,department,role,status'),
     supabase!.from('skus').select('*').order('name'),
     supabase!.from('cs_skus').select('*').order('name'),
-    supabase!.from('tickets').select('*').order('created_at', { ascending: false }),
-    supabase!.from('ticket_items').select('*'),
-    supabase!.from('stock_transactions').select('*').order('action_at', { ascending: false }),
-    supabase!.from('cs_transactions').select('*').order('action_at', { ascending: false }),
-    supabase!.from('ticket_actions').select('*').order('action_at', { ascending: false }),
+    fetchAll((a, b) => supabase!.from('tickets').select('*').order('created_at', { ascending: false }).order('id').range(a, b)),
+    fetchAll((a, b) => supabase!.from('ticket_items').select('*').order('ticket_id').order('sku_id').range(a, b)),
+    fetchAll((a, b) => supabase!.from('stock_transactions').select('*').order('action_at', { ascending: false }).order('id', { ascending: false }).range(a, b)),
+    fetchAll((a, b) => supabase!.from('cs_transactions').select('*').order('action_at', { ascending: false }).order('id', { ascending: false }).range(a, b)),
+    fetchAll((a, b) => supabase!.from('ticket_actions').select('*').order('action_at', { ascending: false }).order('id', { ascending: false }).range(a, b)),
     supabase!.from('categories').select('name'),
     supabase!.from('system_config').select('key,value,description'),
     supabase!.from('sku_remarks').select('*').order('created_at', { ascending: false }),

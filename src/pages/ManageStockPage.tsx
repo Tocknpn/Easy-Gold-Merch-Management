@@ -11,6 +11,7 @@ import { Modal, Spinner, ErrorBanner, toast } from '@/components/ui/primitives';
 import { fmt, money, cn, safeImageUrl, todayStr } from '@/lib/utils';
 import type { SKU, CS_SKU } from '@/lib/types';
 import { skuBirthDate } from '@/lib/stockMovement';
+import { isLockedDate, reportingPeriodStart } from '@/lib/ledgerLock';
 
 type Wh = 'mkt' | 'cs';
 type TabKey = 'overview' | 'adjust' | 'transfer' | 'stockio' | 'sku';
@@ -599,7 +600,7 @@ function StockIOTab() {
   const birth = sku
     ? skuBirthDate(sku, ledger.filter((t) => t.skuId === sku.id && t.date).map((t) => t.date as string).sort()[0])
     : null;
-  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayStr() && (!birth || date >= birth);
+  const dateOk = /^\d{4}-\d{2}-\d{2}$/.test(date) && date <= todayStr() && (!birth || date >= birth) && !isLockedDate(date);
   const valid = !!sku && nQty > 0 && dateOk && (dir === 'in' || nQty <= sku.currentStock);
 
   const history = skuId ? (wh === 'mkt' ? transactions : csTransactions).filter((t) => t.skuId === skuId).slice(0, 6) : [];
@@ -669,7 +670,7 @@ function StockIOTab() {
             <input
               className="input"
               type="date"
-              min={birth || undefined}
+              min={birth && birth > reportingPeriodStart() ? birth : reportingPeriodStart()}
               max={todayStr()}
               value={date}
               onChange={(e) => setDate(e.target.value)}
@@ -677,9 +678,11 @@ function StockIOTab() {
             <p className={cn('mt-1 text-[11px]', !dateOk && sku ? 'text-rose-600' : 'text-slate-400')}>
               {sku && birth && date < birth
                 ? `Date is before this item was created (${birth})`
-                : date > todayStr()
-                  ? 'Date cannot be in the future'
-                  : 'Backdating changes past month reports.'}
+                : isLockedDate(date)
+                  ? `Month closed — reported months cannot change (earliest ${reportingPeriodStart()})`
+                  : date > todayStr()
+                    ? 'Date cannot be in the future'
+                    : 'Only dates in the current month — earlier months are already reported.'}
             </p>
           </div>
         </div>
@@ -1057,7 +1060,15 @@ function SkuTab() {
             </div>
             <div>
               <label className="label">Opening balance</label>
-              <input className="input" type="number" min={0} value={form.openingBalance} onChange={(e) => setForm({ ...form, openingBalance: e.target.value })} />
+              <input
+                className="input" type="number" min={0} value={form.openingBalance}
+                disabled={!form.isNew && isLockedDate(form.createdDate)}
+                title={!form.isNew && isLockedDate(form.createdDate) ? 'Locked — its month is already reported. Use Stock In / Stock Out.' : undefined}
+                onChange={(e) => setForm({ ...form, openingBalance: e.target.value })}
+              />
+              {!form.isNew && isLockedDate(form.createdDate) && (
+                <p className="mt-1 text-[11px] text-slate-400">Locked — month already reported. Use Stock In / Stock Out.</p>
+              )}
             </div>
             {form.isNew ? (
               <div>
@@ -1098,11 +1109,16 @@ function SkuTab() {
                 <input
                   className="input"
                   type="date"
+                  min={reportingPeriodStart()}
                   max={todayStr()}
                   value={form.createdDate}
                   onChange={(e) => setForm({ ...form, createdDate: e.target.value })}
                 />
-                <p className="mt-1 text-[11px] text-slate-400">Backdating changes past month reports.</p>
+                <p className={cn('mt-1 text-[11px]', isLockedDate(form.createdDate) ? 'text-rose-600' : 'text-slate-400')}>
+                  {isLockedDate(form.createdDate)
+                    ? `Month closed — pick a date from ${reportingPeriodStart()}`
+                    : 'Opening stock counts as Stock In in this month.'}
+                </p>
               </div>
             )}
           </div>
