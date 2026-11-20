@@ -661,7 +661,9 @@ Ticket date      = every ledger row a ticket writes (booking at submission — c
                    date is refused when it would push any day's balance below zero.
 Month lock       = (migration 0027, triggers on both ledgers; demo: `demoLedgerLock.ts`) every month
                    before the current one (Asia/Vientiane) is reported and frozen. Manual rows (OPENING,
-                   RESTOCK, DIRECT_DESTOCK) cannot be dated, edited or deleted there. Ticket rows that
+                   RESTOCK, DIRECT_DESTOCK) cannot be dated, edited or deleted there. Exception: an Admin
+                   ticket edit (edit_ticket rows, note 'Ticket edit #…') of a ticket delivered in the
+                   PREVIOUS month keeps its delivery date (corrects that month). Other ticket rows that
                    would land there are dated TODAY instead; a qty change on a reported ticket row posts
                    the difference today ('Edit Issue' / 'Edit Return'); a late reject / recall keeps the
                    booking counted and writes a 'Cancel Return' addition today. `reportableTransactions`

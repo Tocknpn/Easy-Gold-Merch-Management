@@ -66,11 +66,11 @@ Every month **before the current month** (Asia/Vientiane) counts as already repo
 | Edit an item's Opening balance | allowed | refused — use Stock In / Stock Out this month |
 | Correct a ledger row (Edit stock movement) | allowed | manual rows refused; a ticket row keeps its qty and the difference is posted **today** |
 | New ticket with a delivery date in the past | booked on that date | booked **today** |
-| Admin ticket edit | dated on the delivery date | dated **today** (`Edit Issue` = Stock Out, `Edit Return` = Stock In) |
+| Admin ticket edit | dated on the delivery date | delivery in the **previous** month → still dated on the delivery date (corrects that month; its Closing and this month's Opening move together). Older → dated **today**. `Edit Issue` = Stock Out, `Edit Return` = Stock In |
 | Approved qty changed at review | booking updated | booking kept; difference posted **today** |
 | Ticket rejected / recalled | booking dropped (never shows) | booking stays in its month; a `Cancel Return` dated **today** gives the stock back (Stock In) |
 
-The only things that move numbers between months are therefore ticket corrections, and they always land in the **current** month. Emergency maintenance in the SQL Editor can bypass the lock inside one transaction with `set local app.ledger_unlock = 'on';`.
+The only thing that can still change a past month is an **Admin ticket edit of a ticket delivered in the previous month** (e.g. in December, editing a November ticket corrects November). Every other correction lands in the **current** month. Emergency maintenance in the SQL Editor can bypass the lock inside one transaction with `set local app.ledger_unlock = 'on';`.
 
 ## 5. Examples & Scenarios
 

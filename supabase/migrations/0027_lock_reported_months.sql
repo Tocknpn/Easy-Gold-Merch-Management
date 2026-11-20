@@ -11,9 +11,12 @@
 --   INSERT dated before the current month
 --     * manual entries (OPENING from the SKU form, RESTOCK, DIRECT_DESTOCK,
 --       Restock / Destock) → REFUSED ("month closed")
---     * ticket rows (booking, Edit Issue / Edit Return / Edit Receipt,
---       transfer receipts) → re-dated to TODAY, i.e. the correction lands in
---       the current month instead of rewriting the past
+--     * Admin ticket edit rows (edit_ticket) dated in the PREVIOUS month →
+--       kept on the delivery date (the edit corrects that month; its Closing
+--       and this month's Opening move together, so the chain still holds)
+--     * other ticket rows (booking, older edits, transfer receipts) →
+--       re-dated to TODAY, i.e. the correction lands in the current month
+--       instead of rewriting the past
 --
 --   UPDATE of a row dated before the current month
 --     * status / comment / name / edit stamps → allowed (audit only)
@@ -63,6 +66,20 @@ returns boolean language sql immutable as $$
      and coalesce(p_comment, '') not ilike 'Auto-transferred%';
 $$;
 
+-- First day of the PREVIOUS month: how far back an Admin ticket edit may
+-- still land on its delivery date.
+create or replace function public.ticket_edit_window_start()
+returns date language sql stable as $$
+  select (public.reporting_period_start() - interval '1 month')::date;
+$$;
+
+-- A row written by edit_ticket (admin-only RPC): its note starts 'Ticket edit #'.
+create or replace function public.is_admin_ticket_edit_row(p_status text, p_comment text)
+returns boolean language sql immutable as $$
+  select coalesce(p_status, '') in ('Edit Issue', 'Edit Return', 'Edit Receipt')
+     and coalesce(p_comment, '') like 'Ticket edit #%';
+$$;
+
 create or replace function public.ledger_unlocked()
 returns boolean language sql stable as $$
   select coalesce(current_setting('app.ledger_unlock', true), '') = 'on';
@@ -88,6 +105,13 @@ begin
 
   if tg_op = 'INSERT' then
     if new.date is null or new.date >= v_start then return new; end if;
+    -- Admin ticket edit (edit_ticket, admin-only): may land in the PREVIOUS
+    -- month — the ticket's delivery month — so the correction shows where the
+    -- delivery happened. Anything older still moves to today.
+    if public.is_admin_ticket_edit_row(new.status, new.comment)
+       and new.date >= public.ticket_edit_window_start() then
+      return new;
+    end if;
     if public.ledger_is_manual(new.ticket_id, new.status, new.comment) then
       raise exception '%', public.ledger_month_closed_error(new.date);
     end if;
@@ -186,6 +210,13 @@ begin
 
   if tg_op = 'INSERT' then
     if new.date is null or new.date >= v_start then return new; end if;
+    -- Admin ticket edit (edit_ticket, admin-only): may land in the PREVIOUS
+    -- month — the ticket's delivery month — so the correction shows where the
+    -- delivery happened. Anything older still moves to today.
+    if public.is_admin_ticket_edit_row(new.status, new.comment)
+       and new.date >= public.ticket_edit_window_start() then
+      return new;
+    end if;
     if public.ledger_is_manual(new.ticket_id, new.status, new.comment) then
       raise exception '%', public.ledger_month_closed_error(new.date);
     end if;

@@ -5,6 +5,7 @@ import { castNumber } from './types';
 import { todayStr } from './utils';
 import { minBalanceFrom } from './demoData';
 import { demoCancelBooking, demoSetTicketRowQty, ledgerInsertDate } from './demoLedgerLock';
+import { ticketEditWindowStart } from './ledgerLock';
 
 /** Ledger date of a ticket's movements = its delivery date, else its created
  *  day (mirrors ticket_ledger_date in migration 0026). */
@@ -12,6 +13,13 @@ export const ticketLedgerDate = (t: { deliveryDate?: string | null; createdAt?: 
   ledgerInsertDate(String(t.deliveryDate || '').slice(0, 10) || String(t.createdAt || '').slice(0, 10) || todayStr(), {});
 // ↑ 0027: a ticket row is never dated into a month already reported to
 //   Finance — corrections made later land on today instead.
+
+/** Ledger date of an Admin ticket edit (mirrors the 0027 trigger): the
+ *  delivery date when it is in the current or PREVIOUS month, else today. */
+const ticketEditDate = (t: { deliveryDate?: string | null; createdAt?: string | null }): string => {
+  const raw = String(t.deliveryDate || '').slice(0, 10) || String(t.createdAt || '').slice(0, 10) || todayStr();
+  return raw >= ticketEditWindowStart() ? raw : ticketLedgerDate(t);
+};
 
 /** A deduction of `qty` dated `day` must not push any day's balance below zero
  *  (mirrors dated_out_error in 0026). `sku.currentStock` = stock BEFORE it. */
@@ -430,12 +438,12 @@ export function demoEditTicket(
     if (delta > 0 && sku.currentStock < delta)
       throw new Error(`Not enough stock for "${name}": need ${delta}, available ${sku.currentStock}`);
     // 0026: the extra Stock Out is dated on the delivery date
-    if (delta > 0) assertTicketDatedOut(sku, false, ticketLedgerDate(t), delta);
+    if (delta > 0) assertTicketDatedOut(sku, false, ticketEditDate(t), delta);
     if (t.type === 'cs_transfer' && delta < 0) {
       const cs = findCs(l.skuId, name);
       if (!cs || cs.currentStock < -delta)
         throw new Error(`CS warehouse has only ${cs?.currentStock ?? 0} of "${name}" — cannot take back ${-delta}`);
-      assertTicketDatedOut(cs, true, ticketLedgerDate(t), -delta);
+      assertTicketDatedOut(cs, true, ticketEditDate(t), -delta);
     }
     changes.push({
       skuId: l.skuId, skuName: name, from: cur, to: l.qty, delta,
@@ -448,9 +456,9 @@ export function demoEditTicket(
   const editId = demoDB.ticketEdits.reduce((m, e) => Math.max(m, e.id), 0) + 1;
   const nowIso = new Date().toISOString();
   const today = todayStr();
-  // 0026: edit rows land on the ticket's delivery date; 0027: never in a
-  // reported month (ticketLedgerDate clamps those to today)
-  const ledgerDay = ticketLedgerDate(t);
+  // 0026: edit rows land on the ticket's delivery date. 0027: an Admin edit
+  // may still correct the PREVIOUS month; anything older lands today.
+  const ledgerDay = ticketEditDate(t);
   demoDB.ticketEdits.unshift({
     id: editId, ticketId: t.id, at: nowIso, actorName: actor, actorRole: 'admin',
     remark: note, changes: changes.map((c) => ({ ...c })),

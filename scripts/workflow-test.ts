@@ -1028,21 +1028,33 @@ console.log('\n── 17) Month End (Finance): Opening(M) = Closing(M−1), repo
   finalize(tHat);
   check('hat: last month reads the same after the ticket is finalized', snap(rowOf(pm, hat)) === '0/500/500/0');
 
-  // (d) late Admin edit of a last-month ticket -> posted THIS month
+  // (d) Admin edit of a LAST-month ticket -> corrects last month (its delivery month)
   const ed = bornOn('WF Edit Old', 100, `${pm}-01`);
   const tEd = pastTicket(ed, 'WF Edit Old', 10, `${pm}-20`);
   finalize(tEd);
-  const pmEd = snap(rowOf(pm, ed));
   demoEditTicket(tEd, [lineOf(tEd)(ed, 14)], 'four more were shipped', adm.fullName, adm.role);
-  check('late edit: Edit Issue row dated TODAY, not on the old delivery date',
-    demoDB.transactions.some((tx) => tx.ticketId === tEd && tx.status === 'Edit Issue' && tx.date === today));
-  check('late edit: last month unchanged (Out 10)', snap(rowOf(pm, ed)) === pmEd && rowOf(pm, ed)?.stockOutQty === 10);
-  check('late edit: +4 shows as Stock Out this month, Opening = last Closing (90)',
-    rowOf(cm, ed)?.stockOutQty === 4 && rowOf(cm, ed)?.openingQty === 90);
+  check('admin edit (last month): Edit Issue row dated on the delivery date',
+    demoDB.transactions.some((tx) => tx.ticketId === tEd && tx.status === 'Edit Issue' && tx.date === `${pm}-20`));
+  check('admin edit (last month): last month Out 10 -> 14, Closing 86', rowOf(pm, ed)?.stockOutQty === 14 && rowOf(pm, ed)?.closingQty === 86);
+  check('admin edit (last month): this month Opening follows (86), no Stock Out here',
+    rowOf(cm, ed, true)?.openingQty === 86 && rowOf(cm, ed, true)?.stockOutQty === 0);
   demoEditTicket(tEd, [lineOf(tEd)(ed, 6)], 'eight came back unused', adm.fullName, adm.role);
-  check('late edit: returned qty shows as positive Stock In this month (8), never negative Stock Out',
-    rowOf(cm, ed)?.stockInQty === 8 && rowOf(cm, ed)?.stockOutQty === 4 && rowOf(cm, ed)?.closingQty === 94);
-  check('late edit: invariant holds', invariantHolds(tEd, [ed]));
+  check('admin edit (last month): returned qty is positive Stock In of last month (100 opening + 8), never negative Stock Out',
+    rowOf(pm, ed)?.stockInQty === 108 && rowOf(pm, ed)?.stockOutQty === 14 && rowOf(pm, ed)?.closingQty === 94
+    && rowOf(cm, ed, true)?.openingQty === 94);
+  check('admin edit: invariant holds', invariantHolds(tEd, [ed]));
+
+  // (d2) Admin edit of a ticket TWO months back -> posted THIS month (older months stay frozen)
+  const e2 = bornOn('WF Edit Older', 100, `${ppm}-01`);
+  const tE2 = pastTicket(e2, 'WF Edit Older', 10, `${ppm}-20`);
+  finalize(tE2);
+  const ppmE2 = snap(rowOf(ppm, e2)), pmE2 = snap(rowOf(pm, e2, true));
+  demoEditTicket(tE2, [lineOf(tE2)(e2, 13)], 'three more were shipped', adm.fullName, adm.role);
+  check('admin edit (2 months back): Edit Issue dated today',
+    demoDB.transactions.some((tx) => tx.ticketId === tE2 && tx.status === 'Edit Issue' && tx.date === today));
+  check('admin edit (2 months back): both older months unchanged',
+    snap(rowOf(ppm, e2)) === ppmE2 && snap(rowOf(pm, e2, true)) === pmE2);
+  check('admin edit (2 months back): +3 is Stock Out this month', rowOf(cm, e2)?.stockOutQty === 3 && rowOf(cm, e2)?.openingQty === 90);
 
   // (e) late recall of a pending ticket booked for last month
   const rc = bornOn('WF Recall Late', 40, `${pm}-02`);

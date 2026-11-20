@@ -389,8 +389,9 @@ exists, its starting stock — its `OPENING` row — is reported as **Stock In**
 (Finance rule: **Opening = last month's Closing**; e.g. created in June with 500, issued 500 in June →
 Opening 0 / In 500 / Out 500 / Closing 0). Ticket movements are dated on the ticket's **delivery date**
 (migration 0026). Every month before the current one is **locked** (migration 0027): nothing can be dated
-there any more, and late ticket corrections (edit, approved-qty change, reject / recall) are posted on
-today's date — so a month already reported to Finance never changes.
+there any more, and late ticket corrections (approved-qty change, reject / recall, edits of tickets older
+than last month) are posted on today's date. Only an Admin edit of a ticket delivered **last month** still
+corrects that month.
 
 ---
 

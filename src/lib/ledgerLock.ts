@@ -12,6 +12,18 @@ export function reportingPeriodStart(today: string = todayStr()): string {
   return `${today.slice(0, 7)}-01`;
 }
 
+/**
+ * First day of the PREVIOUS month: an Admin ticket edit of a ticket delivered
+ * on/after this day still lands on its delivery date (corrects that month).
+ */
+export function ticketEditWindowStart(today: string = todayStr()): string {
+  const y = Number(today.slice(0, 4));
+  const m = Number(today.slice(5, 7)) - 1;
+  const py = m === 0 ? y - 1 : y;
+  const pm = m === 0 ? 12 : m;
+  return `${py}-${String(pm).padStart(2, '0')}-01`;
+}
+
 /** Is this ledger date inside an already-reported month? */
 export function isLockedDate(date?: string | null, today: string = todayStr()): boolean {
   const d = String(date || '').slice(0, 10);
