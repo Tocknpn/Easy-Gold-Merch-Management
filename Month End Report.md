@@ -48,6 +48,20 @@ Since there is no saved snapshot, the system uses the **Current Stock** as the a
 *   **Calculation**: Starts with the `Current Stock` and rolls back *only* the transactions that occurred *after* the `endDate`. It does not touch transactions that occurred during or before the selected month.
 *   **Verification**: The system implicitly relies on the formula: `Opening + Stock In - Stock Out = Closing`. It even calculates a `variance` behind the scenes to ensure there are no discrepancies in the ledger.
 
+### E. One cut-off for every tab (Month End = Stock Remain = Stock Balance)
+The same rollback is used by the **Stock Remain** tab and the **Stock Balance** tab, so the three views can never print different numbers for the same date:
+
+| Where | What it shows |
+|---|---|
+| Month End → **Closing Balance** | quantity on hand at the **last day of the month** |
+| Stock Remain → **Remaining QTY** | quantity on hand at the selected **Date to** (its "as of" cut-off) |
+| Stock Balance → **Closing (date)** | quantity on hand at the selected **Date to** |
+
+*   All three call `closingQtyAsOf(sku, reportableTx, asOf)` with `asOf` = the end of the period, and all three merge MKT + CS per item with the same rule (`matchAcrossWarehouses`).
+*   On the Month End tab the cut-off is the month end, so **Stock Remain total = Closing Balance total** (quantity *and* value). The tab explains the cut-off in a caption; the Month End tab shows a warning banner if the two ever disagree.
+*   Because the rollback ignores movement *dates*, a movement dated **after** the cut-off is simply not counted yet — even though `Current Stock` already includes it. That is why a reported month never changes when today's stock does.
+*   Items are never listed before they exist: an item created after the cut-off is absent from that period, exactly as in the Month End Report.
+
 ## 4. Value Calculations (Financials)
 
 For every quantity calculated (Opening, In, Out, Closing), the report also calculates a financial value.

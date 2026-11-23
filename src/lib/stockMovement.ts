@@ -242,26 +242,165 @@ export function getMonthMovement(
 }
 
 /**
+ * Index every ledger row by SKU id (one pass, then O(1) lookups) so a whole
+ * report can be rolled back without re-scanning the ledger per item.
+ */
+export function indexBySku(transactions: StockTransaction[]): Map<string, StockTransaction[]> {
+  const map = new Map<string, StockTransaction[]>();
+  for (const tx of transactions) {
+    const id = String(tx.skuId ?? '');
+    if (!id) continue;
+    const list = map.get(id);
+    if (list) list.push(tx);
+    else map.set(id, [tx]);
+  }
+  return map;
+}
+
+/** Net quantity still on hand after `asOf` — the rollback shared by every tab. */
+function qtyOnHand(currentStock: number, txs: StockTransaction[], asOf: string): number {
+  let afterEnd = 0;
+  for (const tx of txs) {
+    const date = tx.date || '';
+    if (!date || date <= asOf) continue;
+    afterEnd += tx.type === 'addition' ? castNumber(tx.qty) : -castNumber(tx.qty);
+  }
+  return currentStock - afterEnd;
+}
+
+/**
  * Closing quantity for a SKU as of an arbitrary date — the same rollback
  * technique as `getMonthMovement`'s `afterEnd`/`closing` (current stock minus
  * every reportable movement dated AFTER `asOf`), generalised to a non-month
  * boundary. Pass transactions already filtered by `reportableTransactions()`
  * so cancelled bookings and dead-ticket rows never count.
+ *
+ * This is THE cut-off definition for every report tab: Month End Closing,
+ * Stock Remain and Stock Balance all resolve to this number for the same
+ * `asOf`, so the three views can never disagree. Pass a prebuilt `index`
+ * (`indexBySku`, same filtered ledger) when measuring many items at once.
  */
 export function closingQtyAsOf(
   sku: SKU | CS_SKU,
   reportableTx: StockTransaction[],
   asOf: string,
+  index?: Map<string, StockTransaction[]>,
 ): number {
-  const current = castNumber(sku.currentStock);
-  let afterEnd = 0;
-  for (const tx of reportableTx) {
-    if (tx.skuId !== sku.id) continue;
-    const date = tx.date || '';
-    if (!date || date <= asOf) continue;
-    afterEnd += tx.type === 'addition' ? castNumber(tx.qty) : -castNumber(tx.qty);
+  const txs = index ? (index.get(String(sku.id)) ?? []) : reportableTx;
+  return qtyOnHand(castNumber(sku.currentStock), txs, asOf);
+}
+
+// ── Cut-off rows (Stock Remain + Stock Balance) ───────────────────────────
+export interface CutOffRow {
+  /** Stable identity / merge key (same shape as `MonthEndRow.key`). */
+  key: string;
+  /** Display item — the MKT row when the item exists in both warehouses. */
+  sku: SKU;
+  /** Cost per unit behind the value columns (blended for a merged MKT+CS row). */
+  cpu: number;
+  /** 1 = one warehouse, 2 = a matched MKT + CS pair (quantity and value summed). */
+  warehouses: number;
+  /** Quantity on hand at the cut-off date — never today's live stock. */
+  qty: number;
+  /** `qty * cpu` */
+  value: number;
+  /** Earliest dated movement (birth-date fallback for the "existed yet" rule). */
+  firstDate: string | null;
+}
+
+export interface CutOffArgs {
+  skus: SKU[];
+  transactions: StockTransaction[];
+  csSkus: CS_SKU[];
+  csTransactions: StockTransaction[];
+  tickets: Ticket[];
+  scope: WarehouseScope | 'all';
+  /** Inclusive cut-off day (`YYYY-MM-DD`) — the report period's last day. */
+  asOf: string;
+  /** Item category filter — 'All' (default) or an exact category name. */
+  category?: string;
+  /** Hide items that did not exist yet at the cut-off date. Default true. */
+  hideUnborn?: boolean;
+  /**
+   * Keep items sitting at 0 at the cut-off. Default false (Stock Remain only
+   * lists what is actually left); the Stock Balance sheet keeps them all.
+   */
+  includeZero?: boolean;
+}
+
+/**
+ * Quantity on hand at a cut-off date, per item — the shared base of the
+ * Stock Remain tab and the Stock Balance tab.
+ *
+ * "All" merges MKT + CS per SKU with `matchAcrossWarehouses` (exactly like
+ * `getMonthEndRows`): quantities and values are summed per warehouse and the
+ * CPU column shows the blended cost (`value / qty`). On a month-end cut-off
+ * the totals are therefore identical to the Month End Report's Closing
+ * Balance — one definition, one number, in every tab and every export.
+ */
+export function getCutOffRows(args: CutOffArgs): CutOffRow[] {
+  const { asOf, scope, category = 'All', hideUnborn = true, includeZero = false } = args;
+  const keep = (s: SKU | CS_SKU) => category === 'All' || s.category === category;
+  const mktTx = reportableTransactions(args.transactions, args.tickets);
+  const csTx = reportableTransactions(args.csTransactions, args.tickets);
+  const mktIndex = indexBySku(mktTx);
+  const csIndex = indexBySku(csTx);
+
+  /** One warehouse's reading of one item: qty at the cut-off + first ledger day. */
+  const measure = (s: SKU | CS_SKU, txs: StockTransaction[], index: Map<string, StockTransaction[]>) => {
+    let firstDate: string | null = null;
+    for (const tx of txs) {
+      const d = tx.date || '';
+      if (d && (!firstDate || d < firstDate)) firstDate = d;
+    }
+    return { sku: s, qty: closingQtyAsOf(s, txs, asOf, index), cpu: castNumber(s.costPerUnit), firstDate };
+  };
+  type Measured = ReturnType<typeof measure>;
+
+  // An item never appears in a period before it started existing.
+  const existed = (m: Measured) => {
+    if (!hideUnborn) return true;
+    const birth = skuBirthDate(m.sku, m.firstDate);
+    return !birth || birth <= asOf;
+  };
+  const emit = (key: string, parts: Measured[]): CutOffRow => {
+    const qty = parts.reduce((a, p) => a + p.qty, 0);
+    const value = parts.reduce((a, p) => a + p.qty * p.cpu, 0);
+    const firstDate = parts.reduce<string | null>(
+      (a, p) => (a && p.firstDate ? (a < p.firstDate ? a : p.firstDate) : (a || p.firstDate)), null);
+    const sku = parts[0].sku;
+    return {
+      key,
+      sku: sku as SKU,
+      cpu: qty !== 0 ? value / qty : castNumber(sku.costPerUnit),
+      warehouses: parts.length,
+      qty,
+      value,
+      firstDate,
+    };
+  };
+  const done = (rows: CutOffRow[]) =>
+    rows.filter((r) => includeZero || r.qty !== 0).sort(byName);
+
+  if (scope === 'mkt' || scope === 'cs') {
+    const list = scope === 'mkt' ? args.skus : args.csSkus;
+    const txs = scope === 'mkt' ? mktTx : csTx;
+    const index = scope === 'mkt' ? mktIndex : csIndex;
+    return done(
+      list.filter(keep)
+        .map((s) => ({ m: measure(s, txs, index), id: s.id }))
+        .filter((x) => existed(x.m))
+        .map((x) => emit(`${scope}:${x.id}`, [x.m])),
+    );
   }
-  return current - afterEnd;
+
+  const mkt = args.skus.filter(keep).map((s) => ({ ...measure(s, mktTx, mktIndex), id: s.id })).filter(existed);
+  const cs = args.csSkus.filter(keep).map((s) => ({ ...measure(s, csTx, csIndex), id: s.id })).filter(existed);
+  return done(
+    matchAcrossWarehouses(mkt, cs).map((pair) =>
+      emit(pair.key, [pair.mkt, pair.cs].filter(Boolean) as Measured[]),
+    ),
+  );
 }
 
 /** Day part of an ISO timestamp / date (`2026-09-10T00:00:00Z` → `2026-09-10`). */
@@ -404,7 +543,7 @@ const sumRows = (a: ValuedRow, b: ValuedRow): ValuedRow => ({
   variance: a.variance + b.variance,
 });
 
-const byName = (a: MonthEndRow, b: MonthEndRow) => a.sku.name.localeCompare(b.sku.name, 'la');
+const byName = (a: { sku: { name: string } }, b: { sku: { name: string } }) => a.sku.name.localeCompare(b.sku.name, 'la');
 
 /** Nothing to report: no balance and no movement in the month. */
 const isEmptyRow = (r: MonthEndRow) =>

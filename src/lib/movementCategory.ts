@@ -11,16 +11,21 @@ export const CAT_LABEL: Record<CatKey, string> = {
   loss: 'Loss / Broken', transfer: 'Transfer', opening: 'Opening',
   cancelled: 'Cancelled / Rejected',
 };
+/**
+ * Tinted, borderless chip (soft background + strong text) — the house badge
+ * style used by `Badge` / `StatusBadge`. No ring on purpose: a hairline
+ * outline around a pale chip reads as an empty "box" on a white row.
+ */
 export const CAT_STYLE: Record<CatKey, string> = {
-  issue: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-  edit: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  returned: 'bg-cyan-50 text-cyan-700 ring-cyan-600/20',
-  in: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  out: 'bg-slate-100 text-slate-600 ring-slate-400/20',
-  loss: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  transfer: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  opening: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-  cancelled: 'bg-slate-200 text-slate-500 ring-slate-400/20',
+  issue: 'bg-indigo-50 text-indigo-700',
+  edit: 'bg-amber-50 text-amber-700',
+  returned: 'bg-cyan-50 text-cyan-700',
+  in: 'bg-emerald-50 text-emerald-700',
+  out: 'bg-slate-100 text-slate-600',
+  loss: 'bg-rose-50 text-rose-700',
+  transfer: 'bg-amber-50 text-amber-700',
+  opening: 'bg-violet-50 text-violet-700',
+  cancelled: 'bg-slate-200 text-slate-500',
 };
 
 export function catOf(tx: StockTransaction, deadTickets?: Set<string>): CatKey {

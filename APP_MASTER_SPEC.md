@@ -569,8 +569,12 @@ centered card + gold Crown logo.
 ### 6.8 Frontend helper libs
 - `src/lib/sheets-api.ts` — typed wrappers for every backend action (list in §5). `isSheetsConfigured()` returns
   boolean whether `VITE_SHEETS_API_URL` is set.
-- `src/lib/stockMovement.ts` — report math. Range reports: `getStockMovement(sku, tx, from, to)` (Dashboard +
-  Stock Balance tab). Month End Report (see `Month End Report.md`): `monthBounds('YYYY-MM')`,
+- `src/lib/stockMovement.ts` — report math. Range reports: `getStockMovement(sku, tx, from, to)` (Dashboard).
+  Cut-off reports (Stock Remain + Stock Balance): `getCutOffRows({ asOf, scope, skus, transactions, csSkus,
+  csTransactions, tickets, category, hideUnborn, includeZero })` returns the quantity on hand at `asOf` per item,
+  merged MKT+CS like the Month End report, and `closingQtyAsOf(sku, reportableTx, asOf, index?)` is the single
+  rollback behind it — so Stock Remain = Month End Closing = Stock Balance Closing for the same date.
+  Month End Report (see `Month End Report.md`): `monthBounds('YYYY-MM')`,
   `getMonthMovement(sku, tx, month)` (opening / in / out / closing / variance), `getMonthRows(...)` and
   `getMonthEndRows({ month, scope, skus, transactions, csSkus, csTransactions, tickets, category, vat })` which
   returns the report rows (quantity + value per column, VAT factor, `variance`) and builds the "All" scope by

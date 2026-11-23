@@ -1020,7 +1020,7 @@ function MovementsTab() {
                     </td>
                     <td className={`${td} whitespace-nowrap text-right tabular-nums text-slate-600`}>{money(r.tx.qty * r.cost)}</td>
                     <td className={`${td} whitespace-nowrap`}>
-                      <span className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold ring-1', CAT_STYLE[r.cat])}>{CAT_LABEL[r.cat]}</span>
+                      <span className={cn('inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold leading-4', CAT_STYLE[r.cat])}>{CAT_LABEL[r.cat]}</span>
                     </td>
                     <td className={`${td} max-w-[220px]`}>
                       <p className="truncate font-mono text-xs text-slate-500" title={r.tx.ticketId || ''}>{r.tx.ticketId || '—'}</p>

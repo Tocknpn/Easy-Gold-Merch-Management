@@ -3,8 +3,12 @@
 //       Borrow Item · Ticket Delivery · Stock Balance.
 // Shared filter bar: Date from→to · Part (MKT/CS/All) · Merch Type (category) ·
 //       VAT (visible only on Month End tab).
-// Export Excel → 7 sheets in one .xlsx. Print PDF → only Month End tab (screen match).
-// Finance role: only the first 4 tabs (FINANCE_TABS) and the matching 4 sheets.
+// One cut-off rule: Stock Remain and Stock Balance show the quantity on hand on
+//       the period's LAST DAY (`to`) — the same rollback as the Month End
+//       CLOSING column — never today's live stock (`getCutOffRows`).
+// Export Excel → 6 sheets (Month End · Item Type · Item Stock Out · Stock In ·
+//       Stock Remain · Ticket Delivery). Print PDF → only Month End tab.
+// Finance role: only the first 4 tabs (FINANCE_TABS) and their 4 sheets.
 import { useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import {
@@ -16,7 +20,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useData } from '@/contexts/DataContext';
 import { Spinner, ErrorBanner, EmptyState, toast } from '@/components/ui/primitives';
 import { fmt, money, cn } from '@/lib/utils';
-import { reportFlowOf, getMonthEndRows, getStockMovement, monthBounds, reportableTransactions } from '@/lib/stockMovement';
+import { reportFlowOf, getMonthEndRows, getCutOffRows, monthBounds, reportableTransactions } from '@/lib/stockMovement';
 import { exportMonthEndPdf, printMonthEndPdf } from '@/lib/pdfExport';
 import { STATUS_LABELS, type SKU, type CS_SKU, type StockTransaction } from '@/lib/types';
 
@@ -138,6 +142,9 @@ export function ReportingPage() {
 
   // Opening + In − Out === Closing by construction — anything else means the
   // SKU baseline drifted from the ledger and Finance should be told.
+  // (Kept as a silent data-integrity signal for the Excel export / diagnostics —
+  // the on-screen banner is now the Stock Remain ⇄ Closing reconciliation below,
+  // which is the check Finance actually cares about.)
   const varianceRows = useMemo(
     () => monthRows.filter((r) => Math.abs(r.variance) > 1e-6),
     [monthRows],
@@ -149,6 +156,7 @@ export function ReportingPage() {
   const stockOutRows = useMemo(() =>
     merged.tx.filter((t) => reportFlowOf(t).out !== 0 && inRange(t.date))
       .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: reportFlowOf(t).out, cpu: cpuOf(t.skuId, t.skuName) }))
+      // stable: two movements on the same day keep the ledger order
       .sort((a, b) => b.date.localeCompare(a.date)), [merged, from, to]);
 
   const stockInRows = useMemo(() =>
@@ -156,9 +164,16 @@ export function ReportingPage() {
       .map((t) => ({ date: (t.date || '').slice(0, 10), skuName: t.skuName || '', qty: reportFlowOf(t).in, cpu: cpuOf(t.skuId, t.skuName) }))
       .sort((a, b) => a.date.localeCompare(b.date)), [merged, from, to]);
 
+  // Stock Remain = what is left AT THE CUT-OFF (`to`), never today's live stock:
+  // `getCutOffRows` rolls every reportable movement dated after `to` back out of
+  // `currentStock`. Item rows are matched MKT↔CS exactly like the Month End
+  // Report, so on a month-end cut-off the QTY/VALUE totals equal its Closing.
   const remainRows = useMemo(() =>
-    shown.map((s) => ({ skuName: s.name, qty: s.currentStock || 0, cpu: s.costPerUnit || 0 })),
-    [shown]);
+    getCutOffRows({
+      skus, csSkus, transactions, csTransactions, tickets,
+      scope: wh, asOf: to, category: cat,
+    }).map((r) => ({ key: r.key, skuName: r.sku.name, qty: r.qty, cpu: r.cpu, warehouses: r.warehouses })),
+    [skus, csSkus, transactions, csTransactions, tickets, wh, to, cat]);
 
   const borrowRows = useMemo(() =>
     tickets.filter((t) => t.type === 'borrow' && inRange(t.actualDeliveryDate || t.deliveryDate || t.createdAt))
@@ -190,6 +205,10 @@ export function ReportingPage() {
       .sort((a, b) => (b.neededBy > a.neededBy ? 1 : b.neededBy < a.neededBy ? -1 : 0)),
     [tickets, from, to]);
 
+  // Stock Balance — one row per item on the SAME cut-off as Stock Remain and the
+  // Month End Closing (`getCutOffRows` → `closingQtyAsOf(sku, tx, to)`).
+  // Opening rolls the period's movements back out of that balance, so
+  // Opening + In − Out === Closing for every row, value = qty × CPU.
   const balanceRows = useMemo(() => {
     const dir = bSort.dir === 'asc' ? 1 : -1;
     const num = (a: any, k: string): number => {
@@ -199,21 +218,46 @@ export function ReportingPage() {
         case 'opening': return a.opening;
         case 'stockIn': return a.stockIn;
         case 'stockOut': return a.stockOut;
-        case 'current': return a.sku.currentStock;
+        case 'closing': return a.closing;
         case 'broken': return a.broken;
-        case 'cost': return a.sku.costPerUnit;
+        case 'cost': return a.cpu;
         case 'loss': return a.lossValue;
         case 'usage': return a.usagePct;
         default: return 0;
       }
     };
-    const str = (a: any, k: string): string => (k === 'name' ? a.sku.name : a.sku.category || '');
-    return shown.map((s) => {
-      const mv = getStockMovement(s as SKU, merged.tx, from, to);
-      const broken = merged.tx
-        .filter((t) => t.skuId === s.id && (!t.date || (t.date >= from && t.date <= to)))
-        .reduce((a, t) => a + Number(t.qtyBroken || 0), 0);
-      return { sku: s, opening: mv.opening, stockIn: mv.stockIn, stockOut: mv.stockOut, broken, lossValue: broken * s.costPerUnit, usagePct: mv.usagePct };
+    const str = (a: any, k: string): string => (k === 'name' ? a.name : a.category || '');
+    return getCutOffRows({
+      skus, csSkus, transactions, csTransactions, tickets,
+      scope: wh, asOf: to, category: cat, includeZero: true,
+    }).map((r) => {
+      let inQty = 0;
+      let outQty = 0;
+      let broken = 0;
+      for (const t of merged.tx) {
+        if (t.skuId !== r.sku.id) continue;
+        const f = reportFlowOf(t);
+        if (inRange(t.date)) {
+          inQty += f.in;
+          outQty += f.out;
+          broken += Number(t.qtyBroken || 0);
+        }
+      }
+      const inflow = Number(r.sku.totalInflow || 0) || Number(r.sku.openingBalance || 0);
+      return {
+        key: r.key,
+        sku: r.sku,
+        name: r.sku.name,
+        category: r.sku.category || '',
+        cpu: r.cpu,
+        opening: r.qty - inQty + outQty,
+        stockIn: inQty,
+        stockOut: outQty,
+        closing: r.qty,
+        broken,
+        lossValue: broken * r.cpu,
+        usagePct: inflow > 0 ? Math.max(0, ((inflow - r.qty) / inflow) * 100) : 0,
+      };
     }).sort((a, b) => {
       const ka = bSort.key;
       if (ka === 'name' || ka === 'category') {
@@ -222,7 +266,7 @@ export function ReportingPage() {
       }
       return dir * (num(a, ka) - num(b, ka));
     });
-  }, [shown, merged.tx, from, to, bSort]);
+  }, [skus, csSkus, transactions, csTransactions, tickets, merged.tx, wh, cat, from, to, bSort]);
 
   // Month End column totals.
   // NOTE: every hook must run BEFORE the loading/error early returns below. A
@@ -236,6 +280,44 @@ export function ReportingPage() {
     closing: monthRows.reduce((a, r) => ({ qty: a.qty + r.closingQty, val: a.val + r.closingVal }), { qty: 0, val: 0 }),
   }), [monthRows]);
 
+  // Stock Remain (as of the same cut-off) must total exactly the Month End
+  // Closing: same ledger, same rollback, same row set. Anything else is a real
+  // discrepancy, so surface it instead of printing two different numbers.
+  const remainTotalQty = useMemo(() => remainRows.reduce((a, r) => a + r.qty, 0), [remainRows]);
+  const reconcile = useMemo(() => {
+    const qtyDiff = remainTotalQty - meTotals.closing.qty;
+    return { ok: Math.abs(qtyDiff) < 1e-6, qtyDiff };
+  }, [remainTotalQty, meTotals]);
+
+  // Excel "Item Type" sheet: the Month End rows rolled up per Merch Type, so the
+  // per-category totals always add up to the Month End TOTAL row.
+  const itemTypeRows = useMemo(() => {
+    type Acc = {
+      items: number;
+      openingQty: number; openingVal: number;
+      stockInQty: number; stockInVal: number;
+      stockOutQty: number; stockOutVal: number;
+      closingQty: number; closingVal: number;
+    };
+    const map = new Map<string, Acc>();
+    for (const r of monthRows) {
+      const k = (r.sku.category || '').trim() || '(uncategorised)';
+      const acc: Acc = map.get(k) ?? {
+        items: 0, openingQty: 0, openingVal: 0, stockInQty: 0, stockInVal: 0,
+        stockOutQty: 0, stockOutVal: 0, closingQty: 0, closingVal: 0,
+      };
+      acc.items += 1;
+      acc.openingQty += r.openingQty; acc.openingVal += r.openingVal;
+      acc.stockInQty += r.stockInQty; acc.stockInVal += r.stockInVal;
+      acc.stockOutQty += r.stockOutQty; acc.stockOutVal += r.stockOutVal;
+      acc.closingQty += r.closingQty; acc.closingVal += r.closingVal;
+      map.set(k, acc);
+    }
+    return [...map.entries()]
+      .map(([category, v]) => ({ category, ...v }))
+      .sort((a, b) => b.closingVal - a.closingVal || a.category.localeCompare(b.category, 'la'));
+  }, [monthRows]);
+
   if (loading) return <Spinner label="Loading report…" />;
   if (error) return <ErrorBanner msg={error} retry={refresh} />;
   const isCS = user?.role === 'customer_service';
@@ -243,6 +325,7 @@ export function ReportingPage() {
 const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r.cpu }), { q: 0, v: 0 });
   const tIn = stockInRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r.cpu }), { q: 0, v: 0 });
   const tRemain = remainRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r.cpu }), { q: 0, v: 0 });
+  // Borrow Item no longer has an Excel sheet, but the on-screen tab still totals it.
   const tBorrow = borrowRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.est }), { q: 0, v: 0 });
 
   const exportExcel = async () => {
@@ -251,55 +334,62 @@ const tOut = stockOutRows.reduce((a, r) => ({ q: a.q + r.qty, v: a.v + r.qty * r
       // Dynamically import xlsx only when needed (saves 283 kB on initial load)
       const XLSX = await import('xlsx');
       const wb = XLSX.utils.book_new();
+    // Sheet order matters to Finance: Month End → Item Type → detail sheets.
+    // (Borrow Item and Stock Balance sheets are intentionally NOT exported —
+    // both stay available as on-screen tabs.)
+    const sheet = (rows: (string | number)[][], name: string, widths?: number[]) => {
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      if (widths) ws['!cols'] = widths.map((w) => ({ wch: w }));
+      XLSX.utils.book_append_sheet(wb, ws, name);
+    };
     // Sheet 1: Month End (Stock Movement)
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+    sheet([
       ['STOCK MOVEMENT', `${monthRange.from} TO ${monthRange.to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
       ['NO', 'ITEM', 'CPU', 'OPENING QTY', 'OPENING VALUE', 'STOCK IN QTY', 'STOCK IN VALUE', 'STOCK OUT QTY', 'STOCK OUT VALUE', 'CLOSING QTY', 'CLOSING VALUE'],
       ...monthRows.map((r, i) => [i + 1, r.sku.name, r.cpu, r.openingQty, Math.round(r.openingVal), r.stockInQty, Math.round(r.stockInVal),
         r.stockOutQty, Math.round(r.stockOutVal), r.closingQty, Math.round(r.closingVal)]),
-    ]), 'Month End');
-    // Sheet 2: Item Stock Out
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['ITEM STOCK OUT DETAILS'],
+    ], 'Month End');
+    // Sheet 2: Item Type — the Month End rows rolled up per Merch Type. Every
+    // column adds up to the Month End TOTAL row (same rows, same cut-off).
+    sheet([
+      ['ITEM TYPE (MERCH TYPE) SUMMARY', `${monthRange.from} TO ${monthRange.to}`, ...(vat ? ['INCLUDE VAT 10%'] : [])],
+      ['CATEGORY', 'ITEMS', 'OPENING QTY', 'OPENING VALUE', 'STOCK IN QTY', 'STOCK IN VALUE', 'STOCK OUT QTY', 'STOCK OUT VALUE', 'CLOSING QTY', 'CLOSING VALUE', 'CLOSING % OF VALUE'],
+      ...itemTypeRows.map((r) => [r.category, r.items, r.openingQty, Math.round(r.openingVal), r.stockInQty, Math.round(r.stockInVal),
+        r.stockOutQty, Math.round(r.stockOutVal), r.closingQty, Math.round(r.closingVal),
+        `${meTotals.closing.val > 0 ? ((r.closingVal / meTotals.closing.val) * 100).toFixed(1) : '0.0'}%`]),
+      ['TOTAL', itemTypeRows.reduce((a, r) => a + r.items, 0),
+        meTotals.opening.qty, Math.round(meTotals.opening.val), meTotals.stockIn.qty, Math.round(meTotals.stockIn.val),
+        meTotals.stockOut.qty, Math.round(meTotals.stockOut.val), meTotals.closing.qty, Math.round(meTotals.closing.val), '100.0%'],
+    ], 'Item Type', [26, 8, 13, 15, 13, 15, 14, 16, 13, 15, 18]);
+    // Sheet 3: Item Stock Out
+    sheet([
+      ['ITEM STOCK OUT DETAILS', `${from} TO ${to}`],
       ['DATE', 'SKU NAME', 'QTY', 'AMOUNT'],
-      ...stockOutRows.map((r) => [r.date, r.skuName, r.qty, r.qty * r.cpu]),
-      ['TOTAL', '', tOut.q, tOut.v],
-    ]), 'Item Stock Out');
-    // Sheet 3: Stock In Details
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['STOCK IN DETAILS'],
-      ['DATE STOCK IN', 'SKU NAME', 'AMOUNT', 'VALUE'],
-      ...stockInRows.map((r) => [r.date, r.skuName, r.qty, r.qty * r.cpu]),
-      ['TOTAL', '', tIn.q, tIn.v],
-    ]), 'Stock In');
-    // Sheet 4: Stock Remain
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['STOCK REMAIN (CURRENT)'],
+      ...stockOutRows.map((r) => [r.date, r.skuName, r.qty, Math.round(r.qty * r.cpu)]),
+      ['TOTAL', '', tOut.q, Math.round(tOut.v)],
+    ], 'Item Stock Out', [13, 40, 10, 16]);
+    // Sheet 4: Stock In Details
+    sheet([
+      ['STOCK IN DETAILS', `${from} TO ${to}`],
+      ['DATE STOCK IN', 'SKU NAME', 'QTY', 'VALUE'],
+      ...stockInRows.map((r) => [r.date, r.skuName, r.qty, Math.round(r.qty * r.cpu)]),
+      ['TOTAL', '', tIn.q, Math.round(tIn.v)],
+    ], 'Stock In', [15, 40, 10, 16]);
+    // Sheet 5: Stock Remain — quantity at the cut-off (`to`), the same figure as
+    // the Month End CLOSING column for the same month.
+    sheet([
+      ['STOCK REMAIN', `AS OF ${to}`],
       ['SKU NAME', 'QTY', 'CPU', 'EST. VALUE'],
-      ...remainRows.map((r) => [r.skuName, r.qty, r.cpu, r.qty * r.cpu]),
-      ['TOTAL VALUE', '', '', tRemain.v],
-    ]), 'Stock Remain');
+      ...remainRows.map((r) => [r.skuName, r.qty, r.cpu, Math.round(r.qty * r.cpu)]),
+      ['TOTAL', tRemain.q, '', Math.round(tRemain.v)],
+    ], 'Stock Remain', [40, 10, 14, 18]);
     if (!isFinance) {
-    // Sheet 5: Borrow Item
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['BORROW ITEMS'],
-      ['DATE BORROW', 'ITEM', 'AMOUNT', 'BORROW BY', 'STATUS', 'EST. VALUE'],
-      ...borrowRows.map((r) => [r.date, r.items, r.qty, r.by, r.status, r.est]),
-      ['TOTAL', '', tBorrow.q, '', tBorrow.v],
-    ]), 'Borrow Item');
-    // Sheet 6: Stock Balance (Inventory usage/loss)
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['STOCK BALANCE — USAGE & LOSS ANALYSIS'],
-      ['NAME', 'CATEGORY', 'OPENING', 'STOCK IN', 'STOCK OUT', 'CURRENT', 'BROKEN QTY', 'COST/UNIT', 'LOSS VALUE', 'USAGE %'],
-      ...balanceRows.map((r) => [r.sku.name, r.sku.category || '', r.opening, r.stockIn, r.stockOut, r.sku.currentStock,
-        r.broken, r.sku.costPerUnit, r.lossValue, `${r.usagePct.toFixed(0)}%`]),
-    ]), 'Stock Balance');
-    // Sheet 7: Ticket Delivery (needed-by vs actual delivery dates)
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
-      ['TICKET DELIVERY'],
+    // Sheet 6: Ticket Delivery (needed-by vs actual delivery dates)
+    sheet([
+      ['TICKET DELIVERY', `${from} TO ${to}`],
       ['TICKET', 'ITEM(S)', 'REQUESTER', 'DEPARTMENT', 'DELIVERY DATE', 'ACTUAL DELIVERY', 'STATUS'],
       ...deliveryRows.map((r) => [r.ticket, r.items, r.requester, r.dept, r.neededBy, r.actual, r.status]),
-    ]), 'Ticket Delivery');
+    ], 'Ticket Delivery', [18, 44, 22, 16, 14, 16, 14]);
     }
     XLSX.writeFile(wb, `report-${wh}-${from}-to-${to}.xlsx`);
     toast(`Report exported — ${wb.SheetNames.length} sheets (Excel)`);
@@ -474,6 +564,15 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
               {cat === 'All' ? 'All Categories' : cat} · {monthRows.length} items{vat ? ' · incl. VAT 10%' : ''}
             </span>
           </div>
+          {/* One number everywhere: Stock Remain (cut-off = month end) must total
+              exactly the Closing Balance. Shown only when it does not. */}
+          {!reconcile.ok && (
+            <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
+              Cut-off check: Stock Remain totals <b className="tabular-nums">{fmt(remainTotalQty)}</b> but Closing Balance totals{' '}
+              <b className="tabular-nums">{fmt(meTotals.closing.qty)}</b> ({reconcile.qtyDiff > 0 ? '+' : ''}{fmt(reconcile.qtyDiff)}).
+              Both are computed with the same rollback to {monthRange.to} — please investigate before handing the report over.
+            </p>
+          )}
           {varianceRows.length > 0 && (
             <p className="mb-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-800">
               Ledger check: {varianceRows.length} item{varianceRows.length > 1 ? 's' : ''} where Opening + In − Out ≠ Closing (
@@ -580,7 +679,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
             <thead><tr className="bg-slate-50">
               <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">Date Stock In</th>
               <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">SKU Name</th>
-              <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">AMOUNT</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">QTY</th>
               <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">VALUE</th>
             </tr></thead>
             <tbody>
@@ -606,30 +705,40 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
       )}
 
 {tab === 'stock-remain' && (
-        <Panel title="Stock Remain (Current)" tone="slate">
+        <Panel title={`Stock Remain — as of ${to}`} tone="slate">
+          <p className="border-b border-slate-100 bg-slate-50/60 px-4 py-2 text-[11px] text-slate-500">
+            Quantity on hand at the cut-off date <b className="tabular-nums text-slate-700">{to}</b> — the same figure as the Month End
+            Report&apos;s Closing Balance for that month ({fmt(meTotals.closing.qty)}). Movements dated after {to} are not counted yet.
+          </p>
           <table className="w-full text-sm">
             <thead><tr className="bg-slate-50">
               <th className="border border-slate-200 px-3 py-1.5 text-left text-[11px] font-bold uppercase tracking-wider text-slate-500">SKU Name</th>
-              <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">QTY</th>
+              <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">Remaining QTY</th>
               <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">CPU</th>
               <th className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-bold uppercase tracking-wider text-slate-500">EST. VALUE</th>
             </tr></thead>
             <tbody>
-              {remainRows.map((r, i) => (
-                <tr key={i} className="odd:bg-white even:bg-slate-50/50">
-                  <td className={`${cellCls} font-medium text-slate-800`}>{r.skuName}</td>
-                  <td className={`${cellCls} text-right tabular-nums text-slate-700`}>{fmt(r.qty)}</td>
+              {remainRows.map((r) => (
+                <tr key={r.key} className="odd:bg-white even:bg-slate-50/50">
+                  <td className={`${cellCls} font-medium text-slate-800`}>
+                    {r.skuName}
+                    {r.warehouses === 2 && (
+                      <span className="ml-2 rounded bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">MKT + CS</span>
+                    )}
+                  </td>
+                  <td className={`${cellCls} text-right font-semibold tabular-nums text-slate-800`}>{fmt(r.qty)}</td>
                   <td className={`${cellCls} text-right tabular-nums text-slate-500`}>{money(r.cpu)}</td>
                   <td className={`${cellCls} text-right tabular-nums text-slate-800`}>{money(r.qty * r.cpu)}</td>
                 </tr>
               ))}
-              {remainRows.length === 0 && <tr><td colSpan={4} className={`${cellCls} text-center text-slate-400`}>No stock</td></tr>}
+              {remainRows.length === 0 && <tr><td colSpan={4} className={`${cellCls} text-center text-slate-400`}>No stock remaining at {to}</td></tr>}
             </tbody>
             <tfoot>
               <tr className="bg-slate-100">
-                <td colSpan={2} className="border border-slate-200 px-3 py-1.5 text-right font-bold uppercase text-slate-700">Total</td>
-                <td className="border border-slate-200 px-3 py-1.5 text-right font-bold tabular-nums text-slate-700">{fmt(tRemain.q)}</td>
-                <td className="border border-slate-200 px-3 py-1.5 text-right font-bold tabular-nums text-slate-800">TOTAL VALUE {money(tRemain.v)}</td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right font-bold uppercase text-slate-700">Total</td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right font-bold tabular-nums text-slate-800">{fmt(tRemain.q)}</td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right text-[11px] font-semibold uppercase text-slate-500">Value</td>
+                <td className="border border-slate-200 px-3 py-1.5 text-right font-bold tabular-nums text-slate-800">{money(tRemain.v)}</td>
               </tr>
             </tfoot>
           </table>
@@ -722,7 +831,7 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
           <div className="mb-3 flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-bold uppercase tracking-wide text-slate-800">Stock Balance — Usage &amp; Loss</h2>
             <span className="text-xs text-slate-400">
-              {cat === 'All' ? 'All Categories' : cat} · {balanceRows.length} items
+              {cat === 'All' ? 'All Categories' : cat} · {balanceRows.length} items · as of <span className="tabular-nums text-slate-500">{to}</span>
             </span>
           </div>
           <div className="overflow-x-auto">
@@ -731,10 +840,10 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                 <tr className="border-b border-slate-200 text-left">
                   <SortTh k="name" label="Name" />
                   <SortTh k="category" label="Category" />
-                  <SortTh k="opening" label="Opening" right />
+                  <SortTh k="opening" label={`Opening (${from.slice(0, 10)})`} right />
                   <SortTh k="stockIn" label="Stock In" right />
                   <SortTh k="stockOut" label="Stock Out" right />
-                  <SortTh k="current" label="Current" right />
+                  <SortTh k="closing" label={`Closing (${to})`} right />
                   <SortTh k="broken" label="Broken Qty" right />
                   <SortTh k="cost" label="Cost/Unit" right />
                   <SortTh k="loss" label="Loss Value" right />
@@ -746,15 +855,15 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
                   <tr><td colSpan={10} className="py-8 text-center text-slate-400">No stock in this range</td></tr>
                 )}
                 {balanceRows.map((r) => (
-                  <tr key={r.sku.id} className="transition hover:bg-slate-50/70">
-                    <td className="py-2.5 pr-2 font-medium text-slate-800">{r.sku.name}</td>
-                    <td className="py-2.5 pr-2 text-slate-500">{r.sku.category || '—'}</td>
+                  <tr key={r.key} className="transition hover:bg-slate-50/70">
+                    <td className="py-2.5 pr-2 font-medium text-slate-800">{r.name}</td>
+                    <td className="py-2.5 pr-2 text-slate-500">{r.category || '—'}</td>
                     <td className="py-2.5 pr-2 text-right tabular-nums text-slate-600">{fmt(r.opening)}</td>
                     <td className="py-2.5 pr-2 text-right tabular-nums text-emerald-600">+{fmt(r.stockIn)}</td>
                     <td className="py-2.5 pr-2 text-right tabular-nums text-amber-600">−{fmt(r.stockOut)}</td>
-                    <td className="py-2.5 pr-2 text-right font-semibold tabular-nums text-slate-800">{fmt(r.sku.currentStock)}</td>
+                    <td className="py-2.5 pr-2 text-right font-semibold tabular-nums text-slate-800">{fmt(r.closing)}</td>
                     <td className="py-2.5 pr-2 text-right tabular-nums text-rose-600">{r.broken > 0 ? fmt(r.broken) : '—'}</td>
-                    <td className="py-2.5 pr-2 text-right tabular-nums text-slate-500">{money(r.sku.costPerUnit)}</td>
+                    <td className="py-2.5 pr-2 text-right tabular-nums text-slate-500">{money(r.cpu)}</td>
                     <td className="py-2.5 pr-2 text-right tabular-nums text-slate-800">{money(r.lossValue)}</td>
                     <td className="py-2.5 text-right tabular-nums text-slate-600">{r.usagePct.toFixed(0)}%</td>
                   </tr>
@@ -762,9 +871,11 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
               </tbody>
               <tfoot className="border-t border-slate-200 font-semibold">
                 <tr>
-                  <td className="pt-2.5 text-slate-600" colSpan={8}>Inventory value (closing)</td>
+                  <td className="pt-2.5 text-slate-600" colSpan={8}>
+                    Inventory value at {to} (Balance {fmt(balanceRows.reduce((a, r) => a + r.closing, 0))} qty)
+                  </td>
                   <td className="pt-2.5 text-right tabular-nums text-brand-700">
-                    {money(balanceRows.reduce((a, r) => a + ((r.opening + r.stockIn - r.stockOut) * r.sku.costPerUnit), 0))}
+                    {money(balanceRows.reduce((a, r) => a + r.closing * r.cpu, 0))}
                   </td>
                   <td />
                 </tr>
@@ -776,6 +887,8 @@ const SortTh = ({ k, label, right }: { k: string; label: string; right?: boolean
 
       <p className="text-[11px] text-slate-400 no-print">
         Reports reflect {merged.label}. Opening/Closing are computed by rolling the current stock through transaction history (not stored).
+        {' '}Stock Remain and Stock Balance show the quantity on hand at the cut-off {to}
+        {tab === 'month-end' ? ' (the month end)' : ''} — the same rollback as the Month End Closing Balance, so the numbers always agree.
         {tab === 'month-end' && ' Month End: Opening rolls every movement back from the 1st of the month (a brand-new item starts at 0 and its initial stock shows as Stock In), Closing rolls back only the movements after the month end, All stock merges the MKT + CS rows (quantities and values summed), items are never listed before their creation date, and items with no balance and no movement in the month are hidden unless "Show items with no movement" is ticked.'}
         {tab === 'month-end' && ' Print = landscape physical sign-off copy submitted to Finance & Audit.'}
       </p>

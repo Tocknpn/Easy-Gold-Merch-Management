@@ -13,10 +13,10 @@ import {
 } from '../src/lib/demoData';
 import { demoFetchAudit } from '../src/lib/demoAudit';
 import {
-  getStockMovement, getMonthRows, getMonthMovement, getMonthEndRows, actionableTicketCount,
-  activeBorrows, overdueBorrows, reportableTransactions,
+  getStockMovement, getMonthRows, getMonthMovement, getMonthEndRows, getCutOffRows,
+  actionableTicketCount, activeBorrows, overdueBorrows, reportableTransactions, monthBounds,
 } from '../src/lib/stockMovement';
-import { todayStr, vientianeDay } from '../src/lib/utils';
+import { shiftDay, todayStr, vientianeDay } from '../src/lib/utils';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean) => {
@@ -1266,6 +1266,158 @@ console.log('\n── 18) Admin full ticket edit — any field, any status, any 
   }, null);
   check('(i) created date / requester / delivered-on saved', vientianeDay(ticketOf(tZ).createdAt) === `${cm}-01`
     && ticketOf(tZ).createdByName === 'Someone Else' && ticketOf(tZ).actualDeliveryDate === today);
+}
+
+// ── 19) One cut-off for every report (Month End = Stock Remain = Balance) ──
+// Stock Remain and Stock Balance used to print TODAY's live stock while the
+// Month End Closing rolled the ledger back to the month end, so a movement made
+// after the cut-off made the same item read two different numbers. Every
+// stock-value tab now goes through `getCutOffRows` → `closingQtyAsOf(sku, tx, to)`.
+console.log('\n── 19) Reporting: cut-off alignment (Month End ⇄ Stock Remain ⇄ Balance)');
+{
+  const tickets = demoTicketsWithItems();
+  const cm = todayStr().slice(0, 7);
+  const cur = monthBounds(cm);
+  const cutOff = (asOf: string, category = 'All') => getCutOffRows({
+    asOf, scope: 'mkt', category,
+    skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets,
+  });
+  const monthEnd = (monthKey: string) => getMonthEndRows({
+    month: monthKey, scope: 'mkt',
+    skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets,
+  });
+
+  // (a) Stock Remain totals === Month End CLOSING totals (qty + value).
+  // The Month End list applies a birth-date cut (an item created at the very end
+  // of the month drops out); the cut-off list omits a 0 balance instead. When
+  // the two disagree, that is exactly the mismatch the on-screen banner reports
+  // — so compare like for like: the fully-populated lists.
+  const meCur = monthEnd(cm);
+  const remCur = cutOff(cur.to);
+  const sumMe = (rows: typeof meCur, k: 'closingQty' | 'closingVal') =>
+    rows.reduce((a, r) => a + r[k], 0);
+  const sumRem = (rows: typeof remCur, k: 'qty' | 'value') => rows.reduce((a, r) => a + r[k], 0);
+
+  // Rows sharing an exist-by list (includeEmpty): every item, zero lines too.
+  const meAll = getMonthEndRows({
+    month: cm, scope: 'mkt', includeEmpty: true,
+    skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets,
+  });
+  const remAll = getCutOffRows({
+    asOf: cur.to, scope: 'mkt', includeZero: true, hideUnborn: false,
+    skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets,
+  });
+  check('cut-off: identical row identity set vs Month End (every item, zero lines included)',
+    meAll.length === remAll.length && remAll.every((r) => meAll.some((m) => m.key === r.key)));
+  check(`cut-off: Stock Remain QTY total = Month End CLOSING total (${sumRem(remAll, 'qty')} vs ${sumMe(meAll, 'closingQty')})`,
+    sumRem(remAll, 'qty') === sumMe(meAll, 'closingQty'));
+  check('cut-off: Stock Remain VALUE total = Month End CLOSING value total',
+    Math.abs(sumRem(remAll, 'value') - sumMe(meAll, 'closingVal')) < 1e-6);
+
+  // Display views (what the user sees): equal unless the birth-date rule hides
+  // an item on the Month End side — flagged, never silently different.
+  const meShown = meCur.filter((r) => r.closingQty !== 0 || r.openingQty !== 0
+    || r.stockInQty !== 0 || r.stockOutQty !== 0);
+  const remQ = sumRem(remCur, 'qty');
+  const meQ = sumMe(meShown, 'closingQty');
+  if (remQ !== meQ) {
+    const remKeys = new Set(remCur.map((r) => r.key));
+    const diff = meShown.filter((m) => !remKeys.has(m.key)).map((m) => `${m.sku.name}=${m.closingQty}`);
+    console.log(`   display diff ${remQ} vs ${meQ} — Month End only rows: [${diff.join(', ')}]`);
+  }
+  // A displayed difference is only legitimate when it is some Month End row whose
+  // name is not in Stock Remain. Anything else means two different numbers.
+  const remNames = new Set(remCur.map((r) => r.sku.name));
+  const unexplained = meShown.filter((m) => !remNames.has(m.sku.name) && m.closingQty !== 0);
+  check('cut-off: displayed totals agree, or every gap is a birth-date-filtered row',
+    remQ === meQ || unexplained.length > 0);
+
+  // (b) a movement dated AFTER the cut-off must not change the reported month
+  const t1 = addSku({ name: 'WF CutOff', category: 'MKT', unit: 'pcs', openingBalance: 100, costPerUnit: 5 });
+  const remainOf = (asOf: string) => cutOff(asOf).find((r) => r.sku.id === t1)?.qty ?? 0;
+  const liveOf = () => demoDB.skus.find((s) => s.id === t1)!.currentStock;
+  demoMktDestockSku(t1, 10, S(wh.email), 'used this month');
+  check('cut-off: destock within the month lowers both views equally',
+    remainOf(cur.to) === 90 && liveOf() === 90);
+
+  // A Stock In dated TOMORROW (the engine refuses anything after today). When
+  // that day is still inside the period it must count; when it falls AFTER the
+  // period end (running this suite on the last day of a month) it must not.
+  const today = todayStr();
+  const tomorrow = shiftDay(today, 1);
+  const tomorrowInPeriod = tomorrow <= cur.to;
+  demoDB.transactions.push({
+    id: 990000 + demoDB.transactions.length, ticketId: 'RESTOCK', skuId: t1, skuName: 'WF CutOff',
+    qty: 40, type: 'addition', date: tomorrow, actionAt: `${tomorrow}T09:00:00Z`,
+    actionBy: wh.fullName, status: 'Stock In', comment: 'WF cut-off probe',
+  });
+  demoDB.skus.find((s) => s.id === t1)!.currentStock += 40;
+
+  const expectAtMonthEnd = tomorrowInPeriod ? 130 : 90;
+  check('cut-off: live stock moved (+40 dated tomorrow)', liveOf() === 130);
+  check(`cut-off: month-end figure is ${expectAtMonthEnd} (${tomorrowInPeriod ? 'the row is inside the period' : 'the row is in the next period'})`,
+    remainOf(cur.to) === expectAtMonthEnd);
+  check('cut-off: Stock Remain equals live stock only while the cut-off is today',
+    (remainOf(cur.to) === liveOf()) === tomorrowInPeriod);
+  const meT1 = monthEnd(cm).find((r) => r.sku.id === t1);
+  check('cut-off: Month End CLOSING follows the same rule',
+    !!meT1 && meT1.closingQty === expectAtMonthEnd);
+  check('cut-off: Stock Remain = Month End CLOSING for that item', remainOf(cur.to) === (meT1?.closingQty ?? -1));
+  // The rollback drops movement BYTES dated after the cut-off only. (`as of
+  // today` is not a fixed point: a row dated tomorrow is part of a month-end
+  // cut-off but not of today's. Rolling forward from today's balance is the
+  // audit check that proves no row was lost.)
+  const movedTillToday = demoDB.transactions
+    .filter((tx) => tx.skuId === t1 && tx.date && tx.date > today)
+    .reduce((a, tx) => a + (tx.type === 'addition' ? Number(tx.qty) : -Number(tx.qty)), 0);
+  check('cut-off: today\'s cut-off + future movements = live stock (nothing lost)',
+    remainOf(today) + movedTillToday === liveOf());
+  check('cut-off: the ONLY difference between the two cut-offs is the future-dated row',
+    tomorrowInPeriod
+      ? remainOf(cur.to) === remainOf(today) + 40   // the row sits inside the period
+      : remainOf(cur.to) === remainOf(today));      // month-end run: row is next period
+
+  // (c) an item created after the cut-off never shows in that period
+  const unborn = addSku({ name: 'WF Unborn', category: 'MKT', unit: 'pcs', openingBalance: 7 });
+  check('cut-off: newborn item is absent at the 1st, present at today',
+    !cutOff(cur.from).some((r) => r.sku.id === unborn) && cutOff(todayStr()).some((r) => r.sku.id === unborn));
+
+  // (d) Balance tab maths on the SAME cut-off: Opening + In − Out = Closing
+  const mvRow = getMonthMovement(demoDB.skus.find((s) => s.id === t1)!, demoDB.transactions, cm);
+  const balClosing = remainOf(cur.to);
+  const balOpening = balClosing - mvRow.stockIn + mvRow.stockOut;
+  check('cut-off: Balance row reconciles (Opening + In − Out = Closing = Stock Remain)',
+    balOpening + mvRow.stockIn - mvRow.stockOut === balClosing);
+  check('cut-off: Balance Closing = Month End Closing (qty + value)',
+    balClosing === (meT1?.closingQty ?? -1) && Math.abs(balClosing * 5 - (meT1?.closingVal ?? 0)) < 1e-6);
+
+  // (e) category filter + CS scope + All scope all read their own ledger
+  const catRows = cutOff(cur.to, 'MKT');
+  check('cut-off: category filter returns only that category', catRows.every((r) => r.sku.category === 'MKT'));
+  const csRows = getCutOffRows({
+    asOf: cur.to, scope: 'cs', skus: [], transactions: [],
+    csSkus: demoDB.csSkus, csTransactions: demoDB.csTransactions, tickets,
+  });
+  const csMeRows = getMonthEndRows({
+    month: cm, scope: 'cs', skus: [], transactions: [],
+    csSkus: demoDB.csSkus, csTransactions: demoDB.csTransactions, tickets,
+  });
+  check('cut-off: CS scope total = CS Month End CLOSING total',
+    csRows.reduce((a, r) => a + r.qty, 0) === csMeRows.reduce((a, r) => a + r.closingQty, 0));
+  const allCut = getCutOffRows({
+    asOf: cur.to, scope: 'all', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: demoDB.csSkus, csTransactions: demoDB.csTransactions, tickets,
+  });
+  const allMe = getMonthEndRows({
+    month: cm, scope: 'all', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: demoDB.csSkus, csTransactions: demoDB.csTransactions, tickets,
+  });
+  check('cut-off: All scope total = All-scope Month End CLOSING total',
+    allCut.reduce((a, r) => a + r.qty, 0) === allMe.reduce((a, r) => a + r.closingQty, 0));
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

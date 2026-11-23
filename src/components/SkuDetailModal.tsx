@@ -105,14 +105,6 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
             </div>
           </div>
         </div>
-        <div className="flex flex-wrap items-center gap-2 rounded-xl bg-slate-50 p-4 text-xs text-slate-500 ring-1 ring-slate-200">
-          <span className="font-semibold text-slate-600">Read-only view.</span>
-          <span>
-            Restock / issue this item from <b>Manage Stock → Stock In / Out</b>
-            {warehouse === 'cs' ? ' (CS warehouse)' : ' (MKT warehouse)'} — that keeps one single audited stock channel.
-          </span>
-        </div>
-
         {/* ── stock card ── */}
         <section className="overflow-hidden rounded-xl border border-slate-200 bg-white">
           <header className="flex flex-wrap items-center gap-x-4 gap-y-1 border-b border-slate-100 px-4 py-3">
@@ -132,7 +124,15 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
             <p className="px-4 py-8 text-center text-sm text-slate-400">No movements recorded for this item yet.</p>
           ) : (
             <div className="max-h-[22rem] overflow-auto">
-              <table className="w-full min-w-[640px] text-sm">
+              <table className="w-full min-w-[720px] table-fixed text-sm">
+                <colgroup>
+                  <col className="w-[6.5rem]" />
+                  <col className="w-[9.5rem]" />
+                  <col className="w-[5rem]" />
+                  <col className="w-[4.5rem]" />
+                  <col />
+                  <col className="w-[10.5rem]" />
+                </colgroup>
                 <thead className="sticky top-0 z-[1] bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   <tr>
                     <th className="px-4 py-2">Date</th>
@@ -148,17 +148,23 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                     const dead = l.cat === 'cancelled';
                     const inbound = l.tx.type === 'addition';
                     return (
-                      <tr key={`${l.tx.id}-${l.tx.date}`} className={cn('align-top', dead && 'text-slate-400')}>
-                        <td className="whitespace-nowrap px-4 py-2.5 tabular-nums text-slate-600">
+                      <tr key={`${l.tx.id}-${l.tx.date}`} className={cn('align-middle', dead && 'text-slate-400')}>
+                        <td className="whitespace-nowrap px-4 py-2 tabular-nums text-slate-600">
                           {String(l.tx.date || '').slice(0, 10) || '—'}
                         </td>
-                        <td className="px-3 py-2.5">
-                          <span className={cn('inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-bold ring-1', CAT_STYLE[l.cat])}>
+                        <td className="whitespace-nowrap px-3 py-2">
+                          {/* One chip per row: the ledger status stays in the tooltip
+                              (and the screen reader label) instead of a second line. */}
+                          <span
+                            className={cn(
+                              'inline-block whitespace-nowrap rounded-md px-2 py-0.5 text-[10px] font-bold leading-4',
+                              CAT_STYLE[l.cat],
+                            )}
+                            title={l.tx.status ? `${CAT_LABEL[l.cat]} · ${l.tx.status}` : CAT_LABEL[l.cat]}
+                            aria-label={l.tx.status ? `${CAT_LABEL[l.cat]}, ${l.tx.status}` : CAT_LABEL[l.cat]}
+                          >
                             {CAT_LABEL[l.cat]}
                           </span>
-                          {l.tx.status && (
-                            <span className="mt-0.5 block text-[11px] text-slate-400">{l.tx.status}</span>
-                          )}
                         </td>
                         <td className="whitespace-nowrap px-3 py-2.5 text-right">
                           <span className={cn(
@@ -180,18 +186,18 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                               type="button"
                               onClick={() => openTicket(l.ticket!)}
                               title={`Open ticket ${l.ticket}`}
-                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-mono text-xs font-semibold text-brand-700 ring-1 ring-brand-600/20 transition-colors hover:bg-brand-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-brand-50/60 px-2 py-0.5 font-mono text-[11px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                             >
-                              <ExternalLink className="h-3 w-3" aria-hidden /> {l.ticket}
+                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> {l.ticket}
                             </button>
                           ) : (
                             <button
                               type="button"
                               onClick={() => openMoves(l.actionDay)}
                               title={`Open Stock Movements for ${sku.name} on ${l.actionDay}`}
-                              className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-xs font-semibold text-slate-600 ring-1 ring-slate-300 transition-colors hover:bg-slate-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
                             >
-                              <ExternalLink className="h-3 w-3" aria-hidden /> Stock Movements · {l.actionDay}
+                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> Stock Movements · {l.actionDay}
                             </button>
                           )}
                         </td>
