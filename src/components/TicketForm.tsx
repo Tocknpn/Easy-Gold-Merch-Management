@@ -281,9 +281,11 @@ export function TicketForm({
 
   return (
     <div className="space-y-4 pb-16 lg:pb-0">
-      {/* Header */}
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div className="flex items-center gap-3.5">
+      {/* Header — one pinned row on wide screens (title · search · sort · chips).
+          Narrower: the title scrolls away and only the controls stay pinned
+          (`contents` lets the controls stick to the page, not to this wrapper). */}
+      <div className="contents min-[1360px]:sticky min-[1360px]:top-14 min-[1360px]:z-30 min-[1360px]:-mx-5 min-[1360px]:flex min-[1360px]:items-center min-[1360px]:gap-5 min-[1360px]:bg-surface/95 min-[1360px]:px-5 min-[1360px]:py-2 min-[1360px]:backdrop-blur-sm">
+        <div className="flex shrink-0 items-center gap-3.5">
           <span className="grid h-11 w-11 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white shadow-sm">
             <Package className="h-5 w-5" />
           </span>
@@ -296,11 +298,71 @@ export function TicketForm({
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-2 rounded-full bg-white px-4 py-2 text-xs text-slate-500 ring-1 ring-slate-200">
-          <ShoppingBag className="h-4 w-4 text-brand-600" />
-          <span>
-            <b className="text-slate-800">{totalItems}</b> item{totalItems === 1 ? '' : 's'} · <b className="text-slate-800">{filtered.length}</b> {availableOnly ? 'avail' : 'items'}
-          </span>
+
+        <div className="sticky top-14 z-30 -mx-3 flex flex-col gap-2 bg-surface/95 px-3 py-2 backdrop-blur-sm sm:-mx-5 sm:px-5 md:flex-row md:items-center min-[1360px]:static min-[1360px]:m-0 min-[1360px]:min-w-0 min-[1360px]:flex-1 min-[1360px]:bg-transparent min-[1360px]:p-0 min-[1360px]:backdrop-blur-none">
+          <div className="relative min-w-0 md:min-w-[220px] md:flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <input
+              className="input h-9.5 rounded-xl pl-9 text-xs sm:text-sm"
+              placeholder="Search by item name, category, or keyword…"
+              aria-label="Search items"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+            />
+          </div>
+
+          <div className="-mx-3 flex shrink-0 items-center gap-1.5 overflow-x-auto px-3 py-0.5 sm:-mx-5 sm:px-5 md:m-0 md:overflow-visible md:p-0">
+            <div className="relative w-40 shrink-0">
+              <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
+              <select
+                className="input h-9.5 rounded-xl pl-8.5 pr-8 text-xs font-medium"
+                aria-label="Sort items"
+                value={sortBy}
+                onChange={(e) => setSortBy(e.target.value)}
+              >
+                <option value="name-asc">Sort : Name A – Z</option>
+                <option value="name-desc">Sort : Name Z – A</option>
+                <option value="stock-low">Sort : In stock first</option>
+                <option value="stock-high">Sort : Most stock</option>
+                <option value="price-low">Sort : Price low → high</option>
+                <option value="price-high">Sort : Price high → low</option>
+              </select>
+            </div>
+
+            {categories.map((c) => (
+              <button
+                key={c}
+                type="button"
+                onClick={() => setCat(c)}
+                aria-pressed={cat === c}
+                className={cn(
+                  'shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                  cat === c
+                    ? 'bg-brand-600 text-white shadow-sm'
+                    : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+                )}
+              >
+                {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
+              </button>
+            ))}
+
+            {/* Show available items only (hide out-of-stock) */}
+            <button
+              type="button"
+              onClick={() => setAvailableOnly((v) => !v)}
+              aria-pressed={availableOnly}
+              className={cn(
+                'inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
+                availableOnly
+                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600'
+                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
+              )}
+              title={availableOnly ? 'Showing available items only (OOS hidden). Click to show all.' : 'Hide Out-of-Stock items to save space'}
+            >
+              <span className={cn('h-1.5 w-1.5 rounded-full', availableOnly ? 'bg-white' : 'bg-emerald-500')} />
+              <span>Avail only</span>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -320,76 +382,6 @@ export function TicketForm({
           straight to the <b>Line Manager</b> for approval.
         </div>
       )}
-
-      {/* Toolbar: 1 compact line with Search, Sort, Categories, and Avail Only to save vertical space */}
-      <div className="sticky top-14 z-30 -mx-3 bg-surface/95 px-3 pb-2 pt-2 backdrop-blur-sm sm:-mx-5 sm:px-5">
-        <div className="card p-2.5 shadow-card-hover sm:p-3">
-          <div className="flex flex-wrap items-center gap-2 lg:flex-nowrap">
-            {/* Search name */}
-            <div className="relative min-w-[180px] flex-1">
-              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <input
-                className="input h-9.5 rounded-xl pl-9 text-xs sm:text-sm"
-                placeholder="Search by item name, category, or keyword…"
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-              />
-            </div>
-
-            {/* Sort option */}
-            <div className="relative w-36 shrink-0 sm:w-44">
-              <ArrowUpDown className="pointer-events-none absolute left-3 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-slate-400" />
-              <select
-                className="input h-9.5 rounded-xl pl-8.5 pr-8 text-xs font-medium"
-                value={sortBy}
-                onChange={(e) => setSortBy(e.target.value)}
-              >
-                <option value="name-asc">Sort : Name A – Z</option>
-                <option value="name-desc">Sort : Name Z – A</option>
-                <option value="stock-low">Sort : In stock first</option>
-                <option value="stock-high">Sort : Most stock</option>
-                <option value="price-low">Sort : Price low → high</option>
-                <option value="price-high">Sort : Price high → low</option>
-              </select>
-            </div>
-
-            {/* Filter All, Booth, Merch */}
-            <div className="flex shrink-0 items-center gap-1.5 overflow-x-auto py-0.5">
-              {categories.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  onClick={() => setCat(c)}
-                  className={cn(
-                    'shrink-0 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-xs font-semibold transition',
-                    cat === c
-                      ? 'bg-brand-600 text-white shadow-sm'
-                      : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-                  )}
-                >
-                  {c} <span className={cn('ml-0.5 font-bold', cat === c ? 'text-brand-200' : 'text-slate-400')}>{catCounts[c] ?? 0}</span>
-                </button>
-              ))}
-            </div>
-
-            {/* Option to Show Avail Item only (hide OOS to save space) */}
-            <button
-              type="button"
-              onClick={() => setAvailableOnly((v) => !v)}
-              className={cn(
-                'inline-flex shrink-0 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs font-semibold transition whitespace-nowrap',
-                availableOnly
-                  ? 'bg-emerald-600 text-white shadow-sm ring-1 ring-emerald-600'
-                  : 'bg-white text-slate-600 ring-1 ring-slate-200 hover:bg-slate-50',
-              )}
-              title={availableOnly ? 'Showing available items only (OOS hidden). Click to show all.' : 'Hide Out-of-Stock items to save space'}
-            >
-              <span className={cn('h-1.5 w-1.5 rounded-full', availableOnly ? 'bg-white' : 'bg-emerald-500')} />
-              <span>Avail only</span>
-            </button>
-          </div>
-        </div>
-      </div>
 
       {/* Catalog + cart */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
