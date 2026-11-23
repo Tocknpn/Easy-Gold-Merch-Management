@@ -14,7 +14,8 @@ import { ConfirmTicketAction } from '@/components/ConfirmTicketAction';
 import { EditMovementModal } from '@/components/EditMovementModal';
 import { EditTicketModal, isEditableTicket } from '@/components/EditTicketModal';
 import { fmt, money, cn, todayStr } from '@/lib/utils';
-import { flowOf, isCancelledStatus, isTicketEditRow } from '@/lib/stockMovement';
+import { flowOf, isCancelledStatus } from '@/lib/stockMovement';
+import { CAT_ORDER, CAT_LABEL, CAT_STYLE, catOf, type CatKey } from '@/lib/movementCategory';
 import { resendTicketEmail } from '@/lib/ticketNotify';
 import type { SKU, TicketWithItems, StockTransaction } from '@/lib/types';
 import { TYPE_LABELS } from '@/lib/types';
@@ -23,24 +24,6 @@ type Scope = 'mine' | 'all' | 'moves';
 
 const STATUS_CHIPS = ['all', 'pending', 'reviewed', 'lm_approved', 'finalized', 'to-return', 'returned', 'rejected', 'recalled'] as const;
 
-const CAT_ORDER = ['issue', 'returned', 'edit', 'in', 'out', 'loss', 'transfer', 'opening', 'cancelled'] as const;
-type CatKey = (typeof CAT_ORDER)[number];
-const CAT_LABEL: Record<CatKey, string> = {
-  issue: 'Ticket issue', returned: 'Ticket return', edit: 'Ticket edit', in: 'Stock in', out: 'Stock out',
-  loss: 'Loss / Broken', transfer: 'Transfer', opening: 'Opening',
-  cancelled: 'Cancelled / Rejected',
-};
-const CAT_STYLE: Record<CatKey, string> = {
-  issue: 'bg-indigo-50 text-indigo-700 ring-indigo-600/20',
-  edit: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  returned: 'bg-cyan-50 text-cyan-700 ring-cyan-600/20',
-  in: 'bg-emerald-50 text-emerald-700 ring-emerald-600/20',
-  out: 'bg-slate-100 text-slate-600 ring-slate-400/20',
-  loss: 'bg-rose-50 text-rose-700 ring-rose-600/20',
-  transfer: 'bg-amber-50 text-amber-700 ring-amber-600/20',
-  opening: 'bg-violet-50 text-violet-700 ring-violet-600/20',
-  cancelled: 'bg-slate-200 text-slate-500 ring-slate-400/20',
-};
 
 /* ── Compact-row visuals: leading type/status icon tile + initials avatar ── */
 
@@ -74,26 +57,6 @@ function Initial({ name, size = 'md' }: { name?: string | null; size?: 'sm' | 'm
   );
 }
 
-function catOf(tx: StockTransaction, deadTickets?: Set<string>): CatKey {
-  const ref = tx.ticketId || '';
-  const st = (tx.status || '').toLowerCase();
-  const comment = (tx.comment || '').toLowerCase();
-  // Cancelled bookings (reject / recall / nothing approved) and legacy
-  // reversal rows of rejected/recalled tickets are audit-only — they must
-  // never be read as a real Stock In / Stock Out.
-  if (isCancelledStatus(tx.status) || (ref && deadTickets?.has(ref))) return 'cancelled';
-  // Admin ticket edits (0024) — adjustments of a finalized ticket's quantities
-  if (isTicketEditRow(tx)) return 'edit';
-  if (st === 'opening') return 'opening';
-  if (ref.startsWith('TKT-')) return tx.type === 'deduction' ? 'issue' : 'returned';
-  if (st.includes('loss') || st.includes('broken')) return 'loss';
-  if (ref.startsWith('CS_TRANSFER') || ref.startsWith('MKT_TRANSFER')) return 'transfer';
-  // Also check comment for transfer indicators (handles seed data where ticket_id is RESTOCK/DIRECT_DESTOCK
-  // but the comment clearly marks it as a warehouse transfer)
-  if (comment.includes('mkt_transfer') || comment.includes('cs_transfer') || comment.includes('[transfer]') || comment.includes('transferred')) return 'transfer';
-  if (tx.type === 'addition') return 'in';
-  return 'out';
-}
 
 function isPendingReturn(t: TicketWithItems): boolean {
   return t.type === 'borrow' && t.status === 'finalized' && !t.returnedProcessed;
@@ -868,11 +831,17 @@ interface MoveRow {
 function MovementsTab() {
   const { user } = useAuth();
   const { transactions, csTransactions, skus, csSkus, tickets } = useData();
-  const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>('all');
+  // Deep link from the item modal: ?scope=moves&q=<item>&from=…&to=…&wh=MKT|CS
+  const [params] = useSearchParams();
+  const day = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
+  const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>(() => {
+    const w = params.get('wh');
+    return w === 'MKT' || w === 'CS' ? w : 'all';
+  });
   const [cat, setCat] = useState<'all' | CatKey>('all');
-  const [from, setFrom] = useState('');
-  const [to, setTo] = useState('');
-  const [q, setQ] = useState('');
+  const [from, setFrom] = useState(() => day(params.get('from')));
+  const [to, setTo] = useState(() => day(params.get('to')));
+  const [q, setQ] = useState(() => params.get('q') || '');
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [editing, setEditing] = useState<MoveRow | null>(null);
