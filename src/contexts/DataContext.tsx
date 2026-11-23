@@ -133,8 +133,14 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
         run(apiUpdateTicketStatus(id, status, meta)),
       editTicket: (id: string, lines: TicketEditLine[], remark: string, editor?: { name?: string | null; role?: string | null }) =>
         run(apiEditTicket(id, lines, remark, editor)),
-      // a needs-confirm answer saved nothing → no refresh needed, but harmless
-      adminEditTicket: (...a: Parameters<typeof apiAdminEditTicket>) => run(apiAdminEditTicket(...a)),
+      // Refresh ONLY after a real save. A needs-confirm answer saved nothing, and
+      // a refresh puts Ticket Tracking behind its loading spinner, which unmounts
+      // the Edit modal before the Admin ever sees "Save anyway".
+      adminEditTicket: async (...a: Parameters<typeof apiAdminEditTicket>) => {
+        const res = await apiAdminEditTicket(...a);
+        if (res.ok) await refresh();
+        return res;
+      },
       addSku: (sku: Partial<SKU>) => run(apiAddSku(sku)),
       updateSku: (id: string, u: Partial<SKU>) => run(apiUpdateSku(id, u)),
       deleteSku: (id: string) => run(apiDeleteSku(id)),
