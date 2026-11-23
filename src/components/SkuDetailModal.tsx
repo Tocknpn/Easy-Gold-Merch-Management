@@ -1,8 +1,9 @@
 // ── Item detail (Dashboard → click an item) ───────────────────────────────
-// Read-only card + the item's stock card: every movement in date order with a
-// running balance, and each row linked to where it came from — the ticket
-// (TKT-…) or, for manual movements, Ticket Tracking → Stock Movements filtered
-// to this item on the day it was recorded.
+// The item's stock card: every movement in date order with a running balance.
+// Each row carries ONE reference cell — the ticket badge (TKT-…, opens the
+// ticket) or, for a manual movement, a "Movement · date" badge that opens
+// Ticket Tracking → Stock Movements filtered to this warehouse and item (and
+// pinned to the exact ledger row) — with the person who recorded it beside it.
 import { useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { ArrowDownLeft, ArrowUpRight, ExternalLink, History, Package } from 'lucide-react';
@@ -68,9 +69,16 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
 
   const go = (to: string) => { onClose(); navigate(to); };
   const openTicket = (id: string) => go(`/ticket-tracking?ticket=${encodeURIComponent(id)}`);
-  const openMoves = (day?: string) => {
+  /**
+   * Every row links to Stock Movements, narrowed by what we already know:
+   * the warehouse, the item (`q`) and — for a manual row — its own recorded
+   * day. `ref` pins the exact ledger row so the movements list can point at it
+   * even when the movement date and the recording day differ.
+   */
+  const openMoves = (day?: string, ref?: number) => {
     const p = new URLSearchParams({ scope: 'moves', q: sku.name, wh });
     if (day) { p.set('from', day); p.set('to', day); }
+    if (ref !== undefined) p.set('ref', String(ref));
     go(`/ticket-tracking?${p.toString()}`);
   };
 
@@ -124,23 +132,21 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
             <p className="px-4 py-8 text-center text-sm text-slate-400">No movements recorded for this item yet.</p>
           ) : (
             <div className="max-h-[22rem] overflow-auto">
-              <table className="w-full min-w-[720px] table-fixed text-sm">
+              <table className="w-full min-w-[530px] text-sm">
                 <colgroup>
-                  <col className="w-[6.5rem]" />
-                  <col className="w-[9.5rem]" />
-                  <col className="w-[5rem]" />
-                  <col className="w-[4.5rem]" />
+                  <col className="w-[5.5rem]" />
+                  <col className="w-[7.5rem]" />
+                  <col className="w-[4rem]" />
+                  <col className="w-[2.75rem]" />
                   <col />
-                  <col className="w-[10.5rem]" />
                 </colgroup>
                 <thead className="sticky top-0 z-[1] bg-slate-50 text-left text-[11px] font-semibold uppercase tracking-wide text-slate-500">
                   <tr>
-                    <th className="px-4 py-2">Date</th>
-                    <th className="px-3 py-2">Movement</th>
-                    <th className="px-3 py-2 text-right">Qty</th>
-                    <th className="px-3 py-2 text-right">Balance</th>
-                    <th className="px-3 py-2">Linked to</th>
-                    <th className="px-4 py-2">By</th>
+                    <th className="pl-4 pr-2 py-2">Date</th>
+                    <th className="px-2 py-2">Movement</th>
+                    <th className="px-2 py-2 text-right">Qty</th>
+                    <th className="whitespace-nowrap px-2 py-2 text-right" title="Stock after this movement">Bal.</th>
+                    <th className="pl-2 pr-4 py-2">Reference</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -149,10 +155,10 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                     const inbound = l.tx.type === 'addition';
                     return (
                       <tr key={`${l.tx.id}-${l.tx.date}`} className={cn('align-middle', dead && 'text-slate-400')}>
-                        <td className="whitespace-nowrap px-4 py-2 tabular-nums text-slate-600">
+                        <td className="whitespace-nowrap py-2 pl-4 pr-2 tabular-nums text-slate-600">
                           {String(l.tx.date || '').slice(0, 10) || '—'}
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2">
+                        <td className="whitespace-nowrap px-2 py-2">
                           {/* One chip per row: the ledger status stays in the tooltip
                               (and the screen reader label) instead of a second line. */}
                           <span
@@ -166,7 +172,7 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                             {CAT_LABEL[l.cat]}
                           </span>
                         </td>
-                        <td className="whitespace-nowrap px-3 py-2.5 text-right">
+                        <td className="whitespace-nowrap px-2 py-2 text-right">
                           <span className={cn(
                             'inline-flex items-center justify-end gap-1 font-semibold tabular-nums',
                             dead ? 'text-slate-400 line-through' : inbound ? 'text-emerald-600' : 'text-rose-600',
@@ -177,32 +183,39 @@ export function SkuDetailModal({ sku, warehouse, onClose }: {
                             {inbound ? '+' : '−'}{fmt(l.tx.qty)}
                           </span>
                         </td>
-                        <td className={cn('whitespace-nowrap px-3 py-2.5 text-right tabular-nums', l.balance !== null && l.balance < 0 ? 'font-semibold text-rose-600' : 'text-slate-700')}>
+                        <td className={cn('whitespace-nowrap px-2 py-2 text-right tabular-nums', l.balance !== null && l.balance < 0 ? 'font-semibold text-rose-600' : 'text-slate-700')}>
                           {l.balance === null ? '—' : fmt(l.balance)}
                         </td>
-                        <td className="px-3 py-2.5">
-                          {l.ticket ? (
-                            <button
-                              type="button"
-                              onClick={() => openTicket(l.ticket!)}
-                              title={`Open ticket ${l.ticket}`}
-                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md bg-brand-50/60 px-2 py-0.5 font-mono text-[11px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                            >
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> {l.ticket}
-                            </button>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => openMoves(l.actionDay)}
-                              title={`Open Stock Movements for ${sku.name} on ${l.actionDay}`}
-                              className="inline-flex items-center gap-1 whitespace-nowrap rounded-md px-2 py-0.5 text-[11px] font-semibold text-slate-600 ring-1 ring-slate-200 transition-colors hover:bg-slate-50 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
-                            >
-                              <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> Stock Movements · {l.actionDay}
-                            </button>
-                          )}
-                        </td>
-                        <td className="max-w-[11rem] truncate px-4 py-2.5 text-slate-500" title={l.tx.actionBy || undefined}>
-                          {l.tx.actionBy || '—'}
+                        {/* Reference + person in ONE cell: the ticket / movement
+                            badge links out, the name sits underneath it. Keeps
+                            "Linked to" and "By" from fighting for the same pixels. */}
+                        <td className="min-w-0 py-2 pl-2 pr-4">
+                          <div className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1">
+                            {l.ticket ? (
+                              <button
+                                type="button"
+                                onClick={() => openTicket(l.ticket!)}
+                                title={`Open ticket ${l.ticket}`}
+                                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-brand-50 px-1.5 py-0.5 font-mono text-[11px] font-semibold text-brand-700 transition-colors hover:bg-brand-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                              >
+                                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> {l.ticket}
+                              </button>
+                            ) : (
+                              <button
+                                type="button"
+                                onClick={() => openMoves(l.actionDay, l.tx.id)}
+                                title={`Open this movement in Stock Movements (${l.actionDay})`}
+                                className="inline-flex shrink-0 items-center gap-1 whitespace-nowrap rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] font-semibold text-slate-600 transition-colors hover:bg-slate-200 hover:text-brand-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500"
+                              >
+                                <ExternalLink className="h-3 w-3 shrink-0" aria-hidden /> Movement · {l.actionDay}
+                              </button>
+                            )}
+                            {l.tx.actionBy && (
+                              <span className="min-w-0 truncate text-[11px] text-slate-500" title={l.tx.actionBy}>
+                                {l.tx.actionBy}
+                              </span>
+                            )}
+                          </div>
                         </td>
                       </tr>
                     );

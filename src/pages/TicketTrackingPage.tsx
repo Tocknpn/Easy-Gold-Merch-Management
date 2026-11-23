@@ -831,17 +831,33 @@ interface MoveRow {
 function MovementsTab() {
   const { user } = useAuth();
   const { transactions, csTransactions, skus, csSkus, tickets } = useData();
-  // Deep link from the item modal: ?scope=moves&q=<item>&from=…&to=…&wh=MKT|CS
+  // Deep link from the item modal: ?scope=moves&q=<item>&from=…&to=…&wh=MKT|CS&ref=<row id>
   const [params] = useSearchParams();
   const day = (v: string | null) => (v && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : '');
-  const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>(() => {
-    const w = params.get('wh');
-    return w === 'MKT' || w === 'CS' ? w : 'all';
-  });
+  const whParam = params.get('wh');
+  const whFromUrl: 'all' | 'MKT' | 'CS' = whParam === 'MKT' || whParam === 'CS' ? whParam : 'all';
+  const fromUrl = day(params.get('from'));
+  const toUrl = day(params.get('to'));
+  const qUrl = params.get('q') || '';
+  const ref = Number(params.get('ref')) || 0;
+
+  const [wh, setWh] = useState<'all' | 'MKT' | 'CS'>(whFromUrl);
   const [cat, setCat] = useState<'all' | CatKey>('all');
-  const [from, setFrom] = useState(() => day(params.get('from')));
-  const [to, setTo] = useState(() => day(params.get('to')));
-  const [q, setQ] = useState(() => params.get('q') || '');
+  const [from, setFrom] = useState(fromUrl);
+  const [to, setTo] = useState(toUrl);
+  const [q, setQ] = useState(qUrl);
+  // Deep links win over whatever the tab was filtering on: this component stays
+  // mounted while `/ticket-tracking?…` changes, so the seed-on-mount state above
+  // would otherwise keep stale filters (and ignore the new ?q=) — which is what
+  // made an item's movements look empty.
+  useEffect(() => {
+    if (qUrl) setQ(qUrl);
+    if (fromUrl) setFrom(fromUrl);
+    if (toUrl) setTo(toUrl);
+    setWh(whFromUrl);
+    setCat('all');
+  }, [qUrl, fromUrl, toUrl, whFromUrl]);
+
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(25);
   const [editing, setEditing] = useState<MoveRow | null>(null);
@@ -851,7 +867,13 @@ function MovementsTab() {
     skus.forEach((s) => costById.set(s.id, s.costPerUnit || 0));
     csSkus.forEach((s) => { if (!costById.has(s.id)) costById.set(s.id, s.costPerUnit || 0); });
     const costByName = new Map<string, number>();
-    [...skus, ...csSkus].forEach((s) => costByName.set((s.name || '').toLowerCase(), s.costPerUnit || 0));
+    // The item NAME always comes from the master list: a ledger row may carry a
+    // null / stale `skuName` (legacy RESTOCK rows), so search must not depend on it.
+    const nameById = new Map<string, string>();
+    [...skus, ...csSkus].forEach((s) => {
+      costByName.set((s.name || '').toLowerCase(), s.costPerUnit || 0);
+      if (s.id) nameById.set(String(s.id), s.name || '');
+    });
 
     const deadTickets = new Set(
       tickets.filter((t) => t.status === 'rejected' || t.status === 'recalled').map((t) => t.id),
@@ -870,13 +892,18 @@ function MovementsTab() {
     if (to) out = out.filter((r) => r.at.slice(0, 10) <= to);
     const term = q.trim().toLowerCase();
     if (term)
-      out = out.filter(
-        (r) =>
-          (r.tx.skuName || '').toLowerCase().includes(term) ||
+      out = out.filter((r) => {
+        // An exact item id (deep link) matches every row of that item, even a
+        // legacy row whose stored name is null.
+        if (term === String(r.tx.skuId || '').toLowerCase()) return true;
+        const name = (nameById.get(String(r.tx.skuId || '')) || r.tx.skuName || '').toLowerCase();
+        return (
+          name.includes(term) ||
           (r.tx.ticketId || '').toLowerCase().includes(term) ||
           (r.tx.actionBy || '').toLowerCase().includes(term) ||
-          (r.tx.comment || '').toLowerCase().includes(term),
-      );
+          (r.tx.comment || '').toLowerCase().includes(term)
+        );
+      });
     return out.sort((a, b) => b.at.localeCompare(a.at));
   }, [transactions, csTransactions, skus, csSkus, tickets, wh, cat, from, to, q]);
 
@@ -891,6 +918,14 @@ function MovementsTab() {
     }),
     [rows],
   );
+
+  // Item labels always come from the master list — a ledger row may carry a
+  // null / stale `skuName` (legacy RESTOCK rows), which used to render blank.
+  const nameBySkuId = useMemo(() => {
+    const m = new Map<string, string>();
+    [...skus, ...csSkus].forEach((s) => { if (s.id) m.set(String(s.id), s.name || ''); });
+    return m;
+  }, [skus, csSkus]);
 
   // Pagination — reset to page 1 whenever any filter changes
   useEffect(() => {
@@ -979,7 +1014,20 @@ function MovementsTab() {
 
 <div className="card overflow-hidden">
         {rows.length === 0 ? (
-          <EmptyState icon={<ArrowRightLeft className="h-6 w-6" />} title="No movements match" sub="Try widening the date range or clearing filters." />
+          <div>
+            <EmptyState icon={<ArrowRightLeft className="h-6 w-6" />} title="No movements match" sub="Try widening the date range or clearing filters." />
+            {(from || to || q) && (
+              <div className="border-t border-slate-100 px-4 py-3 text-center no-print">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => { setFrom(''); setTo(''); setQ(''); setCat('all'); }}
+                >
+                  Clear filters (search{from || to ? ' + dates' : ''})
+                </button>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1000px] text-sm">
@@ -1000,7 +1048,14 @@ function MovementsTab() {
               </thead>
               <tbody className="divide-y divide-slate-100">
                 {pageRows.map((r, i) => (
-                  <tr key={`${r.tx.ticketId}-${r.tx.skuId}-${i}`} className="transition hover:bg-slate-50/70">
+                  <tr
+                    key={`${r.tx.ticketId}-${r.tx.skuId}-${i}`}
+                    id={r.tx.id !== undefined ? `mv-${r.wh}-${r.tx.id}` : undefined}
+                    className={cn(
+                      'transition hover:bg-slate-50/70',
+                      ref && r.tx.id === ref && 'bg-brand-50/60 ring-1 ring-inset ring-brand-200',
+                    )}
+                  >
                     <td className={`${td} pl-4 whitespace-nowrap text-xs text-slate-500`}>{r.at.replace('T', ' ').slice(0, 16)}</td>
                     <td className={`${td} whitespace-nowrap`}>
                       <span className={cn(
@@ -1009,7 +1064,10 @@ function MovementsTab() {
                       )}>{r.wh}</span>
                     </td>
                     <td className={`${td} max-w-[200px]`}>
-                      <p className="truncate font-medium text-slate-800" title={r.tx.skuName ?? ''}>{r.tx.skuName}</p>
+                      {(() => {
+                        const nameOf = nameBySkuId.get(String(r.tx.skuId || '')) || r.tx.skuName || '—';
+                        return <p className="truncate font-medium text-slate-800" title={nameOf}>{nameOf}</p>;
+                      })()}
                     </td>
                     <td className={cn(`${td} text-xs font-extrabold`, r.tx.type === 'addition' ? 'text-emerald-600' : 'text-rose-600')}>
                       {r.tx.type === 'addition' ? '↓ IN' : '↑ OUT'}

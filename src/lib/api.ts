@@ -126,6 +126,15 @@ export async function apiFetchBundle(): Promise<DataBundle> {
   const skus = (skusRes.data as any[]).map(rowToSku);
   const csSkus = (csSkusRes.data as any[]).map(rowToSku);
 
+  // Ledger rows written before the name was denormalised (and every RESTOCK /
+  // OPENING row) carry `sku_name = NULL`. The item name always lives on the SKU
+  // master, so fill it in once here: every screen, search and export that reads
+  // `skuName` then works without special cases.
+  const nameById = new Map<string, string>();
+  for (const s of [...csSkus, ...skus]) if (s.id && s.name) nameById.set(String(s.id), s.name);
+  const nameOf = (skuId?: string | null, name?: string | null): string | null =>
+    (name && String(name).trim()) || nameById.get(String(skuId ?? '')) || name || null;
+
   const itemsByTicket = new Map<string, Record<string, unknown>[]>();
   for (const it of itemsRes.data as any[]) {
     const arr = itemsByTicket.get(it.ticket_id) || [];
@@ -156,9 +165,9 @@ export async function apiFetchBundle(): Promise<DataBundle> {
       department: u.department || '', role: (u.role || 'staff') as AppUser['role'], status: u.status || 'Active',
     })),
     skus, csSkus, tickets,
-    transactions: mapTx(txRes.data as any[]),
+    transactions: mapTx(txRes.data as any[], nameOf),
     csTransactions: (csTxRes.data as any[]).map((t: any) => ({
-      id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: t.sku_name, qty: castNumber(t.qty),
+      id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: nameOf(t.sku_id, t.sku_name), qty: castNumber(t.qty),
       type: t.type, date: t.date, actionAt: t.action_at, actionBy: t.action_by, comment: t.comment,
       status: t.status ?? null,
       editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
@@ -201,9 +210,10 @@ const rowToSku = (r: any): SKU => ({
   costPerUnit: castNumber(r.cost_per_unit), createdAt: r.created_at, status: r.status || 'active',
 });
 
-const mapTx = (rows: any[]): StockTransaction[] =>
+/** `fallbackName` resolves `sku_name = NULL` rows against the SKU master. */
+const mapTx = (rows: any[], fallbackName?: (skuId?: string | null, name?: string | null) => string | null): StockTransaction[] =>
   rows.map((t: any) => ({
-    id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: t.sku_name, qty: castNumber(t.qty),
+    id: t.id, ticketId: t.ticket_id, skuId: t.sku_id, skuName: fallbackName ? fallbackName(t.sku_id, t.sku_name) : t.sku_name, qty: castNumber(t.qty),
     qtyBroken: castNumber(t.qty_broken), type: t.type, date: t.date, actionAt: t.action_at,
     actionBy: t.action_by, status: t.status, comment: t.comment,
     editedBy: t.edited_by ?? null, editedAt: t.edited_at ?? null,
