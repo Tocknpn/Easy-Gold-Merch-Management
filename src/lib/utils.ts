@@ -27,6 +27,16 @@ export function dayOf(iso?: string | null): string {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
+/** YYYY-MM-DD of a timestamp in Asia/Vientiane — the day the database uses
+ *  for a ticket's created date (migration 0026 / 0028). */
+export function vientianeDay(iso?: string | null): string {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return String(iso).slice(0, 10);
+  // en-CA formats as YYYY-MM-DD
+  return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Vientiane', year: 'numeric', month: '2-digit', day: '2-digit' }).format(d);
+}
+
 /** Shifts a YYYY-MM-DD string by whole days (negative = earlier). */
 export function shiftDay(dayStr: string, days: number): string {
   const [y, m, d] = String(dayStr).slice(0, 10).split('-').map(Number);

@@ -133,7 +133,41 @@ export interface TicketEdit {
   actorRole?: string | null;
   remark: string;
   changes: TicketEditChange[];
+  /** Header fields changed by this edit (migration 0028 `field_changes`). */
+  fieldChanges?: TicketFieldChange[];
 }
+
+/** Ticket header fields an Admin may change (migration 0028 admin_edit_ticket). */
+export type TicketEditableField =
+  | 'created_at' | 'delivery_date' | 'actual_delivery_date' | 'return_date'
+  | 'remark' | 'department' | 'created_by' | 'created_by_name' | 'type' | 'status';
+
+/** One header field changed by an Admin edit: dates are YYYY-MM-DD. */
+export interface TicketFieldChange {
+  field: TicketEditableField;
+  label: string;
+  from: string | null;
+  to: string | null;
+}
+
+/** Only the CHANGED fields, each with the value the Admin saw (`from`) so a
+ *  stale edit is refused. */
+export type TicketFieldPatch = Partial<Record<TicketEditableField, { from: string | null; to: string | null }>>;
+
+/** Why admin_edit_ticket asks for a confirmation before saving. */
+export interface AdminEditWarning {
+  kind: 'reported_month' | 'negative';
+  message: string;
+  months?: string[];
+  warehouse?: 'MKT' | 'CS';
+  item?: string;
+  day?: string;
+  balance?: number;
+}
+
+export type AdminEditResult =
+  | { ok: true; editId: number; warnings: AdminEditWarning[]; flags: string[] }
+  | { ok: false; needsConfirm: true; warnings: AdminEditWarning[] };
 
 /** A line of the Edit Ticket payload: the FULL desired item list, each line
  *  carrying the qty the editor saw (`expectedQty`, null for a new line) so the
@@ -200,7 +234,10 @@ export interface AuditEntry {
   /** The note / reason, stored in FULL (never truncated). */
   comment?: string | null;
   changes?: AuditChange[] | null;
+  /** 'app' | 'import' | 'dashboard' (Supabase Table / SQL Editor, 0028). */
   origin?: string | null;
+  /** 0028: 'reported_month_changed' | 'negative_balance_override'. */
+  flags?: string[] | null;
 }
 
 export const AUDIT_MODULES: AuditModule[] = ['ticket', 'ledger', 'master', 'settings', 'users', 'remark', 'app'];

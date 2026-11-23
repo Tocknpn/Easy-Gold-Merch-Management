@@ -11,7 +11,7 @@ import { useData } from '@/contexts/DataContext';
 import { Modal, toast } from '@/components/ui/primitives';
 import { fmt, cn } from '@/lib/utils';
 import { isCancelledStatus } from '@/lib/stockMovement';
-import { isLockedDate, isManualLedgerRow, reportingPeriodStart } from '@/lib/ledgerLock';
+import { isLockedDate, isLockExempt, isManualLedgerRow, reportingPeriodStart } from '@/lib/ledgerLock';
 import type { SKU, StockTransaction, MovementEditPatch } from '@/lib/types';
 
 export function EditMovementModal({
@@ -58,7 +58,8 @@ export function EditMovementModal({
   // 0027: a row dated in a month already reported to Finance is frozen. A
   // ticket row may still get a qty correction — it is posted TODAY as a
   // separate row; manual / transfer rows cannot change at all.
-  const locked = isLockedDate(tx.date);
+  // 0028: Admin may correct any month (recorded on the Audit Trail)
+  const locked = isLockedDate(tx.date) && !isLockExempt(user?.role);
   const lockedTransfer = ['MKT_TRANSFER', 'CS_TRANSFER', 'CS_TRANSFER_OUT'].includes(String(tx.ticketId || ''));
   const blocked =
     tx.ticketId === 'OPENING'
@@ -150,7 +151,7 @@ export function EditMovementModal({
             )}
             <div>
               <label className={label}>Movement date (reports)</label>
-              <input className={input} type="date" value={date} min={reportingPeriodStart()} disabled={locked}
+              <input className={input} type="date" value={date} min={isLockExempt(user?.role) ? undefined : reportingPeriodStart()} disabled={locked}
                 onChange={(e) => setDate(e.target.value)} />
               {locked && (
                 <p className="mt-1 text-[11px] text-slate-400">Reported month — a qty change is posted today as a separate correction.</p>

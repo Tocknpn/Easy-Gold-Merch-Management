@@ -5,7 +5,7 @@
 // reporting math on transaction dates.
 // Run: npx tsx scripts/workflow-test.ts
 import { demoDB, demoLogin, demoTicketsWithItems } from '../src/lib/demoStore';
-import { demoCreateTicket, demoUpdateTicketStatus, demoEditTicket } from '../src/lib/demoMutations';
+import { demoCreateTicket, demoUpdateTicketStatus, demoEditTicket, demoAdminEditTicket } from '../src/lib/demoMutations';
 import {
   demoAddSku, demoCsAddSku, demoCsDestockSku, demoRestockSku, demoCsRestockSku,
   demoEditStockMovement, demoMktDestockSku, demoTransferMktToCs, demoTransferCsToMkt, demoUpdateSku,
@@ -16,7 +16,7 @@ import {
   getStockMovement, getMonthRows, getMonthMovement, getMonthEndRows, actionableTicketCount,
   activeBorrows, overdueBorrows, reportableTransactions,
 } from '../src/lib/stockMovement';
-import { todayStr } from '../src/lib/utils';
+import { todayStr, vientianeDay } from '../src/lib/utils';
 
 let pass = 0, fail = 0;
 const check = (name: string, cond: boolean) => {
@@ -1127,6 +1127,145 @@ console.log('\n── 17) Month End (Finance): Opening(M) = Closing(M−1), repo
   }
   check(`chain: Opening(M) = Closing(M−1) for every item, ${ppm} -> ${nm} (${breaks} breaks)`, breaks === 0);
   check('no ledger variance anywhere this month', allMktRows(cm).every((r) => Math.abs(r.variance) < 1e-6));
+}
+
+// ══════════════════════════════════════════════════════════════════════
+console.log('\n── 18) Admin full ticket edit — any field, any status, any month (0028)');
+{
+  const ym = (offset: number) => {
+    const d = new Date(new Date().getFullYear(), new Date().getMonth() + offset, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  };
+  const cm = ym(0), pm = ym(-1), ppm = ym(-2);
+  const today = todayStr();
+  const rowOf = (m: string, id: string) => getMonthEndRows({
+    month: m, scope: 'mkt', skus: demoDB.skus, transactions: demoDB.transactions,
+    csSkus: [], csTransactions: [], tickets: demoTicketsWithItems(), includeEmpty: true,
+  }).find((r) => r.sku.id === id);
+  const bornOn = (name: string, opening: number, day: string) => {
+    const id = addSku({ name, category: 'MKT', openingBalance: opening });
+    (demoDB.skus.find((s) => s.id === id) as any).createdAt = day;
+    (demoDB.transactions.find((tx) => tx.ticketId === 'OPENING' && tx.skuId === id) as any).date = day;
+    return id;
+  };
+  const ticketOf = (id: string) => demoTicketsWithItems().find((t) => t.id === id)!;
+  const mk = (skuId: string, name: string, qty: number, deliveryDate: string, type: 'request' | 'borrow' = 'request') =>
+    demoCreateTicket({
+      createdBy: staff.email, createdByName: staff.fullName, department: 'MKT', type,
+      deliveryDate: deliveryDate > today ? deliveryDate : today,
+      returnDate: type === 'borrow' ? today : null,
+      items: [{ skuId, skuName: name, qtyRequested: qty, unit: 'pcs' }],
+    });
+  /** A ticket delivered on `day` (planted: the lock forbids creating it there now). */
+  const pastTicket = (skuId: string, name: string, qty: number, day: string, type: 'request' | 'borrow' = 'request') => {
+    const id = mk(skuId, name, qty, today, type);
+    (demoDB.tickets.find((x) => x.id === id) as any).deliveryDate = day;
+    for (const tx of demoDB.transactions) if (tx.ticketId === id) tx.date = day;
+    return id;
+  };
+  const edit = (id: string, fields: Record<string, { from: string | null; to: string | null }>,
+                lines: { skuId: string; qty: number; expectedQty: number | null }[] | null,
+                confirm = true, who = adm) =>
+    demoAdminEditTicket(id, fields as any, lines, 'admin correction test', confirm, who.fullName, who.role);
+  const live = (id: string, skuId: string) => demoDB.transactions.filter(
+    (tx) => tx.ticketId === id && tx.skuId === skuId && !/cancel/i.test(String(tx.status)));
+
+  // (a) move the delivery date of a REPORTED ticket into this month
+  const x = bornOn('WF Admin X', 50, `${ppm}-05`);
+  const tX = pastTicket(x, 'WF Admin X', 10, `${pm}-20`);
+  finalize(tX);
+  check(`(a) setup: ${pm} Stock Out 10`, rowOf(pm, x)?.stockOutQty === 10);
+  const stockX = skuStock(x);
+  const ask = edit(tX, { delivery_date: { from: `${pm}-20`, to: `${cm}-01` } }, null, false);
+  check('(a) reported month → needs confirm, with a reported_month warning',
+    !ask.ok && ask.warnings.some((w) => w.kind === 'reported_month' && (w.months || []).includes(pm)));
+  check('(a) needs-confirm saved NOTHING', ticketOf(tX).deliveryDate === `${pm}-20`
+    && live(tX, x).every((tx) => tx.date === `${pm}-20`) && !demoDB.ticketEdits.some((e) => e.ticketId === tX));
+  const ok = edit(tX, { delivery_date: { from: `${pm}-20`, to: `${cm}-01` } }, null, true);
+  check('(a) confirmed → saved with flag reported_month_changed', ok.ok && ok.flags.includes('reported_month_changed'));
+  check('(a) every stock row moved to the new delivery date', live(tX, x).every((tx) => tx.date === `${cm}-01`));
+  check(`(a) Month End: ${pm} Stock Out 0, ${cm} Stock Out 10`, rowOf(pm, x)?.stockOutQty === 0 && rowOf(cm, x)?.stockOutQty === 10);
+  check('(a) chain still holds', rowOf(cm, x)?.openingQty === rowOf(pm, x)?.closingQty);
+  check('(a) current stock unchanged by a date move', skuStock(x) === stockX);
+  const ed = demoDB.ticketEdits.find((e) => e.ticketId === tX)!;
+  check('(a) edit history records the field change',
+    !!ed && ed.fieldChanges?.some((c) => c.field === 'delivery_date' && c.from === `${pm}-20` && c.to === `${cm}-01`) === true);
+  check('(a) Approval Trail has an Edited row', demoDB.actions.some((a) => a.ticketId === tX && a.action === 'Edited'));
+  check('(a) Audit Trail row with flag + reason', demoDB.audit.some((a) => a.refTicket === tX && a.action === 'admin_edit'
+    && (a.flags || []).includes('reported_month_changed') && /admin correction test/.test(String(a.comment))));
+
+  // (b) guards
+  check('(b) non-admin refused', throws(() => edit(tX, { remark: { from: null, to: 'x' } }, null, true, wh), /only an admin/i));
+  check('(b) stale "from" refused', throws(() => edit(tX, { delivery_date: { from: `${pm}-20`, to: `${cm}-02` } }, null), /changed by someone else/i));
+  check('(b) nothing changed refused', throws(() => edit(tX, { delivery_date: { from: `${cm}-01`, to: `${cm}-01` } }, null), /nothing changed/i));
+  check('(b) "returned" only for borrow', throws(() => edit(tX, { status: { from: 'finalized', to: 'returned' } }, null), /only a borrow/i));
+
+  // (c) status: finalized → rejected → finalized, stock follows
+  const s0 = skuStock(x);
+  edit(tX, { status: { from: 'finalized', to: 'rejected' } }, null);
+  check('(c) → rejected: stock back (+10), rows cancelled', skuStock(x) === s0 + 10 && live(tX, x).length === 0);
+  edit(tX, { status: { from: 'rejected', to: 'finalized' } }, null);
+  check('(c) → finalized again: stock out again (−10)', skuStock(x) === s0
+    && live(tX, x).reduce((s, tx) => s + (tx.type === 'deduction' ? tx.qty : -tx.qty), 0) === 10);
+
+  // (d) a PENDING ticket: qty change keeps ONE Booked row, the workflow carries on
+  const p = addSku({ name: 'WF Admin P', openingBalance: 40 });
+  const tP = mk(p, 'WF Admin P', 5, today);
+  edit(tP, {}, [{ skuId: p, qty: 7, expectedQty: 5 }]);
+  const booked = live(tP, p);
+  check('(d) pending edit: one Booked row of 7, stock 33', booked.length === 1 && booked[0].status === 'Booked' && booked[0].qty === 7 && skuStock(p) === 33);
+  finalize(tP);
+  check('(d) workflow finalizes normally: one Deducted row of 7, stock still 33',
+    live(tP, p).length === 1 && live(tP, p)[0].status === 'Deducted' && live(tP, p)[0].qty === 7 && skuStock(p) === 33);
+
+  // (e) type: request ↔ cs_transfer moves the CS receipt
+  const c = addSku({ name: 'WF Admin C', openingBalance: 20 });
+  const tC = mk(c, 'WF Admin C', 4, today);
+  finalize(tC);
+  const csBefore = csStock(c);
+  edit(tC, { type: { from: 'request', to: 'cs_transfer' } }, null);
+  check('(e) → cs_transfer: CS receives 4', csStock(c) === csBefore + 4 && skuStock(c) === 16);
+  edit(tC, { type: { from: 'cs_transfer', to: 'request' } }, null);
+  check('(e) → request: CS receipt taken back', csStock(c) === csBefore && skuStock(c) === 16);
+
+  // (f) borrow: finalized → returned → finalized
+  const b = addSku({ name: 'WF Admin B', openingBalance: 15 });
+  const tB = mk(b, 'WF Admin B', 6, today, 'borrow');
+  finalize(tB);
+  edit(tB, { status: { from: 'finalized', to: 'returned' } }, null);
+  check('(f) forced returned: items back today', skuStock(b) === 15
+    && demoDB.transactions.some((tx) => tx.ticketId === tB && tx.status === 'Returned' && tx.qty === 6 && tx.date === today));
+  edit(tB, { status: { from: 'returned', to: 'finalized' } }, null);
+  check('(f) back to finalized: return cancelled, out again', skuStock(b) === 9
+    && !demoDB.transactions.some((tx) => tx.ticketId === tB && tx.status === 'Returned'));
+
+  // (g) a date that makes an earlier day negative → warning, then override
+  const y = bornOn('WF Admin Y', 10, `${pm}-15`);
+  const tY = mk(y, 'WF Admin Y', 10, today);
+  finalize(tY);
+  const askY = edit(tY, { delivery_date: { from: ticketOf(tY).deliveryDate || null, to: `${pm}-10` } }, null, false);
+  check('(g) negative day balance → warning', !askY.ok && askY.warnings.some((w) => w.kind === 'negative' && w.item === 'WF Admin Y'));
+  const okY = edit(tY, { delivery_date: { from: ticketOf(tY).deliveryDate || null, to: `${pm}-10` } }, null, true);
+  check('(g) confirmed → flag negative_balance_override', okY.ok && okY.flags.includes('negative_balance_override'));
+
+  // (h) stock below zero TODAY is refused, nothing half-applied
+  const z = addSku({ name: 'WF Admin Z', openingBalance: 3 });
+  const tZ = mk(z, 'WF Admin Z', 1, today);
+  finalize(tZ);
+  const editsBefore = demoDB.ticketEdits.length;
+  check('(h) over-issue refused', throws(() => edit(tZ, {}, [{ skuId: z, qty: 10, expectedQty: 1 }]), /not enough MKT stock/i));
+  check('(h) refused edit left nothing behind', skuStock(z) === 2 && demoDB.ticketEdits.length === editsBefore
+    && ticketOf(tZ).items[0].qtyApproved === 1);
+
+  // (i) header fields: created date, requester, delivered-on
+  const createdFrom = vientianeDay(ticketOf(tZ).createdAt);
+  edit(tZ, {
+    created_at: { from: createdFrom, to: `${cm}-01` },
+    created_by_name: { from: staff.fullName, to: 'Someone Else' },
+    actual_delivery_date: { from: ticketOf(tZ).actualDeliveryDate || null, to: today },
+  }, null);
+  check('(i) created date / requester / delivered-on saved', vientianeDay(ticketOf(tZ).createdAt) === `${cm}-01`
+    && ticketOf(tZ).createdByName === 'Someone Else' && ticketOf(tZ).actualDeliveryDate === today);
 }
 
 console.log(`\n${pass} passed, ${fail} failed`);

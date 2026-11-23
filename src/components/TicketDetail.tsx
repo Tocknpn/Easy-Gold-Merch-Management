@@ -200,6 +200,14 @@ export function TicketDetail({ ticket, skus, actions = [], edits = [] }: {
                   <span className="font-semibold text-slate-700">Remark:</span> {e.remark}
                 </p>
                 <ul className="mt-1.5 space-y-0.5">
+                  {(e.fieldChanges || []).map((c) => (
+                    <li key={c.field} className="flex flex-wrap items-baseline gap-x-2 text-xs">
+                      <span className="font-medium capitalize text-slate-700">{c.label}</span>
+                      <span className="break-words tabular-nums text-slate-500">
+                        {c.from || '—'} → <b className="font-semibold text-slate-700">{c.to || '—'}</b>
+                      </span>
+                    </li>
+                  ))}
                   {e.changes.map((c) => (
                     <li key={c.skuId} className="flex flex-wrap items-baseline gap-x-2 text-xs">
                       <span className="font-medium text-slate-700">{c.skuName}</span>

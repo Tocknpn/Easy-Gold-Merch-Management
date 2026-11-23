@@ -24,6 +24,12 @@ export function ticketEditWindowStart(today: string = todayStr()): string {
   return `${py}-${String(pm).padStart(2, '0')}-01`;
 }
 
+/** 0028: an Admin is not bound by the reported-month lock (the database lets
+ *  Admin + the Supabase dashboard write into any month, and audits it). */
+export function isLockExempt(role?: string | null): boolean {
+  return String(role || '').trim().toLowerCase() === 'admin';
+}
+
 /** Is this ledger date inside an already-reported month? */
 export function isLockedDate(date?: string | null, today: string = todayStr()): boolean {
   const d = String(date || '').slice(0, 10);

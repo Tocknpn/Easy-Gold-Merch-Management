@@ -31,6 +31,32 @@ const PERIODS: { label: string; days: number | 'all' }[] = [
   { label: 'All', days: 'all' },
 ];
 
+// 0028 flags: an edit that changed a month already reported to Finance, or
+// that the Admin saved although a day's balance went below zero.
+const FLAG_LABELS: Record<string, { text: string; cls: string }> = {
+  reported_month_changed: { text: 'Reported month changed', cls: 'bg-rose-50 text-rose-700 ring-rose-600/20' },
+  negative_balance_override: { text: 'Negative balance override', cls: 'bg-orange-50 text-orange-700 ring-orange-600/20' },
+};
+
+function AuditFlags({ e }: { e: AuditEntry }) {
+  const flags = (e.flags || []).filter((f) => FLAG_LABELS[f]);
+  if (!flags.length && e.origin !== 'dashboard') return null;
+  return (
+    <span className="mt-1 flex flex-wrap gap-1">
+      {e.origin === 'dashboard' && (
+        <span className="rounded-full bg-violet-50 px-2 py-0.5 text-[10px] font-bold text-violet-700 ring-1 ring-violet-600/20">
+          Supabase dashboard
+        </span>
+      )}
+      {flags.map((f) => (
+        <span key={f} className={cn('rounded-full px-2 py-0.5 text-[10px] font-bold ring-1', FLAG_LABELS[f].cls)}>
+          {FLAG_LABELS[f].text}
+        </span>
+      ))}
+    </span>
+  );
+}
+
 const MODULE_STYLE: Record<string, string> = {
   ticket: 'bg-brand-50 text-brand-700 ring-brand-600/20',
   ledger: 'bg-cyan-50 text-cyan-700 ring-cyan-600/20',
@@ -48,6 +74,7 @@ function actionVisual(action: string): { Icon: typeof Plus; cls: string; label: 
   if (a === 'create' || a === 'created') return v(Plus, 'bg-emerald-50 text-emerald-600 ring-emerald-100', 'Created');
   if (a === 'update' || a === 'updated') return v(PencilLine, 'bg-sky-50 text-sky-600 ring-sky-100', 'Edited');
   if (a === 'correct') return v(Wrench, 'bg-amber-50 text-amber-600 ring-amber-100', 'Corrected');
+  if (a === 'admin_edit' || a === 'dashboard_edit') return v(Wrench, 'bg-amber-50 text-amber-600 ring-amber-100', 'Admin edit');
   if (a === 'delete' || a === 'deleted') return v(Trash2, 'bg-rose-50 text-rose-600 ring-rose-100', 'Deleted');
   if (a === 'restock') return v(PackagePlus, 'bg-emerald-50 text-emerald-600 ring-emerald-100', 'Restocked');
   if (a === 'destock') return v(PackageMinus, 'bg-rose-50 text-rose-600 ring-rose-100', 'Destock');
@@ -507,6 +534,7 @@ function TableRowList({
                     </td>
                     <td className={`${td} max-w-[320px]`}>
                       <p className="text-[13px] text-slate-700">{e.summary}</p>
+                      <AuditFlags e={e} />
                       {e.refTicket && <p className="font-mono text-[10px] text-slate-400">{e.refTicket}</p>}
                     </td>
                     <td className={`${td} max-w-[200px]`}>
@@ -583,6 +611,7 @@ function TimelineRow({
             )}
           </span>
           <span className="mt-0.5 block text-[13px] text-slate-700">{e.summary}</span>
+          <AuditFlags e={e} />
           {e.comment && (
             <span className="mt-1 block line-clamp-2 break-words text-[11px] italic text-slate-500" title={e.comment}>
               “{e.comment}”
@@ -610,7 +639,7 @@ function AuditDetail({ e, onOpenTicket }: { e: AuditEntry; onOpenTicket: () => v
           <Field label="Source row" value={[e.entity, e.entityId].filter(Boolean).join(' · ') || '—'} />
           <Field label="Item / target" value={e.entityName || '—'} />
           {e.warehouse && <Field label="Warehouse" value={e.warehouse} />}
-          <Field label="Logged" value={e.origin === 'import' ? 'imported history' : 'automatically by the app'} />
+          <Field label="Logged" value={e.origin === 'import' ? 'imported history' : e.origin === 'dashboard' ? 'Supabase dashboard (Table / SQL Editor)' : 'automatically by the app'} />
         </dl>
 
         <div className="space-y-3">

@@ -6,6 +6,7 @@ import { todayStr } from './utils';
 import { minBalanceFrom } from './demoData';
 import { demoCancelBooking, demoSetTicketRowQty, ledgerInsertDate } from './demoLedgerLock';
 import { ticketEditWindowStart } from './ledgerLock';
+export { demoAdminEditTicket } from './demoAdminEdit';
 
 /** Ledger date of a ticket's movements = its delivery date, else its created
  *  day (mirrors ticket_ledger_date in migration 0026). */

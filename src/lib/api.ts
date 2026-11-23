@@ -8,7 +8,8 @@ import * as demoAudit from './demoAudit';
 import type {
   AppUser, SKU, CS_SKU, Ticket, TicketWithItems, StockTransaction, CS_Transaction,
   TicketAction, SkuRemark, TicketStatus, TicketType, SystemConfig, AuditEntry,
-  TicketEdit, TicketEditChange, TicketEditLine,
+  TicketEdit, TicketEditChange, TicketEditLine, TicketFieldChange, TicketFieldPatch,
+  AdminEditResult, AdminEditWarning,
 } from './types';
 import { castNumber } from './types';
 import { shiftDay } from './utils';
@@ -188,6 +189,9 @@ const mapTicketEdit = (r: any): TicketEdit => ({
     from: castNumber(c.from), to: castNumber(c.to), delta: castNumber(c.delta),
     action: c.action,
   })),
+  fieldChanges: (Array.isArray(r.field_changes) ? r.field_changes : []).map((c: any): TicketFieldChange => ({
+    field: c.field, label: c.label || c.field, from: c.from ?? null, to: c.to ?? null,
+  })),
 });
 
 const rowToSku = (r: any): SKU => ({
@@ -210,10 +214,6 @@ const mapTx = (rows: any[]): StockTransaction[] =>
 // to an Admin, so a non-admin session gets an empty list (never an error).
 // Fetched on demand (not part of the shared data bundle) so the bundle stays
 // small for everyone else.
-const AUDIT_COLUMNS =
-  'id,at,actor_id,actor_name,actor_email,actor_role,module,action,entity,entity_id,entity_name,' +
-  'warehouse,ref_ticket,amount,summary,comment,changes,origin';
-
 const mapAudit = (r: any): AuditEntry => ({
   id: Number(r.id),
   at: r.at,
@@ -233,6 +233,7 @@ const mapAudit = (r: any): AuditEntry => ({
   comment: r.comment ?? null,
   changes: Array.isArray(r.changes) ? r.changes : [],
   origin: r.origin ?? null,
+  flags: Array.isArray(r.flags) ? r.flags : [],
 });
 
 export async function apiFetchAudit(
@@ -243,7 +244,8 @@ export async function apiFetchAudit(
 
   let q = supabase!
     .from('audit_log')
-    .select(AUDIT_COLUMNS)
+    // `*`, not a column list: `flags` only exists once 0028 is applied
+    .select('*')
     .order('at', { ascending: false })
     .limit(limit);
   // The date range is padded by one day so no row can fall outside a
@@ -345,6 +347,42 @@ export async function apiEditTicket(
   if (!res?.success) throw new Error(res?.error || 'Edit failed');
   return { editId: Number(res.edit_id) };
 }
+// ── Admin full ticket edit (migration 0028) ──────────────────────────────
+// Any status, any month: header fields (dates, people, type, status) and/or
+// items in one save. Without `confirm`, a save that would change a month
+// already reported to Finance or push a day's balance below zero saves
+// NOTHING and returns the warnings; the Admin then confirms.
+export async function apiAdminEditTicket(
+  ticketId: string,
+  fields: TicketFieldPatch,
+  lines: TicketEditLine[] | null,
+  remark: string,
+  confirm: boolean,
+  editor?: { name?: string | null; role?: string | null },
+): Promise<AdminEditResult> {
+  if (!isLive()) {
+    return demoWrite.demoAdminEditTicket(ticketId, fields, lines, remark, confirm, editor?.name || '', editor?.role || '');
+  }
+  const { data, error } = await supabase!.rpc('admin_edit_ticket', {
+    p_ticket_id: ticketId,
+    p_fields: fields,
+    p_items: lines ? lines.map((l) => ({ sku_id: l.skuId, qty: l.qty, expected_qty: l.expectedQty })) : null,
+    p_remark: remark,
+    p_confirm: confirm,
+  });
+  if (error) {
+    if (/admin_edit_ticket/.test(error.message) && /(not find|does not exist)/i.test(error.message)) {
+      throw new Error('Full ticket edit is not installed on the database yet — apply migration 0028_admin_full_ticket_edit.sql');
+    }
+    throw new Error(error.message);
+  }
+  const res = data as any;
+  const warnings: AdminEditWarning[] = Array.isArray(res?.warnings) ? res.warnings : [];
+  if (res?.needs_confirm) return { ok: false, needsConfirm: true, warnings };
+  if (!res?.success) throw new Error(res?.error || 'Edit failed');
+  return { ok: true, editId: Number(res.edit_id), warnings, flags: Array.isArray(res.flags) ? res.flags : [] };
+}
+
 // ── re-exports of the mutation API (single import point for callers) ────
 export {
   apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku, apiEditStockMovement,

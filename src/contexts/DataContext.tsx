@@ -7,7 +7,7 @@ import type {
   TicketEdit, TicketEditLine,
 } from '@/lib/types';
 import {
-  apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus, apiEditTicket,
+  apiFetchBundle, apiCreateTicket, apiUpdateTicketStatus, apiEditTicket, apiAdminEditTicket,
   apiAddSku, apiUpdateSku, apiDeleteSku, apiRestockSku, apiEditStockMovement,
   apiCsAddSku, apiCsUpdateSku, apiCsDeleteSku, apiCsRestockSku, apiCsDestockSku,
   apiMktDestockSku, apiTransferMktToCs,
@@ -58,6 +58,8 @@ interface DataCtx {
     ticketId: string, lines: TicketEditLine[], remark: string,
     editor?: { name?: string | null; role?: string | null },
   ) => Promise<{ editId: number }>;
+  /** Admin (0028): edit any field / item of a ticket in any status or month. */
+  adminEditTicket: typeof apiAdminEditTicket;
   addSku: typeof apiAddSku;
   updateSku: typeof apiUpdateSku;
   deleteSku: typeof apiDeleteSku;
@@ -131,6 +133,8 @@ export function DataProvider({ children, role }: { children: ReactNode; role?: s
         run(apiUpdateTicketStatus(id, status, meta)),
       editTicket: (id: string, lines: TicketEditLine[], remark: string, editor?: { name?: string | null; role?: string | null }) =>
         run(apiEditTicket(id, lines, remark, editor)),
+      // a needs-confirm answer saved nothing → no refresh needed, but harmless
+      adminEditTicket: (...a: Parameters<typeof apiAdminEditTicket>) => run(apiAdminEditTicket(...a)),
       addSku: (sku: Partial<SKU>) => run(apiAddSku(sku)),
       updateSku: (id: string, u: Partial<SKU>) => run(apiUpdateSku(id, u)),
       deleteSku: (id: string) => run(apiDeleteSku(id)),
