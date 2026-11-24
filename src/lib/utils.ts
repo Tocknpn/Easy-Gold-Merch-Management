@@ -48,7 +48,9 @@ export function shiftDay(dayStr: string, days: number): string {
 export function safeImageUrl(url?: string | null): string {
   if (!url) return '';
   const m = url.match(/[?&]id=([A-Za-z0-9_-]+)/);
-  if (m) return `https://drive.google.com/uc?id=${m[1]}`;
+  // Google no longer serves `drive.google.com/uc?id=` as an embeddable image
+  // (renders as a broken icon); the thumbnail endpoint still does.
+  if (m) return `https://drive.google.com/thumbnail?id=${m[1]}&sz=w400`;
   return url;
 }
 
