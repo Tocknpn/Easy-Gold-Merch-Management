@@ -326,7 +326,6 @@ export function DashboardPage() {
                         <span className="font-medium text-slate-800">{sku.name}</span>
                         <SkuBadges sku={sku} wh={wh} scope={scope} csSkus={csSkus} />
                       </div>
-                      {createdLabel(sku) && <p className="text-[11px] text-slate-400">{createdLabel(sku)}</p>}
                     </td>
                     <td className="py-2.5 pr-2 text-slate-500">{sku.category || '—'}</td>
                     <td className="py-2.5 pr-2 text-right text-slate-600">{fmt(sku.openingBalance)} {sku.unit}</td>
